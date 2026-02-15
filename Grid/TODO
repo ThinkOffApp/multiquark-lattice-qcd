@@ -1,0 +1,539 @@
+i)    Refine subspace with HDCG & recompute
+ii)   Block Lanczos in coarse space
+iii)  Batched block project in the operator computation
+
+-------
+
+i) Clean up CoarsenedMatrix, GeneralCoarsenedMatrix, GeneralCoarsenedMatrixMultiRHS
+
+ -- Ideally want a SINGLE implementation that does MultiRHS **AND** works with one RHS.
+
+ -- -- Getting there. One RHS is hard due to vectorisation & hardwired coarse5d layout
+ -- Compromise: Wrap it in a copy in/out for a slice.
+ 
+ -- Bad for Lanczos: need to do a BLOCK Lanczos instead. Longer term.
+
+ -- **** Make the test do ONLY the single RHS. ****
+ -- I/O for the matrix elements required.
+ -- Make the Adef2 build an eigenvector deflater and a block projector
+ -- 
+ 
+ -- Work with Regensburg on tests.
+ -- Plan interface preserving the coarsened matrix interface (??)
+
+-- Move functionality from GeneralCoarsenedMatrix INTO GeneralCoarsenedMatrixMultiRHS -- DONE
+   -- Don't immediately delete original
+   -- Instead make the new one self contained, then delete.
+   -- New DWF inverter test.
+
+  // void PopulateAdag(void)
+  void CoarsenOperator(LinearOperatorBase<Lattice<Fobj> > &linop, Aggregation<Fobj,CComplex,nbasis> & Subspace) -- DONE
+  ExchangeCoarseLinks();
+
+iii) Aurora -- christoph's problem -- DONE
+     Aurora -- Carleton's problem staggered.
+
+iv) Dennis merge and test Aurora -- DONE (save test)
+
+v) Merge Ed Bennet's request --DONE 
+
+vi) Repro CG  -- get down to the level of single node testing via split grid test 
+
+
+=========================
+
+===============
+- - Slice sum optimisation & A2A - atomic addition -- Dennis
+- - Also faster non-atomic reduction
+- - DDHMC
+  - - MixedPrec is the action eval, high precision
+  - - MixedPrecCleanup is the force eval, low precision
+
+=================
+=================
+Lattice_basis.h -- > HIP and SYCL GPU code
+
+
+======
+DDHMC
+======
+-- Reliable Update CG - DONE
+-- Multishift Mixed Precision - DONE
+-- Pole dependent residual  - DONE
+
+=======
+-- comms threads issue??
+-- Part done: Staggered kernel performance on GPU
+
+=========================================================
+General
+=========================================================
+
+- Make representations code take Gimpl
+- Simplify the HMCand remove modules
+- Lattice_arith - are the mult, mac etc.. still needed after ET engine?
+- Lattice_rng - faster local only loop in init -- DDHMC
+- Audit: accelerate A2Autils -- off critical path for HMC
+
+=========================================================
+GPU  work list
+=========================================================
+
+* sum_cpu promote to double during summation for increased precision.
+* Introduce sumD & ReduceD 
+* GPU sum is probably better currently.
+* Accelerate the cshift & benchmark
+
+* 3) Comms/NVlink
+- OpenMP tasks to run comms threads. Experiment with it 
+- Remove explicit openMP in staggered. 
+- Single parallel region around both the Kernel call and the comms.
+- Fix the halo exchange SIMT loop
+- Stencil gather ??
+- SIMD dirs in stencil
+
+8) Merge develop and test HMC
+
+9) Gamma tables on GPU; check this. Appear to work, but no idea why. Are these done on CPU?
+
+10) Audit
+-     pragma once uniformly
+-     Audit NAMESPACE CHANGES
+-     Audit changes
+
+---------
+Gianluca's changes
+- Performance impact of construct in aligned allocator???
+---------
+
+- merge2 where is it used. Audit routines, comment out and check compile.
+
+-----------------------------
+DONE:
+-----------------------------
+=====
+-- Done: Remez X^-1/2 X^-1/2 X = 1 test.
+         Feed in MdagM^2 as a test and take its sqrt.
+         Automated test that MdagM invsqrt(MdagM)invsqrt(MdagM) = 1 in HMC for bounds satisfaction.
+
+-- Done: Sycl Kernels into develop. Compare to existing unroll and just use.
+-- Done: sRNG into refresh functions
+-- Done: Tuned decomposition on CUDA into develop
+-- Done: Sycl friend accessor. Const view attempt via typedef??
+
+
+* Done 5) Misc
+- Conserved current clean up.
+- multLinkProp eliminate
+
+* Done 0) Single GPU
+- 128 bit integer table load in GPU code.
+  - ImprovedStaggered accelerate & measure perf
+  - Gianluca's changes to Cayley into gpu-port
+  - Mobius kernel fusion.                     -- Gianluca?
+  - Lebesque order reintroduction. StencilView should have pointer to it
+  - Lebesgue reorder in all kernels
+
+* 4) ET enhancements
+- Done eval -> scalar ops in ET engine
+- Done coalescedRead, coalescedWrite in expressions.
+
+=============================================================================================
+AUDIT ContractWWVV with respect to develop    -- DONE
+- GPU accelerate EOFA                                                  -- DONE
+- LinalgUtils  ssp loop not offloaded                                  -- DONE
+- coalescedRead <- threadIdx.x                                         -- DONE
+- Stencil.h : Thread loops in exchange code. Need to offload these     -- DONE ; pending debug
+- Mobius/Domain EOFA cache header implementaiotn has thread_loop       -- DONE ; pending test
+- Differentiate non-temporal coalescedWrite from temporal              -- DONE
+
+- Clean up PRAGMAS, and SIMT_loop                                      -- DONE
+  thread_loop interface revisit.
+  _foreach
+  _for
+
+- Staggered kernels -> GPU coalesced loop, loop in kernels -- DONE
+- Staggered kernels inline for GPU -- DONE
+
+-- Common source GPU and CPU generic kernels???                  ---- DONE
+--   - Uniform coding between GPU kernels and CPU kernels attempt  ---- DONE, got faster !
+
+-- Figure what to do about "multLinkGpu" etc.. in FermionOperatorImpl. -- DONE
+-- Gparity is the awkward one                                          -- DONE
+-- Solve non-Gparity first.                                            -- DONE
+-- Simplify the operator IMPL support                                  -- DONE
+-- 
+--
+-- Investigate why slower than september     --- DONE
+--
+-- Single GPU simd target (VGPU) --- DONE
+--
+-- Reread WilsonKernels and check diffs -- DONE
+--
+
+- AVX512 still broken, lebesgue order missing ?
+
+* Gianluca merger
+  - Cayley coefficients -> GPU retention or prefetch
+  - Make GPU offload reductions deterministic -- Gianluca merge
+  - Lattice_reduction - remnant thread_loops must offload. Audit thread_loop in main code for non-accelerated code  
+  - Inner product compare to Summit inner product optimisation
+  - CayleyFermion5D.cc - flop count line 166 odd. Shouldn't depend on arch
+  -                    - Review Vector use
+  - CayleyFermion5D.h  - DperpGPU unify coding style
+
+- Committed my modifications
+- Accelerate non-dslash elements of Mobius; check accelerator_loop uniformly used in fermion operators
+   - Merged Gianluca modifications
+- Verify HMC one flavour ratio
+- GPU offload reductions: using thrust::reduce?
+- Deprecate JSON.
+- pugixml difficult.
+- Eigen problematic.
+- Audit HMC timestep / traj length size
+- GPU offload reductions; thrust initial ; inclusive_scan vs reduce?
+- Pragmas.h - prune and remove strong_inline (?)
+- GPU offload reductions; thrust initial ; inclusive_scan vs reduce?
+- Remove old parallel_for macros, fix errors
+- - Need (1) omp parallel for     <-- thread_loop
+- -      (2) omp for
+- -      (3) omp for collapse(n)
+- -      (4) omp parallel for collapse(n)
+- - Only (1) has a natural mirror in accelerator_loop
+- - Nested loop macros get cumbersome made a generic interface for N deep
+
+
+-----------------------------
+Physics item work list:
+-----------------------------
+
+2)- Consistent linear solver flop count/rate -- PARTIAL, time but no flop/s yet
+4)- Multigrid Wilson and DWF, compare to other Multigrid implementations
+5)- HDCR resume
+
+-----------------------------
+
+
+Nov 2018
+
+1)- BG/Q port and check ; Andrew says ok.
+3)- Physical propagator interface  -- DONE
+
+DONE
+a) namespaces & indentation
+ GRID_BEGIN_NAMESPACE();
+ GRID_END_NAMESPACE();
+-- delete QCD namespace
+
+b) GPU branch
+- start branch
+- Increase Macro use in core library support; prepare for change
+- Audit volume of "device" code
+- Virtual function audit
+- Start port once Nvidia box is up
+- Cut down volume of code for first port? How?
+
+----------------------------
+Recent DONE 
+-- RNG I/O in ILDG/SciDAC (minor) 
+-- Precision conversion and sort out localConvert      <-- partial/easy
+-- Conserved currents (Andrew)
+-- Split grid
+-- Christoph's local basis expansion Lanczos
+-- MultiRHS with spread out extra dim -- Go through filesystem with SciDAC I/O ; <-- DONE ; bmark cori
+-- Lanczos Remove DenseVector, DenseMatrix; Use Eigen instead. <-- DONE
+-- GaugeFix into central location                      <-- DONE
+-- Scidac and Ildg metadata handling                   <-- DONE
+-- Binary I/O MPI2 IO                                  <-- DONE
+-- Binary I/O speed up & x-strips                      <-- DONE
+-- Cut down the exterior overhead                      <-- DONE
+-- Interior legs from SHM comms                        <-- DONE
+-- Half-precision comms                                <-- DONE
+-- Merge high precision reduction into develop         <-- DONE
+-- BlockCG, BCGrQ                                      <-- DONE
+-- multiRHS DWF; benchmark on Cori/BNL for comms elimination <-- DONE
+   -- slice* linalg routines for multiRHS, BlockCG    
+
+-----
+* Forces; the UdSdU  term in gauge force term is half of what I think it should
+  be. This is a consequence of taking ONLY the first term in:
+
+  dSg/dt = dU/dt dSdU + dUdag/dt dSdUdag
+
+  in the fermion force.
+
+  Now, S_mom = - tr Pmu Pmu      ; Pmu anti-herm
+
+                                  .
+       d Smom/dt = - 2.0 tr Pmu Pmu   = - dSg/dt = - tr Pmu [Umu dSdUmu + UmuDag dSdUmuDag]
+
+           .
+       => Pmu =  Umu dSdUmu
+
+       Where the norm is half expected.
+
+  This means we must double the force in the Test_xxx_force routines, and is the origin of the factor of two.
+  This 2x is applied by hand in the fermion routines and in the Test_rect_force routine.
+
+* Support different boundary conditions (finite temp, chem. potential ... )
+
+- Sign of force term.
+
+- Reversibility test.
+
+- Rename "Ta" as too unclear
+
+- Lanczos
+
+- Audit oIndex usage for cb behaviour
+
+- Prepare multigrid for HMC. - Alternate setup schemes.
+
+- Support for ILDG --- ugly, not done
+
+- Flavour matrices?
+
+- FFTnD ?
+
+- Gparity; hand opt use template specialisation elegance to enable the optimised paths ?
+
+- Gparity force term; Gparity (R)HMC.
+
+- Mobius implementation clean up to rmove #if 0 stale code sequences
+
+- CG -- profile carefully, kernel fusion, whole CG performance measurements.
+
+================================================================
+* Hacks and bug fixes to clean up and Audits
+================================================================
+
+*  Extract/merge/set cleanup ; too many variants; rationalise and call simpler ones
+
+*  Rewrite core tensor arithmetic support to be more systematic
+ =  Use #define repetitive sequences to minimise code, decrease line count by thousands possible,
+    with more robust and maintainable implementation.
+
+*  Ensure we ET as much as possible; move unop functions into ET framework.
+   - tests with expression args to all functions
+
+* FIXME audit
+
+* const audit
+
+Insert/Extract
+* Replace vset with a call to merge.; 
+* care in Gmerge,Gextract over vset .
+* extract / merge extra implementation removal      
+* Optimise the extract/merge SIMD routines; Azusa??
+ - I have collated into single location at least.
+ - Need to use _mm_*insert/extract routines.
+
+* Thread scaling tests Xeon, XeonPhi
+
+Not sure of status of this -- reverify. Things are working nicely now though.
+
+* Make the Tensor types and Complex etc... play more nicely.
+
+  - TensorRemove is a hack, come up with a long term rationalised approach to Complex vs. Scalar<Scalar<Scalar<Complex > > >
+    QDP forces use of "toDouble" to get back to non tensor scalar. This role is presently taken TensorRemove, but I
+    want to introduce a syntax that does not require this.
+
+  - Reductions that contract indices on a site should always demote the tensor structure.
+    norm2(), innerProduct.
+
+  - Result of Sum(), SliceSum // spatial sums
+              trace, traceIndex etc.. do not.
+
+  - problem arises because "trace" returns Lattice<TComplex> moving everything down to Scalar,
+    and then Sum and SliceSum to not remove the Scalars. This would be fixed if we 
+    template specialize the scalar scalar scalar sum and SliceSum,  on the basis of being
+    pure scalar.
+
+======================================================================
+======================================================================
+======================================================================
+======================================================================
+RECENT
+---------------
+
+  - Support different fermion representations? -- DONE
+  - contained entirely within the integrator presently
+  - Clean up HMC                                                             -- DONE
+  - LorentzScalar<GaugeField> gets Gauge link type (cleaner).                -- DONE
+  - Simplified the integrators a bit.                                        -- DONE
+  - Multi-timescale looks broken and operating on single timescale for now.  -- DONE
+  - pass GaugeField as template param.                        -- DONE
+  - Reunitarise                                               -- DONE
+  - Force Gradient                                            -- DONE
+  - Prefer "RefreshInternal" or such like to "init" in naming -- DONE
+  - Parallel io improvements                                  -- DONE
+  - Plaquette and link trace checks into nersc reader from the Grid_nersc_io.cc test. -- DONE
+
+
+DONE:
+
+
+- MultiArray -- MultiRHS done
+- ConjugateGradientMultiShift -- DONE
+- MCR                         -- DONE
+- Remez -- Mike or Boost?     -- DONE
+- Proto (ET)                  -- DONE
+- uBlas                       -- DONE ; Eigen
+- Potentially Useful Boost libraries -- DONE ; Eigen
+- Aligned allocator; memory pool -- DONE
+- Multiprecision              -- DONE
+- Serialization               -- DONE
+- Regex -- Not needed
+- Tokenize -- Why?
+
+- Random number state save restore -- DONE
+- Rectangle gauge actions. -- DONE
+  Iwasaki,
+  Symanzik,
+  ... etc...
+Done: Cayley, Partial , ContFrac force terms.
+
+DONE
+- PseudoFermions
+=> generalise to non-const EE ; likely defer (??) (NOT DONE)
+Done:
+  - TwoFlavour
+  - TwoFlavourEvenOdd        
+  - TwoFlavourRatio
+  - TwoFlavourRatioEvenOdd
+
+Done:
+  - OneFlavourRationalEvenOdd
+  - OneFlavourRationalRatioEvenOdd
+  - OneFlavourRationalRatio
+
+Done
+=> Test DWF HMC
+   - Fix a threading bug that has been introduced and prevents HMC running hybrid OMP mode
+
+Done:
+- RNG filling from sparser grid, lower dim grid.
+
+
+DONE
+  - MacroMagic -> virtual reader class.
+
+*** Expression template engine: -- DONE
+
+[   -- Norm2(expression) problem: introduce norm2 unary op, or Introduce conversion automatic from expression to Lattice<vobj>
+* Strong test for norm2, conj and all primitive types. -- tests/Grid_simd.cc is almost there
+* Implement where within expression template scheme.
+* Check for missing functionality                    - partially audited against QDP++ layout
+
+   // Unary functions
+   // cos,sin, tan, acos, asin, cosh, acosh, tanh, sinh, // Scalar<vReal> only arg
+   // exp, log, sqrt, fabs
+   // transposeColor, transposeSpin,
+   // adjColor, adjSpin,
+   // copyMask.
+   // localMaxAbs
+   // Fourier transform equivalent.]
+
+
+* CovariantShift support                             -----Use a class to store gauge field? (parallel transport?)
+
+-- coherent framework for implementing actions and their forces.
+Actions 
+
+DONE
+* Fermion
+  - Wilson
+  - Clover
+  - DomainWall
+  - Mobius
+  - z-Mobius
+
+
+Algorithms (lots of reuse/port from BFM)
+* LinearOperator
+* LinearSolver
+* Polynomial 
+* Eigen
+* CG
+* Pcg
+* Adef2
+* DeflCG
+* fPcg
+* MCR
+* HDCG
+* HMC, 
+* Heatbath
+* Integrators, leapfrog, omelyan, force gradient etc...
+* etc..
+
+Done
+* Pauli, SU subgroup, etc.. 
+
+* su3 exponentiation & log etc.. [Jamie's code?]
+
+======================================================================================================
+FUNCTIONALITY: it pleases me to keep track of things I have done (keeps me arguably sane)
+======================================================================================================
+
+* Link smearing/boundary conds; Policy class based implementation ; framework more in place -- DONE
+* Command line args for geometry, simd, etc. layout. Is it necessary to have -- DONE
+  user pass these? Is this a QCD specific?
+
+* Stencil -- DONE
+* Test infrastructure -- DONE
+* Fourspin, two spin project --- DONE
+* Dirac Gamma/Dirac structures ---- DONE
+* Conditional execution, where etc...                -----DONE, simple test
+* Integer relational support                         -----DONE
+* Coordinate information, integers etc...            -----DONE
+* Integer type padding/union to vector.              -----DONE 
+* LatticeCoordinate[mu]                              -----DONE
+* expose traceIndex, peekIndex, transposeIndex etc at the Lattice Level -- DONE
+* TraceColor, TraceSpin.                             ----- DONE (traceIndex<1>,traceIndex<2>, transposeIndex<1>,transposeIndex<2>)
+                                                     ----- Implement mapping between traceColour and traceSpin and traceIndex<1/2>.
+* How to do U[mu] ... lorentz part of type structure or not. more like chroma if not. -- DONE
+
+* Twospin/Fourspin/Gamma/Proj/Recon                  ----- DONE
+* norm2l is a hack. figure out syntax error and make this norm2 c.f. tests/Grid_gamma.cc -- DONE
+
+* subdirs lib, tests ??                              ----- DONE
+  - lib/math        
+  - lib/cartesian
+  - lib/cshift
+  - lib/stencil
+  - lib/communicator
+  - lib/algorithms
+  - lib/qcd
+  - lib/io/   -- GridLog, GridIn, GridErr, GridDebug, GridMessage
+  - lib/qcd/actions
+  - lib/qcd/measurements
+
+* Subset support, slice sums etc...                  -----DONE
+  sliceSum(orthog)
+  sum
+  innerProduct
+  norm2
+
+* Subgrid Transferral                                -----DONE
+  subBlock (coarseLattice,fineLattice)
+  projectBlockBasis  
+  promoteBlockBasis
+
+* random number generation                           ----- DONE
+
+* Broadcast, reduction tests. innerProduct, localInnerProduct --- DONE
+
+* I/O support
+* NERSC Lattice loading, plaquette test             ------- DONE single node 
+
+* Controling std::cout                              ------- DONE
+
+* Had to hack assignment to 1.0 in the tests/Grid_gamma test -- DONE
+* Reduce implemention is poor ; need threaded reductions; OMP isn't able to do it for generic objects. -- DONE
+* Bug in RNG with complex numbers ; only filling real values; need helper function -- DONE
+* Conformable test in Cshift routines. -- none needed ; there is only one 
+* Conformable testing in expression templates -- DONE (recursive)
+
+* Bug in SeedFixedIntegers gave same output on each site. -- DONE
+  Implement and use lattice IO to verify this.            -- cout for lattice types DONE
+

@@ -1,0 +1,116 @@
+OPENMPI detected
+AcceleratorCudaInit[0]: ========================
+AcceleratorCudaInit[0]: Device Number    : 0
+AcceleratorCudaInit[0]: ========================
+AcceleratorCudaInit[0]: Device identifier: Tesla V100-SXM2-16GB
+AcceleratorCudaInit[0]:   totalGlobalMem: 16911433728 
+AcceleratorCudaInit[0]:   managedMemory: 1 
+AcceleratorCudaInit[0]:   isMultiGpuBoard: 0 
+AcceleratorCudaInit[0]:   warpSize: 32 
+AcceleratorCudaInit[0]:   pciBusID: 4 
+AcceleratorCudaInit[0]:   pciDeviceID: 0 
+AcceleratorCudaInit[0]: maxGridSize (2147483647,65535,65535)
+AcceleratorCudaInit: using default device 
+AcceleratorCudaInit: assume user either uses
+AcceleratorCudaInit: a) IBM jsrun, or 
+AcceleratorCudaInit: b) invokes through a wrapping script to set CUDA_VISIBLE_DEVICES, UCX_NET_DEVICES, and numa binding 
+AcceleratorCudaInit: Configure options --enable-setdevice=no 
+local rank 0 device 0 bus id: 0004:04:00.0
+AcceleratorCudaInit: ================================================
+SharedMemoryMpi:  World communicator of size 24
+SharedMemoryMpi:  Node  communicator of size 1
+0SharedMemoryMpi:  SharedMemoryMPI.cc acceleratorAllocDevice 1073741824bytes at 0x200080000000 - 2000bfffffff for comms buffers 
+Setting up IPC
+
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|_ |  |  |  |  |  |  |  |  |  |  |  | _|__
+__|_                                    _|__
+__|_   GGGG    RRRR    III    DDDD      _|__
+__|_  G        R   R    I     D   D     _|__
+__|_  G        R   R    I     D    D    _|__
+__|_  G  GG    RRRR     I     D    D    _|__
+__|_  G   G    R  R     I     D   D     _|__
+__|_   GGGG    R   R   III    DDDD      _|__
+__|_                                    _|__
+local rank 5 device 0 bus id: 0035:05:00.0
+local rank 1 device 0 bus id: 0004:05:00.0
+local rank 2 device 0 bus id: 0004:06:00.0
+local rank 3 device 0 bus id: 0035:03:00.0
+local rank 4 device 0 bus id: 0035:04:00.0
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+
+
+Copyright (C) 2015 Peter Boyle, Azusa Yamaguchi, Guido Cossu, Antonin Portelli and other authors
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+Current Grid git commit hash=1713de35c0dc339564661dd7df8a72583f889e91: (HEAD -> feature/dirichlet) uncommited changes
+
+Grid : Message : ================================================ 
+Grid : Message : MPI is initialised and logging filters activated 
+Grid : Message : ================================================ 
+Grid : Message : Requested 1073741824 byte stencil comms buffers 
+Grid : Message : MemoryManager Cache 4194304000 bytes 
+Grid : Message : MemoryManager::Init() setting up
+Grid : Message : MemoryManager::Init() cache pool for recent allocations: SMALL 8 LARGE 2
+Grid : Message : MemoryManager::Init() Non unified: Caching accelerator data in dedicated memory
+Grid : Message : MemoryManager::Init() Using cudaMalloc
+
+
+
+
+
+
+
+Grid : Message : 0.179000 s : ++++++++++++++++++++++++++++++++++++++++++++++++
+Grid : Message : 0.196000 s :  Testing with full communication 
+Grid : Message : 0.211000 s : ++++++++++++++++++++++++++++++++++++++++++++++++
+Grid : Message : 0.225000 s : Grid Layout
+Grid : Message : 0.233000 s : 	Global lattice size  : 48 48 48 72 
+Grid : Message : 0.246000 s : 	OpenMP threads       : 6
+Grid : Message : 0.255000 s : 	MPI tasks            : 2 2 2 3 
+Grid : Message : 0.182200 s : Initialising 4d RNG
+Grid : Message : 0.233863 s : Intialising parallel RNG with unique string 'The 4D RNG'
+Grid : Message : 0.233886 s : Seed SHA256: 49db4542db694e3b1a74bf2592a8c1b83bfebbe18401693c2609a4c3af1
+Grid : Message : 0.245805 s : Initialising 5d RNG
+Grid : Message : 1.710720 s : Intialising parallel RNG with unique string 'The 5D RNG'
+Grid : Message : 1.710950 s : Seed SHA256: b6316f2fac44ce14111f93e0296389330b077bfd0a7b359f781c58589f8a
+Grid : Message : 2.220272 s : Drawing gauge field
+Grid : Message : 2.418119 s : Random gauge initialised 
+Grid : Message : 2.418142 s : Applying BCs for Dirichlet Block5 [0 0 0 0 0]
+Grid : Message : 2.418156 s : Applying BCs for Dirichlet Block4 [0 0 0 0]
+Grid : Message : 2.489588 s : Setting up Cshift based reference 
+Grid : Message : 13.921239 s : *****************************************************************
+Grid : Message : 13.921261 s : * Kernel options --dslash-generic, --dslash-unroll, --dslash-asm
+Grid : Message : 13.921270 s : *****************************************************************
+Grid : Message : 13.921279 s : *****************************************************************
+Grid : Message : 13.921288 s : * Benchmarking DomainWallFermionR::Dhop                  
+Grid : Message : 13.921296 s : * Vectorising space-time by 4
+Grid : Message : 13.921305 s : * VComplexF size is 32 B
+Grid : Message : 13.921314 s : * SINGLE precision 
+Grid : Message : 13.921321 s : * Using Overlapped Comms/Compute
+Grid : Message : 13.921328 s : * Using GENERIC Nc WilsonKernels
+Grid : Message : 13.921335 s : *****************************************************************
+Grid : Message : 14.821339 s : Called warmup
+Grid : Message : 23.975467 s : Called Dw 300 times in 9.15155e+06 us
+Grid : Message : 23.975528 s : mflop/s =   5.51286e+06
+Grid : Message : 23.975543 s : mflop/s per rank =  229702
+Grid : Message : 23.975557 s : mflop/s per node =  229702
+Grid : Message : 23.989684 s : norm diff   5.09279e-313  Line 291
+Grid : Message : 39.450493 s : ----------------------------------------------------------------
+Grid : Message : 39.450517 s : Compare to naive wilson implementation Dag to verify correctness
+Grid : Message : 39.450526 s : ----------------------------------------------------------------
+Grid : Message : 39.450534 s : Called DwDag
+Grid : Message : 39.450542 s : norm dag result nan
+Grid : Message : 39.451564 s : norm dag ref    nan
+Grid : Message : 39.455714 s : norm dag diff   nan  Line 354

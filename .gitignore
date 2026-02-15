@@ -1,0 +1,17 @@
+# Runtime outputs
+results/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Local build outputs
+Grid/build/
+Grid/autom4te.cache/
+gpt/lib/cgpt/build/
+gpt/lib/cgpt/lib/
+gpt/lib/cgpt/next.lock
+
+# macOS
+.DS_Store

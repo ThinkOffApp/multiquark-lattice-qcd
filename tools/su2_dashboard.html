@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SU(2) Run Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --text: #e7edf7;
+      --muted: #9fb0cc;
+      --accent: #22c55e;
+      --warn: #f59e0b;
+      --bar-bg: #283349;
+      --line: #33405a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(180deg, #070c17 0%, #0b1220 100%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0 0 14px;
+      font-size: 24px;
+      letter-spacing: 0.2px;
+    }
+    .controls, .card, .chart-card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 900px) {
+      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    }
+    label {
+      font-size: 12px;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 6px;
+    }
+    input {
+      width: 100%;
+      padding: 9px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0f1627;
+      color: var(--text);
+      outline: none;
+    }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: #162138;
+      color: var(--text);
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:hover { background: #1b2a47; }
+    .badge {
+      display: inline-block;
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #1d2a44;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .metric-title { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+    .metric-value { font-size: 22px; font-weight: 700; }
+    .bar {
+      width: 100%;
+      height: 14px;
+      background: var(--bar-bg);
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+    .fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #1fbf73, #3ad38d);
+      transition: width 0.2s linear;
+    }
+    .sub-fill {
+      background: linear-gradient(90deg, #2ea6ff, #5fc3ff);
+    }
+    .warn-fill {
+      background: linear-gradient(90deg, #e7a92e, #f4ca62);
+    }
+    .hint { font-size: 12px; color: var(--muted); }
+    canvas {
+      width: 100%;
+      height: 220px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: #0d1526;
+      display: block;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .param-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px 12px;
+      font-size: 13px;
+    }
+    .param-k { color: var(--muted); }
+    .param-v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .chat-log {
+      height: 240px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px;
+      background: #0d1526;
+    }
+    .chat-row {
+      margin-bottom: 8px;
+      line-height: 1.35;
+      font-size: 13px;
+    }
+    .chat-user { color: #9fd4ff; }
+    .chat-assistant { color: #b9f2c8; }
+    .chat-system { color: #9fb0cc; }
+    .chat-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>SU(2) Measurement Dashboard</h1>
+
+    <div class="controls">
+      <div class="grid-3">
+        <div>
+          <label>Progress JSON path</label>
+          <input id="progressPath" value="/results/su2_signal_scan/progress_petrus-su2-signal.json">
+        </div>
+        <div>
+          <label>Live JSON path</label>
+          <input id="livePath" value="/results/su2_signal_scan/live_petrus-su2-signal.json">
+        </div>
+        <div>
+          <label>Auth token (optional)</label>
+          <input id="authToken" placeholder="shared token if auth is enabled">
+        </div>
+      </div>
+      <div style="margin-top: 8px;">
+        <label>API base URL (stream/chat/data, optional)</label>
+        <input id="apiBase" placeholder="http://127.0.0.1:8001">
+      </div>
+      <div class="btn-row">
+        <button id="reloadBtn">Reload Now</button>
+        <button id="toggleBtn">Pause</button>
+      </div>
+      <div class="hint" id="streamStatus" style="margin-top: 8px;">stream: polling</div>
+      <div class="hint" style="margin-top: 8px;">
+        Stream server: <code>cd /Users/petrus/AndroidStudioProjects/ThinkOff && python3 /Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt/tools/su2_dashboard_server.py --port 8001</code>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="metric-title">Run Parameters</div>
+        <div class="param-grid">
+          <div class="param-k">Seed</div><div class="param-v" id="paramSeed">-</div>
+          <div class="param-k">Lattice L</div><div class="param-v" id="paramL">-</div>
+          <div class="param-k">Beta</div><div class="param-v" id="paramBeta">-</div>
+          <div class="param-k">Therm sweeps</div><div class="param-v" id="paramTherm">-</div>
+          <div class="param-k">Measurements</div><div class="param-v" id="paramMeas">-</div>
+          <div class="param-k">R values</div><div class="param-v" id="paramR">-</div>
+          <div class="param-k">T values</div><div class="param-v" id="paramT">-</div>
+          <div class="param-k">Flux probe</div><div class="param-v" id="paramFlux">-</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="metric-title">Measured Observables</div>
+        <div class="hint" id="measureWhat">
+          Plaquette, Wilson loops W(R,T), and connected flux profile.
+        </div>
+        <div style="height: 8px;"></div>
+        <div class="hint" id="measureError">
+          Error bands: ±1 standard error of the mean (SEM).
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="metric-title">Next Jobs To Run</div>
+        <div class="hint">suggested larger L / beta scan</div>
+      </div>
+      <div id="nextJobsList" class="hint">Waiting for run metadata...</div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="metric-title">Admin Chat</div>
+        <div class="hint" id="chatStatus">chat: ready</div>
+      </div>
+      <div id="chatLog" class="chat-log"></div>
+      <div class="chat-input-row">
+        <input id="chatInput" placeholder="Ask about status, interpretation, next runs..." />
+        <button id="chatSendBtn">Send</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="badge" id="phaseBadge">phase: unknown</div>
+        <div class="hint" id="lastUpdate">Last update: -</div>
+      </div>
+
+      <div class="row"><div class="hint">Overall progress</div><div class="hint" id="overallPct">0%</div></div>
+      <div class="bar"><div class="fill" id="overallFill"></div></div>
+
+      <div style="height: 10px;"></div>
+      <div class="row"><div class="hint">Thermalization</div><div class="hint" id="thermPct">0 / 0</div></div>
+      <div class="bar"><div class="fill sub-fill" id="thermFill"></div></div>
+
+      <div style="height: 10px;"></div>
+      <div class="row"><div class="hint">Production measurements</div><div class="hint" id="measPct">0 / 0</div></div>
+      <div class="bar"><div class="fill warn-fill" id="measFill"></div></div>
+
+      <div style="height: 10px;"></div>
+      <div class="row"><div class="hint">Configs done / measured</div><div class="hint" id="cfgDoneMeasured">0 / 0</div></div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="metric-title">Elapsed</div>
+        <div class="metric-value" id="elapsedVal">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-title">ETA</div>
+        <div class="metric-value" id="etaVal">-</div>
+      </div>
+      <div class="card">
+        <div class="metric-title">Plaquette</div>
+        <div class="metric-value" id="plaqVal">-</div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="chart-card">
+        <div class="row">
+          <div class="metric-title">Plaquette History</div>
+          <div class="hint" id="historyCount">0 points</div>
+        </div>
+        <canvas id="plaqCanvas" width="560" height="220"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="row">
+          <div class="metric-title">Selected Wilson Loop (Re)</div>
+          <div class="hint" id="loopKeyLabel">key: -</div>
+        </div>
+        <canvas id="loopCanvas" width="560" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="row">
+        <div class="metric-title">Flux Profile vs r⊥ (Mean ± SEM)</div>
+        <div class="hint" id="fluxLabel">aggregated over measured configs</div>
+      </div>
+      <canvas id="fluxCanvas" width="1140" height="260"></canvas>
+    </div>
+  </div>
+
+  <script>
+    const pollMs = 2000;
+    let paused = false;
+    let loopKey = null;
+    let eventSource = null;
+    let usingStream = false;
+    let lastStreamAt = 0;
+    let currentProgress = null;
+    let currentMeta = null;
+    let chatHistory = [];
+    let chatBusy = false;
+
+    function setStreamStatus(text) {
+      document.getElementById("streamStatus").textContent = text;
+    }
+
+    function setChatStatus(text) {
+      document.getElementById("chatStatus").textContent = text;
+    }
+
+    function addChat(role, text) {
+      const log = document.getElementById("chatLog");
+      const row = document.createElement("div");
+      row.className = `chat-row chat-${role}`;
+      const label = role === "user" ? "You" : (role === "assistant" ? "Assistant" : "System");
+      row.textContent = `${label}: ${text}`;
+      log.appendChild(row);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendChat() {
+      if (chatBusy) return;
+      const input = document.getElementById("chatInput");
+      const text = (input.value || "").trim();
+      if (!text) return;
+      input.value = "";
+      chatHistory.push({ role: "user", content: text });
+      addChat("user", text);
+      chatBusy = true;
+      setChatStatus("chat: sending...");
+      const token = (document.getElementById("authToken").value || "").trim();
+      try {
+        const r = await fetch(withApiBase("/chat"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { "X-Auth-Token": token } : {}),
+          },
+          body: JSON.stringify({ messages: chatHistory, ...(token ? { token } : {}) }),
+        });
+        const payload = await r.json();
+        if (!r.ok) {
+          const err = payload.error || `${r.status} ${r.statusText}`;
+          addChat("system", `Error: ${err}`);
+          setChatStatus("chat: unavailable");
+          return;
+        }
+        const reply = (payload.reply || "").trim() || "(empty reply)";
+        chatHistory.push({ role: "assistant", content: reply });
+        addChat("assistant", reply);
+        setChatStatus("chat: ready");
+      } catch (e) {
+        addChat("system", `Network error: ${e.message}`);
+        setChatStatus("chat: unavailable");
+      } finally {
+        chatBusy = false;
+      }
+    }
+
+    function applyUrlDefaults() {
+      const params = new URLSearchParams(window.location.search);
+      const seed = params.get("seed");
+      const progress = params.get("progress");
+      const live = params.get("live");
+      const token = params.get("token");
+      const api = params.get("api");
+
+      const progressEl = document.getElementById("progressPath");
+      const liveEl = document.getElementById("livePath");
+
+      if (seed) {
+        progressEl.value = `/results/su2_signal_scan/progress_${seed}.json`;
+        liveEl.value = `/results/su2_signal_scan/live_${seed}.json`;
+      }
+      if (progress) progressEl.value = progress;
+      if (live) liveEl.value = live;
+      if (token) document.getElementById("authToken").value = token;
+      if (api) {
+        document.getElementById("apiBase").value = api;
+      } else if (window.location.port === "8000") {
+        document.getElementById("apiBase").value = "http://127.0.0.1:8001";
+      }
+    }
+
+    function normalizePath(path) {
+      const p = (path || "").trim();
+      if (!p) return p;
+      if (p.startsWith("http://") || p.startsWith("https://")) return p;
+      if (p.startsWith("/")) return p;
+      return `/${p.replace(/^\.\//, "")}`;
+    }
+
+    function getApiBase() {
+      return (document.getElementById("apiBase").value || "").trim().replace(/\/+$/, "");
+    }
+
+    function withApiBase(path) {
+      const p = (path || "").trim();
+      if (!p) return p;
+      if (p.startsWith("http://") || p.startsWith("https://")) return p;
+      const rel = p.startsWith("/") ? p : `/${p}`;
+      const base = getApiBase();
+      return base ? `${base}${rel}` : rel;
+    }
+
+    function fmtSec(v) {
+      if (v === null || v === undefined) return "-";
+      const s = Math.max(0, Math.floor(v));
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const ss = s % 60;
+      if (h > 0) return `${h}h ${m}m ${ss}s`;
+      if (m > 0) return `${m}m ${ss}s`;
+      return `${ss}s`;
+    }
+
+    function setPct(fillId, pct) {
+      document.getElementById(fillId).style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    }
+
+    function fmtList(v) {
+      if (!Array.isArray(v)) return "-";
+      return `[${v.join(", ")}]`;
+    }
+
+    function runningMeanSem(values) {
+      const mean = [];
+      const low = [];
+      const high = [];
+      let n = 0;
+      let mu = 0.0;
+      let m2 = 0.0;
+      for (const x of values) {
+        n += 1;
+        const d = x - mu;
+        mu += d / n;
+        const d2 = x - mu;
+        m2 += d * d2;
+        const sem = n > 1 ? Math.sqrt((m2 / (n - 1)) / n) : 0.0;
+        mean.push(mu);
+        low.push(mu - sem);
+        high.push(mu + sem);
+      }
+      return { mean, low, high };
+    }
+
+    function pointwiseMeanSem(series) {
+      const n = series.length;
+      if (n === 0) return { mean: [], low: [], high: [] };
+      const m = Math.max(...series.map(x => (Array.isArray(x) ? x.length : 0)));
+      const mean = [];
+      const low = [];
+      const high = [];
+      for (let j = 0; j < m; j += 1) {
+        const vals = [];
+        for (let i = 0; i < n; i += 1) {
+          const row = series[i];
+          if (Array.isArray(row) && typeof row[j] === "number" && Number.isFinite(row[j])) {
+            vals.push(row[j]);
+          }
+        }
+        if (vals.length === 0) {
+          mean.push(0);
+          low.push(0);
+          high.push(0);
+          continue;
+        }
+        const mu = vals.reduce((a, b) => a + b, 0) / vals.length;
+        let varSample = 0.0;
+        if (vals.length > 1) {
+          for (const v of vals) varSample += (v - mu) * (v - mu);
+          varSample /= (vals.length - 1);
+        }
+        const sem = vals.length > 1 ? Math.sqrt(varSample / vals.length) : 0.0;
+        mean.push(mu);
+        low.push(mu - sem);
+        high.push(mu + sem);
+      }
+      return { mean, low, high };
+    }
+
+    function drawSeries(canvasId, values, color, options = {}) {
+      const bandLow = options.bandLow || null;
+      const bandHigh = options.bandHigh || null;
+      const bandColor = options.bandColor || "rgba(47, 208, 138, 0.18)";
+      const includeZero = options.includeZero || false;
+      const c = document.getElementById(canvasId);
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      if (!values || values.length < 2) {
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("Not enough data yet", 18, 28);
+        return;
+      }
+
+      const yvals = [...values];
+      if (Array.isArray(bandLow)) yvals.push(...bandLow);
+      if (Array.isArray(bandHigh)) yvals.push(...bandHigh);
+      if (includeZero) yvals.push(0);
+      let min = Math.min(...yvals);
+      let max = Math.max(...yvals);
+      if (min === max) { min -= 1e-9; max += 1e-9; }
+      const pad = 28;
+      const iw = w - 2 * pad;
+      const ih = h - 2 * pad;
+
+      ctx.strokeStyle = "#34435f";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(pad, pad, iw, ih);
+
+      if (Array.isArray(bandLow) && Array.isArray(bandHigh) && bandLow.length === values.length && bandHigh.length === values.length) {
+        ctx.fillStyle = bandColor;
+        ctx.beginPath();
+        for (let i = 0; i < values.length; i += 1) {
+          const x = pad + (i / Math.max(1, values.length - 1)) * iw;
+          const y = pad + (1 - (bandHigh[i] - min) / (max - min)) * ih;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        for (let i = values.length - 1; i >= 0; i -= 1) {
+          const x = pad + (i / Math.max(1, values.length - 1)) * iw;
+          const y = pad + (1 - (bandLow[i] - min) / (max - min)) * ih;
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      values.forEach((v, i) => {
+        const x = pad + (i / (values.length - 1)) * iw;
+        const y = pad + (1 - (v - min) / (max - min)) * ih;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      ctx.fillStyle = "#9fb0cc";
+      ctx.font = "12px sans-serif";
+      ctx.fillText(min.toExponential(3), 6, h - 8);
+      ctx.fillText(max.toExponential(3), 6, 18);
+    }
+
+    function updateNextJobs() {
+      const p = currentProgress;
+      const meta = currentMeta;
+      const out = [];
+      if (!p || !meta || !Array.isArray(meta.L)) {
+        document.getElementById("nextJobsList").textContent = "Waiting for run metadata...";
+        return;
+      }
+
+      const L = meta.L.map(x => Number(x));
+      const Lbump = L.map((x, i) => (i < 3 ? Math.floor(x * 1.5) : x));
+      const Ldouble = L.map((x, i) => (i < 3 ? x * 2 : x));
+      const beta = Number(meta.beta || 0);
+      const betaVals = [beta - 0.1, beta, beta + 0.1]
+        .map(x => Math.round(x * 100) / 100)
+        .filter(x => x > 0);
+
+      out.push(`1) Larger volume check: L=${fmtList(Lbump)}, beta=${beta.toFixed(2)}, ntherm=${p.ntherm}, nmeas=${p.nmeas}`);
+      out.push(`2) Large-volume stretch: L=${fmtList(Ldouble)}, beta=${beta.toFixed(2)}, ntherm=${Math.max(300, p.ntherm)}, nmeas=${Math.max(300, p.nmeas)}`);
+      out.push(`3) Beta scan at current L=${fmtList(L)}: beta in {${betaVals.join(", ")}}`);
+      out.push(`4) Combined step: L=${fmtList(Lbump)} with beta=${(beta + 0.1).toFixed(2)} for finer spacing test`);
+      document.getElementById("nextJobsList").innerHTML = out.map(x => `<div>${x}</div>`).join("");
+    }
+
+    function renderProgress(p) {
+      if (!p) return;
+      currentProgress = p;
+      document.getElementById("phaseBadge").textContent = `phase: ${p.phase}${p.done ? " (done)" : ""}`;
+      document.getElementById("lastUpdate").textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+      document.getElementById("overallPct").textContent = `${(100 * p.progress).toFixed(1)}%`;
+      document.getElementById("thermPct").textContent = `${p.therm_done} / ${p.ntherm}`;
+      document.getElementById("measPct").textContent = `${p.meas_done} / ${p.nmeas}`;
+      document.getElementById("cfgDoneMeasured").textContent = `${p.meas_done} / ${p.nmeas}`;
+      document.getElementById("paramSeed").textContent = p.seed || "-";
+      document.getElementById("paramTherm").textContent = `${p.therm_done}/${p.ntherm}`;
+      document.getElementById("paramMeas").textContent = `${p.meas_done}/${p.nmeas}`;
+      setPct("overallFill", 100 * p.progress);
+      setPct("thermFill", p.ntherm > 0 ? 100 * p.therm_done / p.ntherm : 0);
+      setPct("measFill", p.nmeas > 0 ? 100 * p.meas_done / p.nmeas : 0);
+      document.getElementById("elapsedVal").textContent = fmtSec(p.elapsed_sec);
+      document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(p.eta_sec);
+      document.getElementById("plaqVal").textContent = (p.last_plaquette ?? 0).toFixed(8);
+      updateNextJobs();
+    }
+
+    function renderLive(live) {
+      currentMeta = live && live.meta ? live.meta : null;
+      if (currentMeta) {
+        document.getElementById("paramL").textContent = fmtList(currentMeta.L);
+        document.getElementById("paramBeta").textContent = currentMeta.beta ?? "-";
+        document.getElementById("paramR").textContent = fmtList(currentMeta.R);
+        document.getElementById("paramT").textContent = fmtList(currentMeta.T);
+        document.getElementById("paramFlux").textContent =
+          `R=${currentMeta.flux_r}, T=${currentMeta.flux_t}, r_perp<=${currentMeta.flux_r_perp_max}`;
+      }
+      const ms = (live && live.measurements) || [];
+      document.getElementById("historyCount").textContent = `${ms.length} points (mean ± SEM)`;
+      const plaq = ms.map(x => x.plaquette);
+      const plaqStats = runningMeanSem(plaq);
+      drawSeries("plaqCanvas", plaqStats.mean, "#2fd08a", {
+        bandLow: plaqStats.low,
+        bandHigh: plaqStats.high,
+        bandColor: "rgba(47, 208, 138, 0.22)"
+      });
+
+      if (!loopKey && live && live.meta && live.meta.flux_r && live.meta.flux_t) {
+        loopKey = `R${live.meta.flux_r}_T${live.meta.flux_t}`;
+      }
+      if (!loopKey && ms.length > 0) {
+        const keys = Object.keys(ms[0].loops || {});
+        loopKey = keys.length > 0 ? keys[0] : null;
+      }
+      document.getElementById("loopKeyLabel").textContent = `key: ${loopKey || "-"}`;
+      const loopVals = loopKey ? ms.map(x => (x.loops?.[loopKey]?.re ?? 0)) : [];
+      const loopStats = runningMeanSem(loopVals);
+      drawSeries("loopCanvas", loopStats.mean, "#52adff", {
+        bandLow: loopStats.low,
+        bandHigh: loopStats.high,
+        bandColor: "rgba(82, 173, 255, 0.22)"
+      });
+
+      const fluxSeries = ms.map(x => x.flux_profile_r_perp || []);
+      const fluxStats = pointwiseMeanSem(fluxSeries);
+      drawSeries("fluxCanvas", fluxStats.mean, "#f2c14b", {
+        bandLow: fluxStats.low,
+        bandHigh: fluxStats.high,
+        bandColor: "rgba(242, 193, 75, 0.26)",
+        includeZero: true
+      });
+      document.getElementById("fluxLabel").textContent = `N=${ms.length} configs, connected flux mean ± SEM`;
+      document.getElementById("measureWhat").textContent =
+        `Plaquette, Wilson loop ${loopKey || "W(R,T)"} (real part), and connected flux profile ΔP(r⊥).`;
+      updateNextJobs();
+    }
+
+    function buildDataUrl(path) {
+      const url = new URL(withApiBase(path), window.location.origin);
+      url.searchParams.set("_t", String(Date.now()));
+      const token = (document.getElementById("authToken").value || "").trim();
+      if (token) url.searchParams.set("token", token);
+      return { url: url.toString(), token };
+    }
+
+    async function fetchJson(path) {
+      const req = buildDataUrl(path);
+      const r = await fetch(req.url, {
+        headers: req.token ? { "X-Auth-Token": req.token } : {},
+      });
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+      return await r.json();
+    }
+
+    async function refresh() {
+      const progressPath = normalizePath(document.getElementById("progressPath").value);
+      const livePath = normalizePath(document.getElementById("livePath").value);
+
+      try {
+        const p = await fetchJson(progressPath);
+        renderProgress(p);
+      } catch (e) {
+        document.getElementById("phaseBadge").textContent = "phase: unavailable";
+        document.getElementById("lastUpdate").textContent = `Progress read error: ${e.message}`;
+        document.getElementById("cfgDoneMeasured").textContent = "- / -";
+      }
+
+      try {
+        const live = await fetchJson(livePath);
+        renderLive(live);
+      } catch (e) {
+        document.getElementById("historyCount").textContent = `Live read error: ${e.message}`;
+        drawSeries("plaqCanvas", [], "#2fd08a");
+        drawSeries("loopCanvas", [], "#52adff");
+        drawSeries("fluxCanvas", [], "#f2c14b");
+      }
+    }
+
+    function stopStream() {
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      usingStream = false;
+    }
+
+    function startStream() {
+      if (!window.EventSource) {
+        usingStream = false;
+        setStreamStatus("stream: unsupported (polling)");
+        return;
+      }
+
+      const progressPath = normalizePath(document.getElementById("progressPath").value);
+      const livePath = normalizePath(document.getElementById("livePath").value);
+      const token = (document.getElementById("authToken").value || "").trim();
+      const streamUrl = new URL(withApiBase("/events"), window.location.origin);
+      streamUrl.searchParams.set("progress", progressPath);
+      streamUrl.searchParams.set("live", livePath);
+      if (token) streamUrl.searchParams.set("token", token);
+
+      stopStream();
+      setStreamStatus("stream: connecting...");
+      eventSource = new EventSource(streamUrl.toString());
+
+      eventSource.onopen = () => {
+        usingStream = true;
+        setStreamStatus("stream: connected");
+      };
+
+      eventSource.onmessage = (ev) => {
+        if (paused) return;
+        try {
+          const payload = JSON.parse(ev.data);
+          if (payload.progress) renderProgress(payload.progress);
+          if (payload.live) renderLive(payload.live);
+          if (payload.errors && payload.errors.progress) {
+            document.getElementById("lastUpdate").textContent = `Progress read error: ${payload.errors.progress}`;
+          }
+          if (payload.errors && payload.errors.live) {
+            document.getElementById("historyCount").textContent = `Live read error: ${payload.errors.live}`;
+          }
+          lastStreamAt = Date.now();
+        } catch (_) {
+          // Ignore malformed stream payload and keep running.
+        }
+      };
+
+      eventSource.onerror = () => {
+        usingStream = false;
+        setStreamStatus("stream: reconnecting...");
+      };
+    }
+
+    document.getElementById("reloadBtn").addEventListener("click", async () => {
+      await refresh();
+      if (!paused) startStream();
+    });
+
+    document.getElementById("toggleBtn").addEventListener("click", () => {
+      paused = !paused;
+      document.getElementById("toggleBtn").textContent = paused ? "Resume" : "Pause";
+      if (paused) {
+        stopStream();
+        setStreamStatus("stream: paused");
+      } else {
+        refresh();
+        startStream();
+      }
+    });
+
+    document.getElementById("chatSendBtn").addEventListener("click", () => {
+      sendChat();
+    });
+    document.getElementById("chatInput").addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey) {
+        ev.preventDefault();
+        sendChat();
+      }
+    });
+    document.getElementById("authToken").addEventListener("change", () => {
+      if (!paused) startStream();
+    });
+    document.getElementById("apiBase").addEventListener("change", () => {
+      if (!paused) {
+        refresh();
+        startStream();
+      }
+    });
+
+    applyUrlDefaults();
+    addChat("system", "Admin chat ready.");
+    refresh();
+    startStream();
+    setInterval(() => {
+      if (paused) return;
+      if (!usingStream || Date.now() - lastStreamAt > 5000) {
+        refresh();
+      }
+    }, pollMs);
+  </script>
+</body>
+</html>

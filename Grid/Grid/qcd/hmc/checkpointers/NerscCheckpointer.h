@@ -1,0 +1,89 @@
+/*************************************************************************************
+
+Grid physics library, www.github.com/paboyle/Grid
+
+Source file: ./lib/qcd/hmc/NerscCheckpointer.h
+
+Copyright (C) 2015
+
+Author: paboyle <paboyle@ph.ed.ac.uk>
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along
+with this program; if not, write to the Free Software Foundation, Inc.,
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+See the full license in the file "LICENSE" in the top level distribution
+directory
+*************************************************************************************/
+			   /*  END LEGAL */
+#ifndef NERSC_CHECKPOINTER
+#define NERSC_CHECKPOINTER
+
+#include <iostream>
+#include <sstream>
+#include <string>
+
+NAMESPACE_BEGIN(Grid);
+
+// Only for Gauge fields
+template <class Gimpl>
+class NerscHmcCheckpointer : public BaseHmcCheckpointer<Gimpl> {
+private:
+  CheckpointerParameters Params;
+
+public:
+  INHERIT_GIMPL_TYPES(Gimpl);  // only for gauge configurations
+  typedef GaugeStatistics<Gimpl> GaugeStats;
+  
+  NerscHmcCheckpointer(const CheckpointerParameters &Params_) { initialize(Params_); }
+
+  void initialize(const CheckpointerParameters &Params_) {
+    Params = Params_;
+    Params.format = "IEEE64BIG";  // fixed, overwrite any other choice
+  }
+
+  virtual void TrajectoryComplete(int traj,
+                                  ConfigurationBase<GaugeField> &SmartConfig,
+                                  GridSerialRNG &sRNG,
+                                  GridParallelRNG &pRNG)
+  {
+    if ((traj % Params.saveInterval) == 0) {
+      std::string config, rng, smr;
+      this->build_filenames(traj, Params, config, smr, rng);
+      
+      int precision32 = 1;
+      int tworow = 0;
+      NerscIO::writeRNGState(sRNG, pRNG, rng);
+      NerscIO::writeConfiguration<GaugeStats>(SmartConfig.get_U(false), config, tworow, precision32);
+      if ( Params.saveSmeared ) {
+	NerscIO::writeConfiguration<GaugeStats>(SmartConfig.get_U(true), smr, tworow, precision32);
+      }
+    }
+  };
+
+  void CheckpointRestore(int traj, GaugeField &U, GridSerialRNG &sRNG,
+                         GridParallelRNG &pRNG) {
+    std::string config, rng, smr;
+    this->build_filenames(traj, Params, config, smr, rng );
+    this->check_filename(rng);
+    this->check_filename(config);
+
+
+    FieldMetaData header;
+    NerscIO::readRNGState(sRNG, pRNG, header, rng);
+    NerscIO::readConfiguration<GaugeStats>(U, header, config);
+  };
+};
+
+NAMESPACE_END(Grid);
+#endif

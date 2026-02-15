@@ -1,0 +1,123 @@
+#!/bin/bash
+
+runner=$1
+extra=$2
+fail=0
+if [[ "$runner" != "" ]];
+then
+    echo "Using runner = $runner with extra arguments = $extra"
+else
+    # default for single-node tests
+    extra="--mpi_split 1.1.1.1"
+fi
+
+LOG=$(mktemp)
+fail_list=""
+test_path=${BASH_SOURCE%/*}
+
+# working directory for IO tests
+if [[ "${WORK_DIR}" == "" ]];
+then
+  WORK_DIR="tests_work_dir"
+fi
+mkdir -p ${WORK_DIR}
+
+echo "Working directory = ${WORK_DIR}"
+
+for f in \
+    ${test_path}/core/core.py \
+    "${test_path}/core/core.py --verbose cg,deflate --verbose_add eval,cg --verbose_remove cg,deflate --help" \
+    ${test_path}/core/stencil.py \
+    ${test_path}/core/jobs.py \
+    ${test_path}/core/tensors.py \
+    ${test_path}/core/blas.py \
+    ${test_path}/core/sparse_tensor.py \
+    ${test_path}/core/gamma.py \
+    ${test_path}/core/block.py \
+    ${test_path}/core/scalar.py \
+    ${test_path}/core/checksums.py \
+    ${test_path}/core/importexport.py \
+    ${test_path}/core/orthogonalize.py \
+    ${test_path}/core/matrix.py \
+    ${test_path}/core/split.py \
+    ${test_path}/core/other_representations.py \
+    ${test_path}/core/quadruple_precision.py \
+    ${test_path}/random/simple.py \
+    ${test_path}/create/create.py \
+    ${test_path}/create/smear.py \
+    ${test_path}/qcd/sparse_propagator.py \
+    ${test_path}/qcd/coarsen.py \
+    ${test_path}/qcd/a2a.py \
+    ${test_path}/qcd/fermion_operators.py \
+    ${test_path}/qcd/fermion_actions.py \
+    ${test_path}/qcd/gauge.py \
+    ${test_path}/qcd/wick.py \
+    ${test_path}/qcd/baryon.py \
+    ${test_path}/qcd/scalar.py \
+    ${test_path}/qcd/domain_wall.py \
+    ${test_path}/qcd/sap.py \
+    ${test_path}/qcd/mspcg.py \
+    ${test_path}/algorithms/implicitly_restarted_lanczos.py \
+    ${test_path}/algorithms/arnoldi.py \
+    ${test_path}/algorithms/solvers.py \
+    ${test_path}/algorithms/integrators.py \
+    ${test_path}/algorithms/optimize.py \
+    ${test_path}/algorithms/polynomials.py \
+    ${test_path}/algorithms/rational.py \
+    ${test_path}/algorithms/multi_grid.py \
+    ${test_path}/markov/metropolis.py \
+    ${test_path}/markov/pure_gauge.py \
+    ${test_path}/markov/u1_gauge.py \
+    ${test_path}/io/cevec.py \
+    ${test_path}/io/io.py \
+    ${test_path}/io/hdf5.py \
+    ${test_path}/io/qlat.py \
+    ${test_path}/qis/qis.py \
+    ${test_path}/ad/ad.py \
+    ${test_path}/ml/sequence.py \
+    ${test_path}/ml/parallel_transport_pooling.py
+do
+
+printf "%-120s" " [TEST] $f"
+
+start=$SECONDS
+timeout 600s ${runner} $f ${extra} 2>&1 > ${LOG}
+res=$?
+if [[ "$res" == "124" ]]
+then
+    echo "TIMEOUT"
+    printf "%-120s" " [TEST] $f"
+    timeout 600s ${runner} $f ${extra} 2>&1 > ${LOG}
+    res=$?
+fi
+elapsed=$((SECONDS-start))
+
+if [[ "$res" == "0" ]];
+then
+    echo "OK  ($elapsed s)"
+else
+    echo "ERR ($elapsed s)"
+    cat ${LOG}
+    fail=$((fail+1))
+    fail_list="$fail_list $f"
+fi
+
+done
+
+
+if [ -f ${LOG} ];
+then
+    rm -f ${LOG}
+fi
+
+if ((fail != 0))
+then
+    echo "$fail tests failed:"
+    for f in ${fail_list}
+    do
+	echo $f
+    done
+    exit 1
+else
+    echo "All tests successful"
+fi

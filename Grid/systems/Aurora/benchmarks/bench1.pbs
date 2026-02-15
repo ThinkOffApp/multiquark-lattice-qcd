@@ -1,0 +1,36 @@
+#!/bin/bash
+
+##PBS -q EarlyAppAccess
+#PBS -q debug
+#PBS -l select=1
+#PBS -l walltime=00:20:00
+#PBS -A LatticeQCD_aesp_CNDA
+
+cd $PBS_O_WORKDIR
+
+source ../sourceme.sh
+
+cp $PBS_NODEFILE nodefile
+
+export OMP_NUM_THREADS=4
+export MPICH_OFI_NIC_POLICY=GPU
+
+#export MPIR_CVAR_CH4_OFI_ENABLE_GPU_PIPELINE=1
+#unset MPIR_CVAR_CH4_OFI_GPU_PIPELINE_D2H_ENGINE_TYPE
+#unset MPIR_CVAR_CH4_OFI_GPU_PIPELINE_H2D_ENGINE_TYPE
+#unset MPIR_CVAR_GPU_USE_IMMEDIATE_COMMAND_LIST
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_D2H_ENGINE_TYPE=0
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_H2D_ENGINE_TYPE=0
+#export MPIR_CVAR_GPU_USE_IMMEDIATE_COMMAND_LIST=1
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_BUFFER_SZ=1048576
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_THRESHOLD=131072
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_NUM_BUFFERS_PER_CHUNK=16
+#export MPIR_CVAR_CH4_OFI_GPU_PIPELINE_MAX_NUM_BUFFERS=16
+
+CMD="mpiexec -np 12 -ppn 12  -envall \
+	     ./gpu_tile.sh ./Benchmark_dwf_fp32 --mpi 2.1.2.3 --grid 32.32.64.96 \
+		--shm-mpi 0 --shm 2048 --device-mem 32000 --accelerator-threads 8 "
+
+echo $CMD
+$CMD
+

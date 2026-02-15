@@ -1,0 +1,233 @@
+#!/bin/bash
+# Configure
+root="$( cd "$( dirname "${BASH_SOURCE[0]}" )/../.." >/dev/null 2>&1 && pwd )"
+
+# Python environment
+NUMPY_INCLUDE=$(python3 -c "import numpy; print(numpy.get_include())")
+CXXFLAGS_PYTHON="-I${NUMPY_INCLUDE} $(python3-config --includes)"
+LDFLAGS_PYTHON="$(python3-config --ldflags)"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    # macOS Python extension modules typically resolve Python C-API symbols
+    # at load time from the running interpreter.
+    LDFLAGS_PYTHON="${LDFLAGS_PYTHON} -undefined dynamic_lookup"
+fi
+
+# Arguments
+GRID=$1
+
+if [[ "$GRID" == "%grid-config" ]];
+then
+
+    which grid-config
+    if [[ "$?" != "0" ]];
+    then
+	echo "grid-config not found in PATH"
+	exit 1
+    fi
+
+    CXX=$(grid-config --cxx)
+    CXXLD=$(grid-config --cxxld)
+    CXXFLAGS="$(grid-config --cxxflags) ${CXXFLAGS_PYTHON}"
+    LDFLAGS="$(grid-config --ldflags) ${LDFLAGS_PYTHON}"
+    LIBS=$(grid-config --libs)
+    BUILD="build"
+
+else
+
+    # Select Grid Directory
+    if [[ "$GRID" == "" ]];
+    then
+	GRID=${root}/dependencies/Grid/build
+	if [ ! -d ${GRID} ];
+	then
+	    GRID=${root}/../Grid/build
+	fi
+    fi
+
+    if [ ! -d ${GRID} ];
+    then
+	echo "Could not detect Grid location at ${GRID}"
+	exit 2
+    fi
+
+    CXX=$(grep "GRID_CXX " ${GRID}/Makefile | sed "s/^[^=]*=//")
+    CXXLD=$(grep "GRID_CXXLD " ${GRID}/Makefile | sed "s/^[^=]*=//")
+    # -g -O0
+    CXXFLAGS="$(grep "GRID_CXXFLAGS " ${GRID}/Makefile | sed "s/^[^=]*=//") $(grep "AM_CFLAGS " ${GRID}/Makefile | sed "s/^[^=]*=//") -I${GRID} -I${GRID}/Grid ${CXXFLAGS_PYTHON}"
+    LDFLAGS="$(grep "GRID_LDFLAGS " ${GRID}/Makefile | sed "s/^[^=]*=//") $(grep "AM_LDFLAGS " ${GRID}/Makefile | sed "s/^[^=]*=//") ${LDFLAGS_PYTHON}"
+    LIBS=$(grep "GRID_LIBS " ${GRID}/Makefile | sed "s/^[^=]*=//")
+    BUILD=$(basename $GRID)
+
+fi
+
+if [[ "$(echo $CXXFLAGS | grep fPIC -c)" == "0" ]];
+then
+    echo "Need to configure Grid with -fPIC"
+    exit 2
+fi
+
+
+
+NPARALLEL=$2
+if [[ "$NPARALLEL" == "" ]];
+then
+    NPARALLEL=16
+fi
+
+HAS_FLOCK=1
+if ! command -v flock >/dev/null 2>&1; then
+    HAS_FLOCK=0
+    NPARALLEL=1
+    echo "flock not found; falling back to single-job compilation"
+fi
+
+# Start
+N=0
+
+mkdir -p ${BUILD}/objs ${BUILD}/logs
+lib="$( cd "${BUILD}" >/dev/null 2>&1 && pwd )"
+
+(
+cat<<EOF
+export PYTHONPATH=${lib}:${lib}/../..\${PYTHONPATH:+:\${PYTHONPATH}}
+EOF
+) > ${BUILD}/source.sh
+
+abs_BUILD="$( cd "${BUILD}" && pwd )"
+
+echo "================================================================================"
+echo "  Compiling CGPT"
+echo "--------------------------------------------------------------------------------"
+echo "  Grid build:     ${GRID}"
+echo "  Parallel jobs:  ${NPARALLEL}"
+echo "  Destination:    ${BUILD}"
+echo "--------------------------------------------------------------------------------"
+echo "  Usage: source ${abs_BUILD}/source.sh"
+echo "================================================================================"
+
+echo "CXX = $CXX"
+echo "CXXFLAGS = $CXXFLAGS"
+echo "LDFLAGS = $LDFLAGS"
+echo "LIBS = $LIBS"
+
+echo "================================================================================"
+
+./update
+
+rm -f next.lock
+
+# Single-process fallback for systems without flock (e.g. macOS default userland).
+if [[ "$HAS_FLOCK" == "0" ]]; then
+    for src in lib/*.cc lib/instantiate/*.cc
+    do
+        bn=$(basename "$src" .cc)
+        dst=${BUILD}/objs/${bn}.o
+        if [ "$src" -nt "$dst" ];
+        then
+            echo " [CXX] $bn"
+            start=$SECONDS
+            ${CXX} --shared ${CXXFLAGS} -c "$src" -o "$dst" 1> ${BUILD}/logs/${bn}.out 2> ${BUILD}/logs/${bn}.err
+            success=$?
+            elapsed=$((SECONDS-start))
+            if [[ "$success" == "0" ]];
+            then
+                printf "%-70s %s\n" " [OK ] $bn " "($elapsed s)"
+            else
+                printf "%-70s %-30s %s\n" " [ERR] $bn " "($elapsed s)" "${BUILD}/logs/${bn}.err"
+                exit 1
+            fi
+        fi
+    done
+
+    ${CXXLD} --shared $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt.so ${CGPT_EXTRA_LDFLAGS}
+    exit $?
+fi
+
+# Compile
+function clean_files {
+    rm -f next.lock
+    for ((N=0;N<NPARALLEL;N++))
+    do
+	rm -f next.${N}
+    done
+    find ${BUILD}/objs -size 0 -delete 2> /dev/null
+}
+
+function abort {
+    echo "Cancelling..."
+    clean_files
+    kill -TERM 0
+    wait
+    echo "Done"
+}
+
+trap abort INT
+
+function next {
+    nextFile=$1
+
+    while true
+    do
+	(
+	    flock -n 9 || exit 1
+	    for src in lib/*.cc lib/instantiate/*.cc
+	    do
+		bn=$(basename $src .cc)
+		dst=${BUILD}/objs/${bn}.o
+		if [ $src -nt $dst ];
+		then
+		    touch $dst
+		    echo $src > $nextFile
+		    exit 0
+		fi
+	    done
+	    rm -f $nextFile
+	) 9> next.lock
+
+	success=$?
+	if ((success == 0))
+	then
+	    break
+	fi
+
+	sleep 0.1
+    done
+}
+
+for ((N=0;N<NPARALLEL;N++))
+do
+    (
+	while true
+	do
+	    next next.${N}
+	    if [ -f next.${N} ];
+	    then
+		src=$(cat next.${N})
+		bn=$(basename $src .cc)
+		dst=${BUILD}/objs/${bn}.o
+
+		echo " [CXX] $bn"
+		start=$SECONDS
+		${CXX} --shared ${CXXFLAGS} -c $src -o $dst 1> ${BUILD}/logs/${bn}.out 2> ${BUILD}/logs/${bn}.err
+		success=$?
+		elapsed=$((SECONDS-start))
+		if [[ "$success" == "0" ]];
+		then
+		    printf "%-70s %s\n" " [OK ] $bn " "($elapsed s)"
+		else
+		    printf "%-70s %-30s %s\n" " [ERR] $bn " "($elapsed s)" "${BUILD}/logs/${bn}.err"
+		    touch $dst
+		fi
+	    else
+		exit 0
+	    fi
+	done
+    ) &
+done
+
+wait
+
+clean_files
+
+# Link
+${CXXLD} --shared $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt.so ${CGPT_EXTRA_LDFLAGS}
