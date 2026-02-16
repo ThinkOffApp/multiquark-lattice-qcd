@@ -38,22 +38,37 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are the key figures from "Four-quark flux distribution and binding in lattice SU(2)" that illustrate the physics this program measures:
 
 ### Action Density
-| 2-Quark | 4-Quark Planar | 4-Quark Planar |
+| 2-Quark | 4-Quark Planar | 4-Quark Tetrahedral |
 | :---: | :---: | :---: |
 | ![Fig 4d](images/papers/github_figs/fig4d.png) | ![Fig 6d](images/papers/github_figs/fig6d.png) | ![Fig 8d](images/papers/github_figs/fig8d.png) |
-| *Flux tube between two quarks* | *Four-quark flux* | *Four quark flux on a plane through the quarks* |
+| *Flux tube between two quarks* | *Four-quark planar flux* | *Four-quark tetrahedral flux* |
 
 ### Binding Action Density
-| 4-Quark Planar | 4-Quark Planar |
+| 4-Quark Planar | 4-Quark Tetrahedral |
 | :---: | :---: |
 | ![Fig 12c](images/papers/github_figs/fig12c.png) | ![Fig 14c](images/papers/github_figs/fig14c.png) |
-| *Difference of four quark and two quark action densities* | *On a plane through the quarks* |
+| *Difference of planar densities* | *Difference of tetrahedral densities* |
 
 ### First Excited State Binding Energy
-| 4-Quark Planar | 4-Quark Planar |
+| 4-Quark Planar | 4-Quark Tetrahedral |
 | :---: | :---: |
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
-| *Binding energy of the first excited state* | *On a plane through the quarks.* |
+| *Binding energy (planar)* | *Binding energy (tetrahedral)* |
+
+## Modern 3D Reconstructions
+*Derived from the spatial distributions and sum rules in the 1998 paper.*
+
+These high-quality 3D isosurface reconstructions visualize the flux-tube volumes by interpolating between the measured longitudinal and transverse lattice slices.
+
+| 2-Quark Action (Cigar) | 4-Quark Planar Action |
+| :---: | :---: |
+| ![3D 2Q](images/papers/github_figs/iso_3d_2q.png) | ![3D 4Q](images/papers/github_figs/iso_3d_4q.png) |
+| *True 3D flux tube (isosurface reconstruction)* | *Full 4-quark action density distribution* |
+
+| 4-Quark Binding Action | 1st Excited State Binding |
+| :---: | :---: |
+| ![3D Binding](images/papers/github_figs/iso_3d_binding.png) | ![3D Excited](images/papers/github_figs/iso_3d_excited_multi.png) |
+| *Isolated 4-body binding contribution* | *Multi-layered binding energy of the first excited state* |
 
 ## Repository Map
 
