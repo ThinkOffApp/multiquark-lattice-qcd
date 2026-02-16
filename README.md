@@ -37,27 +37,21 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 
 The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are key figures from the associated papers that illustrate the physics this program measures:
 
-### 2-Quark Flux Tube (SU(2))
-*From: "Flux-tube structure and beta-functions in SU(2)"*
+### Flux Tube Visualizations
+*From: "Flux-tube structure and beta-functions in SU(2)" and "Four-quark flux distribution and binding in lattice SU(2)"*
 
+The following visualizations show the evolution of the chromoelectric field from a simple two-quark system to a complex four-quark system, and finally the isolated "binding flux" that contributes to multiquark stability.
+
+| 2-Quark Field | 4-Quark Field (Tetrahedral) | Subtracted Flux (4Q - 2x2Q) |
+| :---: | :---: | :---: |
+| ![2Q Action Density](images/papers/q2sln.png) | ![4Q Tetrahedral Action](images/papers/q4slna.png) | ![Subtracted Flux](images/papers/4qslnm.R4.png) |
+| *Simple dipole flux tube* | *Symmetric tetrahedral distribution* | *Residual flux contributing to binding* |
+
+### Detailed Profiles
 | Longitudinal Profile | Transverse Profile |
 | :---: | :---: |
 | ![Longitudinal Profile](images/papers/rl.png) | ![Transverse Profile](images/papers/rta.png) |
 | *Energy density between quarks* | *Width of the flux tube (~0.5 fm)* |
-
-### 4-Quark Flux Distribution
-*From: "Four-quark flux distribution and binding in lattice SU(2)"*
-
-#### Planar Geometry
-Visualizations of the 4-quark flux in a planar arrangement show how color fields rearrange to form a "butterfly" or "double-Y" configuration.
-![4-Quark Flux Planar](images/papers/q4sln.png)
-
-#### Tetrahedral Geometry
-In the tetrahedral arrangement, the flux is distributed more symmetrically between the four quarks, illustrating the complex non-abelian interactions.
-| Action Density | Field Strength |
-| :---: | :---: |
-| ![Tetrahedral Action](images/papers/q4slna.png) | ![Tetrahedral Field](images/papers/q4slda.png) |
-| *Action density distribution* | *Color field strength* |
 
 ## Repository Map
 
