@@ -55,21 +55,6 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
 | *On a plane through the quarks.* | *Binding energy of the first excited state* |
 
-## Modern 3D Reconstructions
-*Derived from the spatial distributions and sum rules in the 1998 paper.*
-
-These high-quality 3D isosurface reconstructions visualize the flux-tube volumes by interpolating between the measured longitudinal and transverse lattice slices.
-
-| 2-Quark Action (Cigar) | 4-Quark Planar Action |
-| :---: | :---: |
-| ![3D 2Q](images/papers/github_figs/iso_3d_2q.png) | ![3D 4Q](images/papers/github_figs/iso_3d_4q.png) |
-| *True 3D flux tube (isosurface reconstruction)* | *Full 4-quark action density distribution* |
-
-| 4-Quark Binding Action | 1st Excited State Binding |
-| :---: | :---: |
-| ![3D Binding](images/papers/github_figs/iso_3d_binding.png) | ![3D Excited](images/papers/github_figs/iso_3d_excited_multi.png) |
-| *Isolated 4-body binding contribution* | *Multi-layered binding energy of the first excited state* |
-
 ## Repository Map
 
 - `gpt/applications/hmc/su2_2q_signal_scan.py` - measurement engine
