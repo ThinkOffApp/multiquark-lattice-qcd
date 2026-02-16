@@ -53,7 +53,7 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
-| *4 quark planar cut through the quarks* | *4 quark planar binding energy* |
+| *Binding energy of the first excited state* | *On a plane through the quarks.* |
 
 ## Modern Reconstructions
 *Derived from the spatial distributions and sum rules in the 1998 paper.*
