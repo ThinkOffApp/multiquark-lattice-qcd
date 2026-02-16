@@ -41,3 +41,21 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 - `tools/su2_dashboard.html` - dashboard frontend
 - `tools/su2_chain_to_24.py` - chained run orchestration
 
+## Quickstart
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install numpy
+./scripts/validate.sh
+```
+
+## Tests
+
+- `./scripts/validate.sh` (or `make test`) runs a deterministic baseline validation.
+- The script generates a synthetic SU(2) live dataset, runs `tools/su2_signal_postprocess.py`, and checks a stable potential fit.
+
+## Baseline Number
+
+- Baseline observable: `V(R=2) = 0.310280` on the synthetic validation dataset.
+- CI accepts a narrow range (`0.29 <= V(R=2) <= 0.33`) to catch regressions while remaining numerically robust.
