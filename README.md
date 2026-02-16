@@ -35,17 +35,25 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 
 ## Scientific Background
 
-The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are key figures from the associated papers that illustrate the physics this program measures:
+The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are the key figures from "Four-quark flux distribution and binding in lattice SU(2)" that illustrate the physics this program measures:
 
-### Flux Tube Visualizations
-*From: "Flux-tube structure and beta-functions in SU(2)" and "Four-quark flux distribution and binding in lattice SU(2)"*
-
-The following visualizations show the evolution of the chromoelectric field from a simple two-quark system to a complex four-quark system, and finally the isolated "binding flux" that contributes to multiquark stability.
-
-| 2-Quark Field | 4-Quark Field (Planar) | Subtracted 4Q Binding Energy |
+### Action Density
+| 2-Quark (Fig 4d) | 4-Quark Planar (Fig 6d) | 4-Quark Tetrahedral (Fig 8d) |
 | :---: | :---: | :---: |
-| ![2Q Action Density](images/papers/q2sln.png) | ![4Q Planar Action](images/papers/q4sln.png) | ![Subtracted 4Q Tetrahedral](images/papers/q4slna.png) |
-| *Simple dipole flux tube* | *4Q field (resembling two 2Q tubes)* | *Tetrahedral binding energy contribution* |
+| ![Fig 4d](images/papers/q2slda9.png) | ![Fig 6d](images/papers/q4slda9t2.png) | ![Fig 8d](images/papers/q6slda9.png) |
+| *Simple dipole flux tube* | *4Q field (resembling two 2Q tubes)* | *Tetrahedral flux distribution* |
+
+### Binding Action Density
+| 4-Quark Planar Binding (Fig 12c) | 4-Quark Tetrahedral Binding (Fig 14c) |
+| :---: | :---: |
+| ![Fig 12c](images/papers/e2slda9.png) | ![Fig 14c](images/papers/e4slda9.png) |
+| *Planar binding energy contribution* | *Tetrahedral binding energy contribution* |
+
+### First Excited State Binding Energy
+| 4-Quark Planar (Fig 19b) | 4-Quark Tetrahedral (Fig 21b) |
+| :---: | :---: |
+| ![Fig 19b](images/papers/on49.png) | ![Fig 21b](images/papers/on69.png) |
+| *Planar excited state* | *Tetrahedral excited state* |
 
 ## Repository Map
 
