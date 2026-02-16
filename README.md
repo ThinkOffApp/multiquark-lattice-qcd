@@ -38,19 +38,19 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are the key figures from "Four-quark flux distribution and binding in lattice SU(2)" that illustrate the physics this program measures:
 
 ### Action Density
-| 2-Quark (Fig 4d) | 4-Quark Planar (Fig 6d) | 4-Quark Planar (Fig 8d) |
+| 2-Quark | 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: | :---: |
 | ![Fig 4d](images/papers/github_figs/fig4d.png) | ![Fig 6d](images/papers/github_figs/fig6d.png) | ![Fig 8d](images/papers/github_figs/fig8d.png) |
-| *Action density between two quarks* | *Action density between four quarks* | *4 quark planar cut through the quarks.* |
+| *Flux tube between two quarks* | *Four-quark flux* | *Four quark flux on a plane through the quarks* |
 
 ### Binding Action Density
-| 4-Quark Planar (Fig 12c) | 4-Quark Planar (Fig 14c) |
+| 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
 | ![Fig 12c](images/papers/github_figs/fig12c.png) | ![Fig 14c](images/papers/github_figs/fig14c.png) |
-| *Four quark binding action density* | *4 quark planar cut through the quarks.* |
+| *Difference of four quark and two quark action densities* | *On a plane through the quarks* |
 
 ### First Excited State Binding Energy
-| 4-Quark Planar (Fig 21b) | 4-Quark Planar (Fig 19b) |
+| 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
 | *4 quark planar cut through the quarks* | *4 quark planar binding energy* |
