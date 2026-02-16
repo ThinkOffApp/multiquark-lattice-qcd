@@ -67,15 +67,8 @@ These high-quality 3D isosurface reconstructions visualize the flux-tube volumes
 
 | 4-Quark Binding Action | 1st Excited State Binding |
 | :---: | :---: |
-| ![3D Binding](images/papers/github_figs/iso_3d_binding.png) | ![3D Excited](images/papers/github_figs/iso_3d_excited.png) |
-| *Isolated 4-body binding contribution* | *Binding energy of the first excited state* |
-
-| Colored Planar Action Density | 3D Action Density Distribution |
-| :---: | :---: |
-| ![Colored Planar](images/papers/reconstructed_4q_planar_colored.png) | ![3D Flux](images/papers/reconstructed_4q_3d.png) |
-| *High-contrast color contour of the density* | *Isometric surface of the 4-quark system* |
-
-[Download Raw Data (CSV)](images/papers/reconstructed_4q_planar_data.csv)
+| ![3D Binding](images/papers/github_figs/iso_3d_binding.png) | ![3D Excited](images/papers/github_figs/iso_3d_excited_multi.png) |
+| *Isolated 4-body binding contribution* | *Multi-layered binding energy of the first excited state* |
 
 ## Repository Map
 
