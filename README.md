@@ -55,28 +55,25 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
 | *Binding energy of the first excited state* | *On a plane through the quarks.* |
 
-## 3D Flux Tube Gallery
-*Modern 3D reconstructions of the color fields described in the paper.*
+## Modern 3D Reconstructions
+*Derived from the spatial distributions and sum rules in the 1998 paper.*
 
-| 2-Quark Action | 4-Quark Planar Action |
+These high-quality 3D isosurface reconstructions visualize the flux-tube volumes by interpolating between the measured longitudinal and transverse lattice slices.
+
+| 2-Quark Action (Cigar) | 4-Quark Planar Action |
 | :---: | :---: |
-| ![3D 2Q](images/papers/github_figs/3d_2q_action.png) | ![3D 4Q](images/papers/github_figs/3d_4q_action.png) |
-| *Flux tube between two quarks* | *Full 4-quark action density* |
+| ![3D 2Q](images/papers/github_figs/iso_3d_2q.png) | ![3D 4Q](images/papers/github_figs/iso_3d_4q.png) |
+| *True 3D flux tube (isosurface reconstruction)* | *Full 4-quark action density distribution* |
 
 | 4-Quark Binding Action | 1st Excited State Binding |
 | :---: | :---: |
-| ![3D Binding](images/papers/github_figs/3d_4q_binding.png) | ![3D Excited](images/papers/github_figs/3d_4q_excited.png) |
+| ![3D Binding](images/papers/github_figs/iso_3d_binding.png) | ![3D Excited](images/papers/github_figs/iso_3d_excited.png) |
 | *Isolated 4-body binding contribution* | *Binding energy of the first excited state* |
 
-## Modern Reconstructions
-*Derived from the spatial distributions and sum rules in the 1998 paper.*
-
-To better visualize the flux tube structure, the following modern reconstructions use a flux-tube density model ($S(\mathbf{r}) = \sum_i (\mathcal{E}_i + \mathcal{B}_i)$) based on the planar geometries and binding energy parameters established in the paper.
-
-| 3D Action Density Distribution | Colored Planar Action Density |
+| Colored Planar Action Density | 3D Action Density Distribution |
 | :---: | :---: |
-| ![3D Flux](images/papers/reconstructed_4q_3d.png) | ![Colored Planar](images/papers/reconstructed_4q_planar_colored.png) |
-| *3D view of the 4-quark flux system* | *High-contrast color contour of the action density* |
+| ![Colored Planar](images/papers/reconstructed_4q_planar_colored.png) | ![3D Flux](images/papers/reconstructed_4q_3d.png) |
+| *High-contrast color contour of the density* | *Isometric surface of the 4-quark system* |
 
 [Download Raw Data (CSV)](images/papers/reconstructed_4q_planar_data.csv)
 
