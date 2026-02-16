@@ -42,10 +42,10 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 
 The following visualizations show the evolution of the chromoelectric field from a simple two-quark system to a complex four-quark system, and finally the isolated "binding flux" that contributes to multiquark stability.
 
-| 2-Quark Field | 4-Quark Field (Tetrahedral) | Subtracted 4Q Binding Field |
+| 2-Quark Field | 4-Quark Field (Planar) | Subtracted 4Q Binding Energy |
 | :---: | :---: | :---: |
-| ![2Q Action Density](images/papers/q2sln.png) | ![4Q Tetrahedral Action](images/papers/q4slna.png) | ![Subtracted 4Q Field](images/papers/4qslnm.R4.png) |
-| *2-quark dipole field* | *Total 4-quark tetrahedral field* | *Isolated 4-body binding field* |
+| ![2Q Action Density](images/papers/q2sln.png) | ![4Q Planar Action](images/papers/q4sln.png) | ![Subtracted 4Q Tetrahedral](images/papers/q4slna.png) |
+| *Simple dipole flux tube* | *4Q field (resembling two 2Q tubes)* | *Tetrahedral binding energy contribution* |
 
 ## Repository Map
 
