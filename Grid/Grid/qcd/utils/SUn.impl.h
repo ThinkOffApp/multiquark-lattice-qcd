@@ -308,7 +308,7 @@ static void SubGroupHeatBath(
   udet = where(adet > machine_epsilon, udet, cone);
 
   xi = 0.5 * sqrt(udet);        // 4xi^2 = Det [ Sig - Sig^dag  + 1 Tr Sigdag]
-  u = 0.5 * u * pow(xi, -1.0);  //  u   = 1/2xi [ Sig - Sig^dag  + 1 Tr Sigdag]
+  u = 0.5 * u / xi;             //  u   = 1/2xi [ Sig - Sig^dag  + 1 Tr Sigdag]
 
   // Debug test for sanity
   uinv = adj(u);
@@ -577,4 +577,3 @@ static void RandomGaugeTransform(GridParallelRNG &pRNG, typename Gimpl::GaugeFie
   LieRandomize(pRNG,g,1.0);
   GaugeTransform<Gimpl>(Umu,g);
 }
-

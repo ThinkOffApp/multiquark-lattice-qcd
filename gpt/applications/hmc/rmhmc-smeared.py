@@ -29,6 +29,9 @@ root = g.default.get("--root",None)
 beta = g.default.get_float("--beta", 2.95)
 seed = g.default.get("--seed", "hmc-pure-gauge")
 n = g.default.get_int("--n", 1000)
+if root is None or str(root).strip() == "":
+    root = "."
+os.makedirs(root, exist_ok=True)
 
 # grid
 grid = g.grid([4, 4, 4, 8], g.double)
@@ -186,14 +189,17 @@ def hmc():
     integrator(tau)
     h1 = hamiltonian()
     g.message("dH",h1-h0)
-    return [True, h1 - h0]
-    #return [accrej(h1, h0), h1 - h0]
+    return [accrej(h1, h0), h1 - h0]
 
 # production
+accepted_count = 0
 for i in range(i0, n):
-    _, dH = hmc()
+    accepted, dH = hmc()
+    accepted_count += 1 if bool(accepted) else 0
+    traj = i - i0 + 1
+    acc_rate = accepted_count / traj if traj > 0 else 0.0
     P = g.qcd.gauge.plaquette(U)
-    g.message(f"Trajectory {i}, P={P}, dH={dH}")
+    g.message(f"Trajectory {i}, P={P}, dH={dH}, accepted={int(bool(accepted))}, acc_rate={acc_rate:.4f}")
 
     g.save(f"{root}/ckpoint_lat.{i}", U, g.format.nersc())
 
@@ -201,6 +207,11 @@ for i in range(i0, n):
         flog = open(f"{root}/ckpoint_lat.{i}.log","wt")
         flog.write(f"dH {dH}\n")
         flog.write(f"P {P}\n")
+        flog.write(f"accepted {int(bool(accepted))}\n")
+        flog.write(f"acc_rate {acc_rate}\n")
         flog.close()
 
     g.barrier()
+
+if n > i0:
+    g.message(f"Acceptance summary: {accepted_count}/{n - i0} = {accepted_count / (n - i0):.4f}")
