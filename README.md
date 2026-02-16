@@ -55,6 +55,16 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
 | *4 quark planar cut through the quarks* | *4 quark planar binding energy* |
 
+## Modern Reconstructions
+*Derived from the spatial distributions and sum rules in the 1998 paper.*
+
+To better visualize the flux tube structure, the following modern reconstructions use a flux-tube density model ($S(\mathbf{r}) = \sum_i (\mathcal{E}_i + \mathcal{B}_i)$) based on the planar geometries and binding energy parameters established in the paper.
+
+| 3D Action Density Distribution | Colored Planar Action Density |
+| :---: | :---: |
+| ![3D Flux](images/papers/reconstructed_4q_3d.png) | ![Colored Planar](images/papers/reconstructed_4q_planar_colored.png) |
+| *3D view of the 4-quark flux system* | *High-contrast color contour of the action density* |
+
 ## Repository Map
 
 - `gpt/applications/hmc/su2_2q_signal_scan.py` - measurement engine
