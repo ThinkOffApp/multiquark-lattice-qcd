@@ -55,6 +55,19 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
 | *Binding energy of the first excited state* | *On a plane through the quarks.* |
 
+## 3D Flux Tube Gallery
+*Modern 3D reconstructions of the color fields described in the paper.*
+
+| 2-Quark Action | 4-Quark Planar Action |
+| :---: | :---: |
+| ![3D 2Q](images/papers/github_figs/3d_2q_action.png) | ![3D 4Q](images/papers/github_figs/3d_4q_action.png) |
+| *Flux tube between two quarks* | *Full 4-quark action density* |
+
+| 4-Quark Binding Action | 1st Excited State Binding |
+| :---: | :---: |
+| ![3D Binding](images/papers/github_figs/3d_4q_binding.png) | ![3D Excited](images/papers/github_figs/3d_4q_excited.png) |
+| *Isolated 4-body binding contribution* | *Binding energy of the first excited state* |
+
 ## Modern Reconstructions
 *Derived from the spatial distributions and sum rules in the 1998 paper.*
 
