@@ -38,22 +38,22 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are the key figures from "Four-quark flux distribution and binding in lattice SU(2)" that illustrate the physics this program measures:
 
 ### Action Density
-| 2-Quark | 4-Quark Planar | 4-Quark Tetrahedral |
+| 2-Quark | 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: | :---: |
 | ![Fig 4d](images/papers/github_figs/fig4d.png) | ![Fig 6d](images/papers/github_figs/fig6d.png) | ![Fig 8d](images/papers/github_figs/fig8d.png) |
-| *Flux tube between two quarks* | *Four-quark planar flux* | *Four-quark tetrahedral flux* |
+| *Flux tube between two quarks* | *Four-quark flux* | *Four quark flux on a plane through the quarks* |
 
 ### Binding Action Density
-| 4-Quark Planar | 4-Quark Tetrahedral |
+| 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
 | ![Fig 12c](images/papers/github_figs/fig12c.png) | ![Fig 14c](images/papers/github_figs/fig14c.png) |
-| *Difference of planar densities* | *Difference of tetrahedral densities* |
+| *Difference of four quark and two quark action densities* | *On a plane through the quarks* |
 
 ### First Excited State Binding Energy
-| 4-Quark Planar | 4-Quark Tetrahedral |
+| 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
-| ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
-| *Binding energy (planar)* | *Binding energy (tetrahedral)* |
+| ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
+| *On a plane through the quarks.* | *Binding energy of the first excited state* |
 
 ## Modern 3D Reconstructions
 *Derived from the spatial distributions and sum rules in the 1998 paper.*
