@@ -41,19 +41,19 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | 2-Quark (Fig 4d) | 4-Quark Planar (Fig 6d) | 4-Quark Tetrahedral (Fig 8d) |
 | :---: | :---: | :---: |
 | ![Fig 4d](images/papers/github_figs/fig4d.png) | ![Fig 6d](images/papers/github_figs/fig6d.png) | ![Fig 8d](images/papers/github_figs/fig8d.png) |
-| *Action density between two quarks* | *Action density between four quarks* | *Action density between four quarks* |
+| *Action density between two quarks* | *Action density between four quarks* | *4 quark planar cut through the quarks.* |
 
 ### Binding Action Density
 | 4-Quark Planar Binding (Fig 12c) | 4-Quark Tetrahedral Binding (Fig 14c) |
 | :---: | :---: |
 | ![Fig 12c](images/papers/github_figs/fig12c.png) | ![Fig 14c](images/papers/github_figs/fig14c.png) |
-| *Four quark binding action density* | *Four quark binding action density* |
+| *Four quark binding action density* | *4 quark planar cut through the quarks.* |
 
 ### First Excited State Binding Energy
-| 4-Quark Planar (Fig 19b) | 4-Quark Tetrahedral (Fig 21b) |
+| 4-Quark Tetrahedral (Fig 21b) | 4-Quark Planar (Fig 19b) |
 | :---: | :---: |
-| ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
-| *First excited state of four quark binding energy* | *First excited state of four quark binding energy* |
+| ![Fig 21b](images/papers/github_figs/fig21b.png) | ![Fig 19b](images/papers/github_figs/fig19b.png) |
+| *4 quark planar cut through the quarks* | *4 quark planar binding energy* |
 
 ## Repository Map
 
