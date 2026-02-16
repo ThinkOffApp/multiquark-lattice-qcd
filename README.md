@@ -45,14 +45,19 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Longitudinal Profile](images/papers/rl.png) | ![Transverse Profile](images/papers/rta.png) |
 | *Energy density between quarks* | *Width of the flux tube (~0.5 fm)* |
 
-*   **Excited States**: The first excited state ($A_{1g}'$) shows a characteristic "dip" or node in the action density, indicating a more complex field structure.
-    ![Excited State Node](images/papers/rtb2.png)
-
 ### 4-Quark Flux Distribution
 *From: "Four-quark flux distribution and binding in lattice SU(2)"*
 
-Visualizations of the 4-quark flux show how color fields rearrange to form a "butterfly" or "double-Y" configuration, which is critical for understanding multiquark binding energy.
-![4-Quark Flux Distribution](images/papers/q4sln.png)
+#### Planar Geometry
+Visualizations of the 4-quark flux in a planar arrangement show how color fields rearrange to form a "butterfly" or "double-Y" configuration.
+![4-Quark Flux Planar](images/papers/q4sln.png)
+
+#### Tetrahedral Geometry
+In the tetrahedral arrangement, the flux is distributed more symmetrically between the four quarks, illustrating the complex non-abelian interactions.
+| Action Density | Field Strength |
+| :---: | :---: |
+| ![Tetrahedral Action](images/papers/q4slna.png) | ![Tetrahedral Field](images/papers/q4slda.png) |
+| *Action density distribution* | *Color field strength* |
 
 ## Repository Map
 
