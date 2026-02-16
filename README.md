@@ -65,6 +65,8 @@ To better visualize the flux tube structure, the following modern reconstruction
 | ![3D Flux](images/papers/reconstructed_4q_3d.png) | ![Colored Planar](images/papers/reconstructed_4q_planar_colored.png) |
 | *3D view of the 4-quark flux system* | *High-contrast color contour of the action density* |
 
+[Download Raw Data (CSV)](images/papers/reconstructed_4q_planar_data.csv)
+
 ## Repository Map
 
 - `gpt/applications/hmc/su2_2q_signal_scan.py` - measurement engine
