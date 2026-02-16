@@ -40,19 +40,19 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 ### Action Density
 | 2-Quark (Fig 4d) | 4-Quark Planar (Fig 6d) | 4-Quark Tetrahedral (Fig 8d) |
 | :---: | :---: | :---: |
-| ![Fig 4d](images/papers/q2slna.png) | ![Fig 6d](images/papers/q4slna.png) | ![Fig 8d](images/papers/q6slna.png) |
+| ![Fig 4d](images/papers/github_figs/fig4d.png) | ![Fig 6d](images/papers/github_figs/fig6d.png) | ![Fig 8d](images/papers/github_figs/fig8d.png) |
 | *Simple dipole flux tube* | *4Q field (resembling two 2Q tubes)* | *Tetrahedral flux distribution* |
 
 ### Binding Action Density
 | 4-Quark Planar Binding (Fig 12c) | 4-Quark Tetrahedral Binding (Fig 14c) |
 | :---: | :---: |
-| ![Fig 12c](images/papers/4qslnm.R4.png) | ![Fig 14c](images/papers/4qslnm.R8.png) |
+| ![Fig 12c](images/papers/github_figs/fig12c.png) | ![Fig 14c](images/papers/github_figs/fig14c.png) |
 | *Planar binding energy contribution* | *Tetrahedral binding energy contribution* |
 
 ### First Excited State Binding Energy
 | 4-Quark Planar (Fig 19b) | 4-Quark Tetrahedral (Fig 21b) |
 | :---: | :---: |
-| ![Fig 19b](images/papers/onmt.R4.png) | ![Fig 21b](images/papers/onmt.R8.png) |
+| ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
 | *Planar excited state* | *Tetrahedral excited state* |
 
 ## Repository Map
