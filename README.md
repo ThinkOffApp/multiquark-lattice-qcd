@@ -33,6 +33,27 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 - A. M. Green, P. Pennanen, *An interquark potential model for multi-quark systems*, [arXiv:hep-lat/9804003](https://arxiv.org/abs/hep-lat/9804003)
 - P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)*, [arXiv:hep-lat/9804004](https://arxiv.org/abs/hep-lat/9804004)
 
+## Scientific Background
+
+The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are key figures from the associated papers that illustrate the physics this program measures:
+
+### 2-Quark Flux Tube (SU(2))
+*From: "Flux-tube structure and beta-functions in SU(2)"*
+
+| Longitudinal Profile | Transverse Profile |
+| :---: | :---: |
+| ![Longitudinal Profile](images/papers/rl.png) | ![Transverse Profile](images/papers/rta.png) |
+| *Energy density between quarks* | *Width of the flux tube (~0.5 fm)* |
+
+*   **Excited States**: The first excited state ($A_{1g}'$) shows a characteristic "dip" or node in the action density, indicating a more complex field structure.
+    ![Excited State Node](images/papers/rtb2.png)
+
+### 4-Quark Flux Distribution
+*From: "Four-quark flux distribution and binding in lattice SU(2)"*
+
+Visualizations of the 4-quark flux show how color fields rearrange to form a "butterfly" or "double-Y" configuration, which is critical for understanding multiquark binding energy.
+![4-Quark Flux Distribution](images/papers/q4sln.png)
+
 ## Repository Map
 
 - `gpt/applications/hmc/su2_2q_signal_scan.py` - measurement engine
