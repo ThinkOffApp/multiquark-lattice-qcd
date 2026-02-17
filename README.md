@@ -26,12 +26,33 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 - Reduced dashboard/server overhead via cached state updates and lighter refresh paths.
 - Batched processing and reduced progress I/O frequency for faster runs.
 
+## Memory Leak: Root Causes Identified
+
+1. GPT module-level caches retain `g.parallel_transport_matrix` objects keyed by `str(U[0].grid)`.
+   - When `g.load()` creates lattice objects on new grid instances, each iteration adds new cache entries with volume-proportional stencil data.
+   - With 12 smear steps per time direction, 4 time directions, and 100+ configurations, this accumulates into hundreds of heavy entries that are not freed.
+2. `build_measurement_fields` materialized all four smeared gauge field sets simultaneously.
+   - This holds 16 SU(2) lattice fields in memory (`4 tdirs x 4 directions`) at once.
+   - The main scan generator pattern only keeps one set in memory, so this eager materialization substantially increases peak memory.
+3. No explicit `gc.collect()` during heavy allocation phases.
+   - C++ lattice objects participating in Python reference cycles were released only when cyclic GC triggered automatically.
+   - Under sustained allocation pressure, this delayed reclamation and amplified apparent leak behavior.
+
 ## Selected Earlier SU(2) Papers
 
 - P. Pennanen, A. M. Green, C. Michael, *Flux-tube structure and beta-functions in SU(2)*, [arXiv:hep-lat/9705033](https://arxiv.org/abs/hep-lat/9705033)
 - A. M. Green, P. Pennanen, C. Michael, *Flux-tube Structure, Sum Rules and Beta-functions in SU(2)*, [arXiv:hep-lat/9708012](https://arxiv.org/abs/hep-lat/9708012)
 - A. M. Green, P. Pennanen, *An interquark potential model for multi-quark systems*, [arXiv:hep-lat/9804003](https://arxiv.org/abs/hep-lat/9804003)
 - P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)*, [arXiv:hep-lat/9804004](https://arxiv.org/abs/hep-lat/9804004)
+
+## Contributing
+
+- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Antfarm lattice-qcd room: <https://antfarm.world/messages/room/lattice-qcd>
+
+## License
+
+GPL-2.0 (see [LICENSE](LICENSE)).
 
 ## Scientific Background
 
