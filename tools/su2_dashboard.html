@@ -113,6 +113,46 @@
     .warn-fill {
       background: linear-gradient(90deg, #e7a92e, #f4ca62);
     }
+    .cfg-thread-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .cfg-thread-segment {
+      position: relative;
+      height: 18px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bar-bg);
+      overflow: hidden;
+    }
+    .cfg-thread-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.2s linear;
+      background: var(--cfg-color);
+    }
+    .cfg-thread-segment.thread-a { --cfg-color: #52adff; }
+    .cfg-thread-segment.thread-b { --cfg-color: #2fd08a; }
+    .cfg-thread-segment.thread-c { --cfg-color: #f2c14b; }
+    .cfg-thread-segment.thread-d { --cfg-color: #f87171; }
+    .cfg-thread-label {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 4px;
+      font-size: 10px;
+      line-height: 1;
+      font-weight: 600;
+      color: #d9e7ff;
+      text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
     .hint { font-size: 12px; color: var(--muted); }
     canvas {
       width: 100%;
@@ -413,7 +453,24 @@
 
       <div style="height: 10px;"></div>
       <div class="row"><div class="hint">Current config progress (all threads)</div><div class="hint" id="cfgSubPct">-</div></div>
-      <div class="bar"><div class="fill warn-fill" id="cfgSubFill"></div></div>
+      <div class="cfg-thread-grid">
+        <div class="cfg-thread-segment thread-a">
+          <div class="cfg-thread-fill" id="cfgSubFillA"></div>
+          <div class="cfg-thread-label" id="cfgSubLabelA">A cfg- 0.0%</div>
+        </div>
+        <div class="cfg-thread-segment thread-b">
+          <div class="cfg-thread-fill" id="cfgSubFillB"></div>
+          <div class="cfg-thread-label" id="cfgSubLabelB">B cfg- 0.0%</div>
+        </div>
+        <div class="cfg-thread-segment thread-c">
+          <div class="cfg-thread-fill" id="cfgSubFillC"></div>
+          <div class="cfg-thread-label" id="cfgSubLabelC">C cfg- 0.0%</div>
+        </div>
+        <div class="cfg-thread-segment thread-d">
+          <div class="cfg-thread-fill" id="cfgSubFillD"></div>
+          <div class="cfg-thread-label" id="cfgSubLabelD">D cfg- 0.0%</div>
+        </div>
+      </div>
 
       <div style="height: 10px;"></div>
       <div class="row"><div class="hint">Configs done / measured</div><div class="hint" id="cfgDoneMeasured">0 / 0</div></div>
@@ -1395,7 +1452,9 @@
     }
 
     function setPct(fillId, pct) {
-      document.getElementById(fillId).style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      const el = document.getElementById(fillId);
+      if (!el) return;
+      el.style.width = `${Math.max(0, Math.min(100, pct))}%`;
     }
 
     function fmtList(v) {
@@ -1534,6 +1593,22 @@
     function renderCurrentConfigProgress(p, phase) {
       const pctEl = document.getElementById("cfgSubPct");
       if (!pctEl) return;
+      const setThreadPart = (label, progress, cfgIdx) => {
+        const pct = 100 * clamp01(toFiniteNumber(progress, 0));
+        const cfg = Number.isFinite(cfgIdx) ? Math.max(1, Math.round(cfgIdx)) : NaN;
+        setPct(`cfgSubFill${label}`, pct);
+        const labelEl = document.getElementById(`cfgSubLabel${label}`);
+        if (labelEl) {
+          const cfgTxt = Number.isFinite(cfg) ? `cfg${cfg}` : "cfg-";
+          labelEl.textContent = `${label} ${cfgTxt} ${pct.toFixed(1)}%`;
+        }
+      };
+      const resetThreadParts = () => {
+        for (const slot of threadSlots) {
+          setThreadPart(slot.label, 0, NaN);
+        }
+      };
+
       const rootSeed = resolveThreadBaseSeed();
       const threads = threadSlots.map((slot) => {
         const seed = `${rootSeed}${slot.suffix}`;
@@ -1559,6 +1634,11 @@
       }).filter(Boolean);
 
       if (threads.length > 0) {
+        const byLabel = new Map(threads.map((t) => [t.label, t.snap]));
+        for (const slot of threadSlots) {
+          const snap = byLabel.get(slot.label) || null;
+          setThreadPart(slot.label, snap?.progress, snap?.cfgIdx);
+        }
         const avgProgress = clamp01(
           threads.reduce((acc, t) => acc + clamp01(toFiniteNumber(t?.snap?.progress, 0)), 0) / threads.length
         );
@@ -1570,13 +1650,7 @@
         const cfgSpan = Number.isFinite(minCfg) && Number.isFinite(maxCfg)
           ? (minCfg === maxCfg ? `cfg ${minCfg}` : `cfg ${minCfg}-${maxCfg}`)
           : "cfg -";
-        const parts = threads.map((t) => {
-          const pct = (100 * t.snap.progress).toFixed(1);
-          const idx = Math.max(1, Math.round(toFiniteNumber(t?.snap?.cfgIdx, 1)));
-          return `${t.label} cfg${idx} ${pct}%`;
-        });
-        pctEl.textContent = `${(100 * avgProgress).toFixed(1)}% (${cfgSpan} thread avg) | ${parts.join(" | ")}`;
-        setPct("cfgSubFill", 100 * avgProgress);
+        pctEl.textContent = `${(100 * avgProgress).toFixed(1)}% (${cfgSpan} thread avg)`;
         return;
       }
 
@@ -1602,13 +1676,16 @@
           }
         : null;
       if (single) {
-        pctEl.textContent = `${(100 * single.progress).toFixed(1)}%`;
-        setPct("cfgSubFill", 100 * single.progress);
+        setThreadPart("A", single.progress, single.cfgIdx);
+        for (const slot of threadSlots) {
+          if (slot.label !== "A") setThreadPart(slot.label, 0, NaN);
+        }
+        pctEl.textContent = `${(100 * single.progress).toFixed(1)}% (cfg ${Math.max(1, Math.round(toFiniteNumber(single.cfgIdx, 1)))})`;
         return;
       }
 
       pctEl.textContent = phase === "production" ? "0.0%" : "-";
-      setPct("cfgSubFill", 0);
+      resetThreadParts();
     }
 
     function normalizeLatticeCoord(v, l) {
@@ -3038,7 +3115,11 @@
         document.getElementById("lastUpdate").textContent = `Progress read error: ${e.message}`;
         document.getElementById("cfgDoneMeasured").textContent = "- / -";
         document.getElementById("cfgSubPct").textContent = "-";
-        setPct("cfgSubFill", 0);
+        for (const slot of threadSlots) {
+          setPct(`cfgSubFill${slot.label}`, 0);
+          const labelEl = document.getElementById(`cfgSubLabel${slot.label}`);
+          if (labelEl) labelEl.textContent = `${slot.label} cfg- 0.0%`;
+        }
       }
 
       try {
