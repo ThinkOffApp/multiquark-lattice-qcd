@@ -1,80 +1,45 @@
 # Petrus Pennanen - Lattice QCD Flux-Tube Program
 
-This repository contains the active Grid+GPT workflow for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles.
+This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, and live observability through a streaming dashboard.
 
-## Scientific Scope
+## Scientific Program
 
-- Reproduce and extend earlier SU(2) flux-tube studies with better statistics and larger lattices.
-- Then move to 6-quark systems in SU(3), using gauge configurations from collaborations.
-- Main target: resolve flux-tube structure between two nucleons and study its relevance for nuclear fusion dynamics.
+The immediate target is to reproduce and extend earlier SU(2) flux-tube studies with better statistics, larger lattices, and tighter uncertainty control. The next stage is to move to multi-quark systems in SU(3), including 6-quark physics on collaboration gauge ensembles. A central long-term goal is to resolve flux-tube structure between two nucleons and quantify how confinement-scale dynamics may connect to nuclear-fusion-relevant effective interactions.
 
-## Core Algorithms
+## Methods and Physics Outputs
 
-- Monte Carlo gauge-field evolution with thermalization + production separation.
-- Wilson-loop based extraction of static observables across multiple \(R,T\) geometries.
-- Connected correlator measurements for flux observables.
-- Gauge-link smearing and operator averaging for overlap improvement.
-- Jackknife-based uncertainty estimation with covariance-aware fitting.
-- Autocorrelation-aware handling of measurement streams (binning / effective sample control).
+The measurement engine separates thermalization from production, then samples observables from Wilson-loop and connected-correlator operators across multiple geometries. Smearing, operator averaging, and jackknife-based uncertainty estimation are integrated in the default pipeline, with covariance-aware fitting in post-processing. The dashboard and postprocessor report potential and flux observables in forms directly comparable across runs and volumes, while autocorrelation diagnostics are used to monitor effective sample independence.
 
-## Signal and Performance Optimizations
+The static potential is fit with the Cornell form
 
-- Optional all-sample mode (admin toggle) vs quality-filtered mode.
-- Raw flux and vacuum/tail-subtracted flux switches in dashboard views.
-- Safer checkpoint/resume with parameter validation.
-- Missing-config backfill tooling for exact target coverage.
-- Reduced dashboard/server overhead via cached state updates and lighter refresh paths.
-- Batched processing and reduced progress I/O frequency for faster runs.
+$$
+V(R) = V_0 + \sigma R - \frac{e}{R},
+$$
 
-## Present-day Macbook with GPU is more powerful than a Cray vector supercomputer 30 years ago
+and the dashboard shows the fitted physical parameters $(\sigma, e, V_0, \chi^2/\mathrm{dof})$ alongside the measured $V(R)$ points. Flux profiles are displayed as connected-field measurements $\Delta P(r_\perp)$, and plaquette autocorrelation is tracked via $\tau_{\mathrm{int}}$ estimators during the run.
 
-This workflow is actively developed for both Linux and macOS (including Apple Silicon).
+## Platform and Runtime
 
-- Primary development and production runs are tested on modern M-series MacBook/Mac mini/Mac Studio and Linux workstations/servers.
-- Worker orchestration and dashboard tooling are written for POSIX shell + `tmux` on Linux and macOS.
-- Tool defaults now use repo-relative paths or environment variables (`SU2_OUT_DIR`, `SU2_GPT_DIR`) instead of machine-specific absolute paths.
-- Recommended memory for serious production scans is 64 GB (or higher) on both platforms.
+This codebase is actively maintained for both Linux and macOS, including Apple Silicon systems. Production runs are regularly executed on modern M-series MacBook, Mac mini, and Mac Studio machines as well as Linux workstations and servers. The orchestration scripts are POSIX shell plus `tmux`, and path handling is now environment-aware through variables such as `SU2_OUT_DIR` and `SU2_GPT_DIR`, so the same run definitions can move between hosts without hardcoded machine paths.
 
 ## Live Run Dashboard
 
 ![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
 
-The dashboard streams progress and measurements directly from live `progress_<seed>.json` and `live_<seed>.json` files.
+The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the view above, the top section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
 
-### In the screenshot above
-
-- **Phase and global bars**: production/thermalization state, overall progress, production measurement count, and all-thread current-config progress.
-- **Per-Thread Monitor (A/B/C/D)**: per-thread config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and real-time cursor positions over lattice directions.
-- **Cursor colors**: blue = time direction, amber = space direction, green = other directions, magenta = per-thread config progress track.
-
-### Additional dashboard sections (below the screenshot)
-
-- **Run Parameters**: seed, lattice size, beta, `R/T` sets, flux probe setup, and sampling mode.
-- **Thread Status Table**: per-thread phase, thermalization/measurement counters, config index, and update timestamp.
-- **Thermalization Sweep Count**: live sweep counter with in-sweep progress.
-- **Time Metrics**: elapsed runtime and ETA.
-- **Observable Charts**: plaquette history (running mean + SEM), selected Wilson-loop history, flux profile \(\Delta P(r_\perp)\), \(V(R)\) with errors and Cornell fit readout (\(\sigma, e, V_0, \chi^2/\mathrm{dof}\)), plaquette autocorrelation (\(\tau_\mathrm{int}\)), and Polyakov-loop sector tracking by direction.
-- **Admin Chat + Next Jobs**: run interpretation and suggested follow-up runs.
+Below the screenshot, additional panels expose run parameters, per-thread status timing, thermalization sweep counters, ETA metrics, and observable charts for plaquette, selected Wilson loops, flux profiles, and $V(R)$ with fit overlays. The same page also includes autocorrelation and Polyakov-loop sector tracking, plus an admin chat pane and a next-jobs planner for follow-up scans.
 
 ## Selected Earlier SU(2) Papers
 
-- P. Pennanen, A. M. Green, C. Michael, *Flux-tube structure and beta-functions in SU(2)*, [arXiv:hep-lat/9705033](https://arxiv.org/abs/hep-lat/9705033)
-- A. M. Green, P. Pennanen, C. Michael, *Flux-tube Structure, Sum Rules and Beta-functions in SU(2)*, [arXiv:hep-lat/9708012](https://arxiv.org/abs/hep-lat/9708012)
-- A. M. Green, P. Pennanen, *An interquark potential model for multi-quark systems*, [arXiv:hep-lat/9804003](https://arxiv.org/abs/hep-lat/9804003)
-- P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)*, [arXiv:hep-lat/9804004](https://arxiv.org/abs/hep-lat/9804004)
-
-## Contributing
-
-- Contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Antfarm lattice-qcd room: <https://antfarm.world/messages/room/lattice-qcd>
-
-## License
-
-GPL-2.0 (see [LICENSE](LICENSE)).
+1. P. Pennanen, A. M. Green, C. Michael, *Flux-tube structure and beta-functions in SU(2)*, [arXiv:hep-lat/9705033](https://arxiv.org/abs/hep-lat/9705033)
+2. A. M. Green, P. Pennanen, C. Michael, *Flux-tube Structure, Sum Rules and Beta-functions in SU(2)*, [arXiv:hep-lat/9708012](https://arxiv.org/abs/hep-lat/9708012)
+3. A. M. Green, P. Pennanen, *An interquark potential model for multi-quark systems*, [arXiv:hep-lat/9804003](https://arxiv.org/abs/hep-lat/9804003)
+4. P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)*, [arXiv:hep-lat/9804004](https://arxiv.org/abs/hep-lat/9804004)
 
 ## Scientific Background
 
-The current work builds upon earlier studies of SU(2) and SU(3) flux-tube structures. Below are the key figures from "Four-quark flux distribution and binding in lattice SU(2)" that illustrate the physics this program measures:
+The current implementation is directly anchored to earlier SU(2) and SU(3) flux-tube studies. The figures below from *Four-quark flux distribution and binding in lattice SU(2)* summarize the action-density and binding-structure observables that motivate the present measurement program.
 
 ### Action Density
 | 2-Quark | 4-Quark Planar | 4-Quark Planar |
@@ -94,13 +59,17 @@ The current work builds upon earlier studies of SU(2) and SU(3) flux-tube struct
 | ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
 | *On a plane through the quarks.* | *Binding energy of the first excited state* |
 
-## Repository Map
+## Repository Guide
 
-- `gpt/applications/hmc/su2_2q_signal_scan.py` - measurement engine
-- `tools/su2_signal_postprocess.py` - postprocessing + fit/error pipeline
-- `tools/su2_dashboard_server.py` - live dashboard backend
-- `tools/su2_dashboard.html` - dashboard frontend
-- `tools/su2_chain_to_24.py` - chained run orchestration
+The core runtime path is `gpt/applications/hmc/su2_2q_signal_scan.py` for measurement execution, `tools/su2_signal_postprocess.py` for post-processing and fit/error analysis, `tools/su2_dashboard_server.py` for live backend streaming, and `tools/su2_dashboard.html` for the frontend. Chained production orchestration lives in `tools/su2_chain_to_24.py`.
+
+## Contributing and Discussion
+
+Contribution workflow and coding standards are documented in [CONTRIBUTING.md](CONTRIBUTING.md). For run coordination, API discussion, and join-endpoint behavior (including intelligent-agent integration), use the Antfarm lattice-QCD room: <https://antfarm.world/messages/room/lattice-qcd>.
+
+## License
+
+This project is licensed under GPL-2.0. See [LICENSE](LICENSE) for the full text.
 
 ## Quickstart
 
@@ -111,12 +80,6 @@ pip install numpy
 ./scripts/validate.sh
 ```
 
-## Tests
+## Validation and Baseline
 
-- `./scripts/validate.sh` (or `make test`) runs a deterministic baseline validation.
-- The script generates a synthetic SU(2) live dataset, runs `tools/su2_signal_postprocess.py`, and checks a stable potential fit.
-
-## Baseline Number
-
-- Baseline observable: `V(R=2) = 0.310280` on the synthetic validation dataset.
-- CI accepts a narrow range (`0.29 <= V(R=2) <= 0.33`) to catch regressions while remaining numerically robust.
+`./scripts/validate.sh` (or `make test`) runs a deterministic baseline validation by generating a synthetic SU(2) live dataset, executing `tools/su2_signal_postprocess.py`, and checking a stable potential fit. The baseline observable is $V(R=2)=0.310280$ on the synthetic dataset, and CI accepts a robust regression window of $0.29 \le V(R=2) \le 0.33$.
