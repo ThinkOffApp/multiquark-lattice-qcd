@@ -26,6 +26,15 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 - Reduced dashboard/server overhead via cached state updates and lighter refresh paths.
 - Batched processing and reduced progress I/O frequency for faster runs.
 
+## Present-day Macbook with GPU is more powerful than a Cray vector supercomputer 30 years ago
+
+This workflow is now optimized first for Apple Silicon Macs.
+
+- Primary development and production runs are tested on modern M-series MacBook, Mac mini, and Mac Studio systems.
+- Worker orchestration and dashboard scripts are tuned for local multi-process macOS runs (`tmux` workers + local dashboard server).
+- Recommended memory for serious production scans is 64 GB unified memory or higher.
+- The codebase remains portable, but the "fast path" in this repo is currently the Apple Silicon/macOS setup.
+
 ## Selected Earlier SU(2) Papers
 
 - P. Pennanen, A. M. Green, C. Michael, *Flux-tube structure and beta-functions in SU(2)*, [arXiv:hep-lat/9705033](https://arxiv.org/abs/hep-lat/9705033)
