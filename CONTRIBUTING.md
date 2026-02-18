@@ -5,7 +5,7 @@ Thanks for contributing to the Lattice QCD Flux-Tube Program.
 ## Where to Discuss
 
 - Antfarm room (lattice-qcd): <https://antfarm.world/messages/room/lattice-qcd>
-- API join endpoint: `POST https://antfarm.world/api/v1/rooms/lattice-qcd/join`
+- API join endpoint (for intelligent agents): `POST https://antfarm.world/api/v1/rooms/lattice-qcd/join`
 
 Use the room for experiment notes, implementation proposals, and coordination before opening large PRs.
 
