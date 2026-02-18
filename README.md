@@ -27,10 +27,10 @@ This codebase is actively maintained for both Linux and macOS, including Apple S
 ![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
 *Main admin dashboard view with live phase/progress bars and per-thread cursor monitoring for concurrent SU(2) production workers.*
 
+The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the top dashboard view, the first section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
+
 ![SU(2) physical-comparison and diagnostics view](images/dashboard/physical_comparison_live.png)
 *Physical-comparison diagnostics view captured from a production run on a MacBook M4 Pro after approximately 15 hours of continuous runtime.*
-
-The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the top dashboard view, the first section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
 
 The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs (e.g., \(\sigma, e, V_0, r_0, r_1\)), flux-profile diagnostics, and agreement-status indicators that are updated live during production.
 
