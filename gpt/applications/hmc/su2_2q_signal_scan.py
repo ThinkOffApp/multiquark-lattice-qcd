@@ -18,8 +18,11 @@ import signal
 import sys
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import gpt as g
+
+RUN_COMPUTE_META = {}
 
 
 def clear_gpt_caches():
@@ -196,6 +199,80 @@ def read_json(path):
         return json.load(f)
 
 
+def detect_grid_build_info():
+    candidates = []
+    try:
+        here = Path(__file__).resolve()
+        repo_root = here.parents[3]
+        candidates.append(repo_root / "Grid" / "build" / "grid.configure.summary")
+    except Exception:
+        pass
+    env_summary = os.environ.get("GRID_CONFIG_SUMMARY", "").strip()
+    if env_summary:
+        candidates.append(Path(env_summary))
+
+    for path in candidates:
+        try:
+            if not path.exists():
+                continue
+            out = {
+                "summary_path": str(path),
+                "acceleration": None,
+                "simd": None,
+                "threading": None,
+            }
+            with path.open("r", encoding="utf-8", errors="ignore") as f:
+                for raw in f:
+                    line = raw.rstrip("\n")
+                    if ":" not in line:
+                        continue
+                    k, v = line.split(":", 1)
+                    key = k.strip().lower()
+                    val = v.strip()
+                    if key == "acceleration":
+                        out["acceleration"] = val
+                    elif key == "simd":
+                        out["simd"] = val
+                    elif key == "threading":
+                        out["threading"] = val
+            return out
+        except Exception:
+            continue
+
+    return {
+        "summary_path": "",
+        "acceleration": None,
+        "simd": None,
+        "threading": None,
+    }
+
+
+def detect_runtime_backend():
+    mem = {}
+    try:
+        mem = g.mem_info() or {}
+    except Exception:
+        mem = {}
+
+    build = detect_grid_build_info()
+    accel_total = float(mem.get("accelerator_total") or 0.0)
+    accel_available = float(mem.get("accelerator_available") or 0.0)
+    backend = "gpu" if accel_total > 0 else "cpu"
+    acceleration = str(build.get("acceleration") or "").strip()
+    simd = str(build.get("simd") or "").strip()
+    threading = str(build.get("threading") or "").strip()
+
+    return {
+        "backend": backend,
+        "accelerator_total_bytes": int(max(0.0, accel_total)),
+        "accelerator_available_bytes": int(max(0.0, accel_available)),
+        "grid_acceleration": acceleration or None,
+        "grid_simd": simd or None,
+        "grid_threading": threading or None,
+        "grid_summary_path": str(build.get("summary_path") or ""),
+    }
+
+
 def make_progress_payload(
     *,
     seed,
@@ -252,7 +329,7 @@ def make_progress_payload(
             meas_sub_total = mt
             meas_sub_progress = meas_sub_done / meas_sub_total
 
-    return {
+    payload = {
         "timestamp_utc": datetime.now(UTC).isoformat(),
         "seed": seed,
         "out_dir": out_dir,
@@ -287,6 +364,9 @@ def make_progress_payload(
         "last_loop_re": last_loop_re,
         "last_flux0": last_flux0,
     }
+    if RUN_COMPUTE_META:
+        payload.update(RUN_COMPUTE_META)
+    return payload
 
 
 def one_sweep(U_field, hb, action, mask, mask_rb, mu_dirs, step_cb=None):
@@ -627,8 +707,23 @@ def estimate_veff_from_means(measurements, Rs, Ts):
     for r in Rs:
         for t in Ts:
             key = f"R{r}_T{t}"
-            vals_re = [m["loops"][key]["re"] for m in measurements]
-            vals_im = [m["loops"][key]["im"] for m in measurements]
+            vals_re = []
+            vals_im = []
+            for m in measurements:
+                loops = m.get("loops") if isinstance(m, dict) else None
+                entry = loops.get(key) if isinstance(loops, dict) else None
+                if not isinstance(entry, dict):
+                    continue
+                re_v = entry.get("re")
+                im_v = entry.get("im")
+                if not isinstance(re_v, (int, float)) or not math.isfinite(re_v):
+                    continue
+                if not isinstance(im_v, (int, float)) or not math.isfinite(im_v):
+                    im_v = 0.0
+                vals_re.append(float(re_v))
+                vals_im.append(float(im_v))
+            if not vals_re:
+                continue
             mean_loops[key] = {
                 "re": mean(vals_re),
                 "im": mean(vals_im),
@@ -639,8 +734,12 @@ def estimate_veff_from_means(measurements, Rs, Ts):
         for t in Ts:
             if (t + 1) not in Ts:
                 continue
-            a = mean_loops[f"R{r}_T{t}"]["re"]
-            b = mean_loops[f"R{r}_T{t+1}"]["re"]
+            k0 = f"R{r}_T{t}"
+            k1 = f"R{r}_T{t+1}"
+            if k0 not in mean_loops or k1 not in mean_loops:
+                continue
+            a = mean_loops[k0]["re"]
+            b = mean_loops[k1]["re"]
             if a > 0.0 and b > 0.0:
                 veff[f"R{r}_T{t}to{t+1}"] = -math.log(b / a)
     return mean_loops, veff
@@ -677,28 +776,47 @@ def estimate_veff_with_errors(measurements, Rs, Ts, bin_size):
                 continue
             k0 = f"R{r}_T{t}"
             k1 = f"R{r}_T{t+1}"
-            a = [m["loops"][k0]["re"] for m in binned]
-            b = [m["loops"][k1]["re"] for m in binned]
+            pairs = []
+            for m in binned:
+                loops = m.get("loops") if isinstance(m, dict) else None
+                e0 = loops.get(k0) if isinstance(loops, dict) else None
+                e1 = loops.get(k1) if isinstance(loops, dict) else None
+                if not isinstance(e0, dict) or not isinstance(e1, dict):
+                    continue
+                a0 = e0.get("re")
+                b0 = e1.get("re")
+                if (
+                    isinstance(a0, (int, float))
+                    and isinstance(b0, (int, float))
+                    and math.isfinite(a0)
+                    and math.isfinite(b0)
+                ):
+                    pairs.append((float(a0), float(b0)))
+            npair = len(pairs)
+            if npair < 2:
+                continue
+            a = [x[0] for x in pairs]
+            b = [x[1] for x in pairs]
             a_mean = mean(a)
             b_mean = mean(b)
             if not (a_mean > 0.0 and b_mean > 0.0):
                 continue
             jk_vals = []
-            for leave in range(nbin):
+            for leave in range(npair):
                 aa = mean([x for i, x in enumerate(a) if i != leave])
                 bb = mean([x for i, x in enumerate(b) if i != leave])
                 if not (aa > 0.0 and bb > 0.0):
                     jk_vals = []
                     break
                 jk_vals.append(-math.log(bb / aa))
-            if len(jk_vals) != nbin:
+            if len(jk_vals) != npair:
                 continue
             vjk = mean(jk_vals)
             var = sum((x - vjk) * (x - vjk) for x in jk_vals)
-            sem = math.sqrt((nbin - 1.0) / nbin * var)
+            sem = math.sqrt((npair - 1.0) / npair * var)
             key = f"R{r}_T{t}to{t+1}"
             veff_err[key] = sem
-            veff_nbins[key] = nbin
+            veff_nbins[key] = npair
 
     return mean_loops, veff, veff_err, veff_nbins, nbin
 
@@ -753,8 +871,8 @@ def main():
     nskip = g.default.get_int("--nskip", 5)
 
     L = parse_list_int(g.default.get("--L", "16,16,16,16"))
-    Rs = sorted(parse_list_int(g.default.get("--R", "2,3,4,6,8,12")))
-    Ts = sorted(parse_list_int(g.default.get("--T", "2,3,4,5,6")))
+    Rs = sorted(parse_list_int(g.default.get("--R", "1,2,3,4,6,8,12")))
+    Ts = sorted(parse_list_int(g.default.get("--T", "1,2,3,4,5,6")))
 
     flux_r = g.default.get_int("--flux-r", 6)
     flux_t = g.default.get_int("--flux-t", 4)
@@ -767,8 +885,8 @@ def main():
     smear_rho = g.default.get_float("--smear-rho", 0.10)
     smear_spatial_only = g.default.get_int("--smear-spatial-only", 1) != 0
 
-    multilevel_blocks = max(1, g.default.get_int("--multilevel-blocks", 2))
-    multilevel_sweeps = max(0, g.default.get_int("--multilevel-sweeps", 1))
+    multilevel_blocks = max(1, g.default.get_int("--multilevel-blocks", 8))
+    multilevel_sweeps = max(0, g.default.get_int("--multilevel-sweeps", 4))
     multihit_samples = max(1, g.default.get_int("--multihit-samples", 2))
     multihit_temporal_sweeps = max(0, g.default.get_int("--multihit-temporal-sweeps", 1))
 
@@ -786,6 +904,8 @@ def main():
     resume = g.default.get_int("--resume", 1) != 0
     resume_force = g.default.get_int("--resume-force", 0) != 0
     max_lag = max(10, g.default.get_int("--autocorr-max-lag", 200))
+    pipeline_label = (g.default.get("--pipeline-label", "auto") or "auto").strip().lower()
+    require_accelerator = g.default.get_int("--require-accelerator", 0) != 0
 
     precision = g.default.get("--precision", "double")
     prec = g.single if precision == "single" else g.double
@@ -813,6 +933,25 @@ def main():
     sampler = SiteSampler(grid, meas_rng, sample_sites)
     U = g.qcd.gauge.unit(grid)
     Nd = len(U)
+    runtime_backend = detect_runtime_backend()
+    runtime_backend["pipeline"] = pipeline_label
+    RUN_COMPUTE_META.clear()
+    RUN_COMPUTE_META.update(
+        {
+            "compute_backend": runtime_backend.get("backend"),
+            "compute_pipeline": pipeline_label,
+            "grid_acceleration": runtime_backend.get("grid_acceleration"),
+            "grid_simd": runtime_backend.get("grid_simd"),
+            "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
+            "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+        }
+    )
+    if require_accelerator and runtime_backend.get("backend") != "gpu":
+        raise SystemExit(
+            "Requested --require-accelerator 1 but no accelerator memory is available. "
+            f"grid_acceleration={runtime_backend.get('grid_acceleration')}, "
+            f"accelerator_total_bytes={runtime_backend.get('accelerator_total_bytes')}"
+        )
 
     # Ensure time dirs are legal in case L/nd differs from expectation.
     time_dirs[:] = [mu for mu in time_dirs if 0 <= mu < Nd]
@@ -834,6 +973,13 @@ def main():
 
     g.default.push_verbose("su2_heat_bath", False)
     g.message(f"Lattice={L}, precision={precision}, beta={beta}")
+    g.message(
+        "Compute: "
+        f"backend={runtime_backend.get('backend')}, pipeline={pipeline_label}, "
+        f"grid_acceleration={runtime_backend.get('grid_acceleration') or 'unknown'}, "
+        f"SIMD={runtime_backend.get('grid_simd') or 'unknown'}, "
+        f"accelerator_total_bytes={runtime_backend.get('accelerator_total_bytes', 0)}"
+    )
     if a_fm > 0.0:
         g.message(f"Lattice spacing a={a_fm:.6f} fm (a^-1={(0.1973269804 / a_fm):.3f} GeV)")
     g.message(f"Therm={ntherm}, meas={nmeas}, skip={nskip}")
@@ -915,6 +1061,14 @@ def main():
                 "multihit_temporal_sweeps": multihit_temporal_sweeps,
                 "flux_vacuum_mode": flux_vacuum_mode,
                 "flux_vacuum_tail": flux_vacuum_tail,
+                "compute_backend": runtime_backend.get("backend"),
+                "compute_pipeline": pipeline_label,
+                "grid_acceleration": runtime_backend.get("grid_acceleration"),
+                "grid_simd": runtime_backend.get("grid_simd"),
+                "grid_threading": runtime_backend.get("grid_threading"),
+                "grid_summary_path": runtime_backend.get("grid_summary_path"),
+                "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
+                "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
                 "jsonl_path": os.path.basename(live_file_jsonl),
             },
             # "measurements": [], # Removed to save space
@@ -935,6 +1089,16 @@ def main():
             {
                 "seed": seed,
                 "phase": phase,
+                "runtime": {
+                    "compute_backend": runtime_backend.get("backend"),
+                    "compute_pipeline": pipeline_label,
+                    "grid_acceleration": runtime_backend.get("grid_acceleration"),
+                    "grid_simd": runtime_backend.get("grid_simd"),
+                    "grid_threading": runtime_backend.get("grid_threading"),
+                    "grid_summary_path": runtime_backend.get("grid_summary_path"),
+                    "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
+                    "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+                },
                 "therm_done": therm_done,
                 "meas_done": meas_done,
                 "sweeps_done": sweeps_done,
@@ -1567,6 +1731,14 @@ def main():
             "autocorr_bin_size": bin_size,
             "veff_n_binned": n_binned,
             "flux_n_binned": flux_n_binned,
+            "compute_backend": runtime_backend.get("backend"),
+            "compute_pipeline": pipeline_label,
+            "grid_acceleration": runtime_backend.get("grid_acceleration"),
+            "grid_simd": runtime_backend.get("grid_simd"),
+            "grid_threading": runtime_backend.get("grid_threading"),
+            "grid_summary_path": runtime_backend.get("grid_summary_path"),
+            "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
+            "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
         },
         "mean_plaquette": mean([m["plaquette"] for m in measurements]),
         "mean_loops": mean_loops,
