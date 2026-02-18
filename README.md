@@ -32,7 +32,7 @@ The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.jso
 ![SU(2) physical-comparison and diagnostics view](images/dashboard/physical_comparison_live.png)
 *Physical-comparison diagnostics view captured from a production run on a MacBook M4 Pro after approximately 15 hours of continuous runtime.*
 
-The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs (e.g., \(\sigma, e, V_0, r_0, r_1\)), flux-profile diagnostics, and agreement-status indicators that are updated live during production.
+The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs such as $\sigma$, $e$, $V_0$, $r_0$, and $r_1$, flux-profile diagnostics, and agreement-status indicators that are updated live during production.
 
 ### Analytical and Diagnostic Power
 
@@ -47,7 +47,7 @@ Beyond tracking progress, the dashboard provides automated physics interpretatio
 - **Phase and global bars**: production/thermalization state, overall progress, production measurement count, and all-thread current-config progress.
 - **Per-Thread Monitor (A/B/C/D)**: per-thread config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and real-time cursor positions over lattice directions.
 - **Cursor colors**: blue = time direction, amber = space direction, green = other directions, magenta = per-thread config progress track.
-- **Observable Charts**: plaquette history (running mean + SEM), selected Wilson-loop history, flux profile \(\Delta P(r_\perp)\), \(V(R)\) with errors and Cornell fit readout (\(\sigma, e, V_0, \chi^2/\mathrm{dof}\)), plaquette autocorrelation (\(\tau_\mathrm{int}\)), and Polyakov-loop sector tracking by direction.
+- **Observable Charts**: plaquette history (running mean + SEM), selected Wilson-loop history, flux profile $\Delta P(r_\perp)$, $V(R)$ with errors and Cornell fit readout $(\sigma, e, V_0, \chi^2/\mathrm{dof})$, plaquette autocorrelation $(\tau_\mathrm{int})$, and Polyakov-loop sector tracking by direction.
 - **Admin Chat + Next Jobs**: run interpretation and suggested follow-up runs.
 
 See [SU2_DASHBOARD.md](tools/SU2_DASHBOARD.md) for detailed setup and usage instructions.
