@@ -5,12 +5,14 @@ The run script writes two live files in the output directory:
 - `progress_<seed>.json`: phase, progress bars, ETA, current scalar values
 - `live_<seed>.json`: live measurement history for charts
 
+This workflow is supported on both Linux and macOS.
+
 ## Start dashboard
 
-From the project root:
+From the project root (`/path/to/multiquark-lattice-qcd`):
 
 ```bash
-cd /Users/petrus/AndroidStudioProjects/ThinkOff
+cd /path/to/multiquark-lattice-qcd
 python3 -m http.server 8000
 ```
 
@@ -26,7 +28,7 @@ Then set the two file paths in the dashboard UI, for example:
 ## Run command example
 
 ```bash
-cd /Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt/gpt
+cd /path/to/multiquark-lattice-qcd/gpt
 source lib/cgpt/build/source.sh
 python3 applications/hmc/su2_2q_signal_scan.py \
   --seed petrus-su2-signal \
@@ -40,5 +42,5 @@ python3 applications/hmc/su2_2q_signal_scan.py \
   --flux-r 6 \
   --flux-t 4 \
   --flux-rperp-max 6 \
-  --out /Users/petrus/AndroidStudioProjects/ThinkOff/results/su2_signal_scan
+  --out /path/to/multiquark-lattice-qcd/results/su2_signal_scan
 ```

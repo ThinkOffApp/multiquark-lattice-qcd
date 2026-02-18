@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import json
+import os
 import shlex
 import subprocess
 import time
@@ -97,15 +98,35 @@ def build_job(seed, next_seed, ckpt, out_dir: Path):
     return cmd
 
 
+def repo_root_from_script() -> Path:
+    # tools/su2_chain_to_24.py -> repo root is parent of tools/
+    return Path(__file__).resolve().parents[1]
+
+
+def default_out_dir() -> str:
+    env = os.environ.get("SU2_OUT_DIR", "").strip()
+    if env:
+        return env
+    return str(repo_root_from_script() / "results" / "su2_signal_scan")
+
+
+def default_gpt_dir() -> str:
+    env = os.environ.get("SU2_GPT_DIR", "").strip()
+    if env:
+        return env
+    return str(repo_root_from_script() / "gpt")
+
+
 def launch_job(gpt_dir: Path, cmd, log_path: Path):
     shell_cmd = (
         f"cd {shlex.quote(str(gpt_dir))} && "
         "source lib/cgpt/build/source.sh && "
         + " ".join(shlex.quote(x) for x in cmd)
     )
+    log_path.parent.mkdir(parents=True, exist_ok=True)
     logf = log_path.open("a", encoding="utf-8")
     p = subprocess.Popen(
-        ["/bin/zsh", "-lc", shell_cmd],
+        ["/usr/bin/env", "bash", "-lc", shell_cmd],
         stdout=logf,
         stderr=subprocess.STDOUT,
         start_new_session=True,
@@ -117,11 +138,13 @@ def main():
     p = argparse.ArgumentParser(description="Auto-chain SU2 16^4 run to 24^4 once complete.")
     p.add_argument(
         "--out-dir",
-        default="/Users/petrus/AndroidStudioProjects/ThinkOff/results/su2_signal_scan",
+        default=default_out_dir(),
+        help="Output directory (default: $SU2_OUT_DIR or <repo>/results/su2_signal_scan)",
     )
     p.add_argument(
         "--gpt-dir",
-        default="/Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt/gpt",
+        default=default_gpt_dir(),
+        help="GPT directory (default: $SU2_GPT_DIR or <repo>/gpt)",
     )
     p.add_argument(
         "--seeds",
@@ -172,4 +195,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

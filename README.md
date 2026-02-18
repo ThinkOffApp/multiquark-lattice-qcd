@@ -28,12 +28,12 @@ This repository contains the active Grid+GPT workflow for high-statistics lattic
 
 ## Present-day Macbook with GPU is more powerful than a Cray vector supercomputer 30 years ago
 
-This workflow is now optimized first for Apple Silicon Macs.
+This workflow is actively developed for both Linux and macOS (including Apple Silicon).
 
-- Primary development and production runs are tested on modern M-series MacBook, Mac mini, and Mac Studio systems.
-- Worker orchestration and dashboard scripts are tuned for local multi-process macOS runs (`tmux` workers + local dashboard server).
-- Recommended memory for serious production scans is 64 GB unified memory or higher.
-- The codebase remains portable, but the "fast path" in this repo is currently the Apple Silicon/macOS setup.
+- Primary development and production runs are tested on modern M-series MacBook/Mac mini/Mac Studio and Linux workstations/servers.
+- Worker orchestration and dashboard tooling are written for POSIX shell + `tmux` on Linux and macOS.
+- Tool defaults now use repo-relative paths or environment variables (`SU2_OUT_DIR`, `SU2_GPT_DIR`) instead of machine-specific absolute paths.
+- Recommended memory for serious production scans is 64 GB (or higher) on both platforms.
 
 ## Selected Earlier SU(2) Papers
 
