@@ -25,7 +25,7 @@ This codebase is actively maintained for both Linux and macOS, including Apple S
 ## Live Run Dashboard
 
 ![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
-![SU(2) physical-comparison and diagnostics view](images/dashboard/su2_admin_progress_view_with_legend.png)
+![SU(2) physical-comparison and diagnostics view](images/dashboard/physical_comparison_live.png)
 
 The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the top dashboard view, the first section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
 
