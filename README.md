@@ -75,7 +75,7 @@ The current implementation is directly anchored to earlier SU(2) and SU(3) flux-
 | 4-Quark Planar | 4-Quark Planar |
 | :---: | :---: |
 | ![Fig 19b](images/papers/github_figs/fig19b.png) | ![Fig 21b](images/papers/github_figs/fig21b.png) |
-| *On a plane through the quarks.* | *Binding energy of the first excited state* |
+| *Binding energy of the first excited state* | *On a plane through the quarks.* |
 
 ## Understanding Multiquark Flux Arrangement for Nuclear Fusion Dynamics
 
