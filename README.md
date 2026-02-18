@@ -18,10 +18,6 @@ $$
 
 and the dashboard shows the fitted physical parameters $(\sigma, e, V_0, \chi^2/\mathrm{dof})$ alongside the measured $V(R)$ points. Flux profiles are displayed as connected-field measurements $\Delta P(r_\perp)$, and plaquette autocorrelation is tracked via $\tau_{\mathrm{int}}$ estimators during the run.
 
-## Platform and Runtime
-
-This codebase is actively maintained for both Linux and macOS, including Apple Silicon systems. Production runs are regularly executed on modern M-series MacBook, Mac mini, and Mac Studio machines as well as Linux workstations and servers. The orchestration scripts are POSIX shell plus `tmux`, and path handling is now environment-aware through variables such as `SU2_OUT_DIR` and `SU2_GPT_DIR`, so the same run definitions can move between hosts without hardcoded machine paths.
-
 ## Live Run Dashboard
 
 ![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
@@ -148,6 +144,10 @@ Contribution workflow and coding standards are documented in [CONTRIBUTING.md](C
 ## License
 
 This project is licensed under GPL-2.0. See [LICENSE](LICENSE) for the full text.
+
+## Platform and Runtime
+
+This codebase is actively maintained for both Linux and macOS, including Apple Silicon systems. Production runs are regularly executed on modern M-series MacBook, Mac mini, and Mac Studio machines as well as Linux workstations and servers. The orchestration scripts are POSIX shell plus `tmux`, and path handling is now environment-aware through variables such as `SU2_OUT_DIR` and `SU2_GPT_DIR`, so the same run definitions can move between hosts without hardcoded machine paths.
 
 ## Quickstart
 
