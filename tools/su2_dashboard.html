@@ -450,6 +450,7 @@
       <div style="height: 10px;"></div>
       <div class="row"><div class="hint">Production measurements</div><div class="hint" id="measPct">0 / 0</div></div>
       <div class="bar"><div class="fill warn-fill" id="measFill"></div></div>
+      <div class="hint" id="measCounterDetail">N_meas = - / - (A=-, B=-, C=-, D=-)</div>
 
       <div style="height: 10px;"></div>
       <div class="row"><div class="hint">Current config progress (all threads)</div><div class="hint" id="cfgSubPct">-</div></div>
@@ -854,6 +855,38 @@
       }
       if (!(active > 1 && total > 0)) return null;
       return { done, total, active };
+    }
+
+    function renderMeasurementCounter(fallbackProgress = null, doneHint = NaN, totalHint = NaN) {
+      const el = document.getElementById("measCounterDetail");
+      if (!el) return;
+      const entries = threadCursorEntries(fallbackProgress);
+      const parts = [];
+      let sumDone = 0;
+      let sumTotal = 0;
+      let active = 0;
+      for (const entry of entries) {
+        const label = String(entry?.slot?.label || "?");
+        const p = entry?.progress || null;
+        const n = toFiniteNumber(p?.nmeas, NaN);
+        const d = toFiniteNumber(p?.meas_done, NaN);
+        if (Number.isFinite(n) && n > 0 && Number.isFinite(d)) {
+          const done = Math.max(0, Math.min(n, d));
+          const total = Math.max(0, n);
+          parts.push(`${label}=${Math.round(done)}/${Math.round(total)}`);
+          sumDone += done;
+          sumTotal += total;
+          active += 1;
+        } else {
+          parts.push(`${label}=-`);
+        }
+      }
+      const done = Number.isFinite(doneHint) ? Math.max(0, doneHint) : (active > 0 ? sumDone : NaN);
+      const total = Number.isFinite(totalHint) ? Math.max(0, totalHint) : (active > 0 ? sumTotal : NaN);
+      const overallText = Number.isFinite(done) && Number.isFinite(total) && total > 0
+        ? `${Math.round(done)} / ${Math.round(total)}`
+        : "- / -";
+      el.textContent = `N_meas = ${overallText} (${parts.join(", ")})`;
     }
 
     function threadPhaseBadge(phaseRaw, doneFlag) {
@@ -2696,6 +2729,8 @@
       const bandColor = options.bandColor || "rgba(47, 208, 138, 0.18)";
       const includeZero = options.includeZero || false;
       const drawZeroLine = options.drawZeroLine || false;
+      const xStartLabel = options.xStartLabel;
+      const xEndLabel = options.xEndLabel;
       const c = document.getElementById(canvasId);
       const ctx = c.getContext("2d");
       const w = c.width, h = c.height;
@@ -2769,6 +2804,11 @@
       ctx.font = "12px sans-serif";
       ctx.fillText(min.toExponential(3), 6, h - 8);
       ctx.fillText(max.toExponential(3), 6, 18);
+      const x0Txt = String(xStartLabel ?? 0);
+      const x1Txt = String(xEndLabel ?? Math.max(0, values.length - 1));
+      ctx.fillText(x0Txt, pad, h - 8);
+      const x1Width = ctx.measureText(x1Txt).width;
+      ctx.fillText(x1Txt, Math.max(pad + 6, pad + iw - x1Width), h - 8);
     }
 
     function updateNextJobs() {
@@ -2923,6 +2963,7 @@
         document.getElementById("cfgDoneMeasured").textContent = `${cfgDone} / ${cfgTotal}`;
         document.getElementById("paramTherm").textContent = hasTherm ? `${Math.round(thermDone)}/${Math.round(ntherm)} completed` : "-";
         document.getElementById("paramMeas").textContent = hasMeas ? `${measDone}/${nmeas}` : `${cfgDone}/${cfgTotal}`;
+        renderMeasurementCounter(p, hasMeas ? measDone : NaN, hasMeas ? nmeas : NaN);
         setPct("thermFill", hasTherm ? thermOverallPct : 0);
         setPct("measFill", hasMeas ? (100 * measDone / nmeas) : 0);
 
@@ -2992,6 +3033,7 @@
         document.getElementById("paramMeas").textContent = hasMeasProgress
           ? `${Math.round(measDone)}/${Math.round(nmeas)}`
           : `${p.meas_done}/${p.nmeas}`;
+        renderMeasurementCounter(p, hasMeasProgress ? measDone : NaN, hasMeasProgress ? nmeas : NaN);
         setPct("thermFill", Number.isFinite(thermOverallPct) ? thermOverallPct : 0);
         const measFillPct = hasMeasProgress
           ? 100 * (Math.min(nmeas, measDone + (showMeasSub ? measSubProgress : 0)) / nmeas)
@@ -3042,7 +3084,9 @@
       drawSeries("plaqCanvas", plaqStats.mean, "#2fd08a", {
         bandLow: plaqStats.low,
         bandHigh: plaqStats.high,
-        bandColor: "rgba(47, 208, 138, 0.22)"
+        bandColor: "rgba(47, 208, 138, 0.22)",
+        xStartLabel: 1,
+        xEndLabel: plaqStats.mean.length
       });
 
       if (!loopKey && live && live.meta && live.meta.flux_r && live.meta.flux_t) {
@@ -3062,7 +3106,9 @@
         bandHigh: loopStats.high,
         bandColor: "rgba(82, 173, 255, 0.22)",
         includeZero: true,
-        drawZeroLine: true
+        drawZeroLine: true,
+        xStartLabel: 1,
+        xEndLabel: loopStats.mean.length
       });
 
       const fluxView = buildFluxDisplaySeries(ms, currentMeta);
@@ -3072,7 +3118,9 @@
         bandHigh: fluxStats.high,
         bandColor: "rgba(242, 193, 75, 0.26)",
         includeZero: true,
-        drawZeroLine: true
+        drawZeroLine: true,
+        xStartLabel: 0,
+        xEndLabel: Math.max(0, fluxStats.mean.length - 1)
       });
       const vacMode = fluxView.mode === "tail_subtracted" ? "tail_subtracted" : (fluxView.mode === "raw" ? "raw" : "stored");
       const vacTail = fluxView.mode === "tail_subtracted" ? String(fluxView.tailN) : "-";
@@ -3114,6 +3162,8 @@
         document.getElementById("phaseBadge").textContent = "phase: unavailable";
         document.getElementById("lastUpdate").textContent = `Progress read error: ${e.message}`;
         document.getElementById("cfgDoneMeasured").textContent = "- / -";
+        const measCounterEl = document.getElementById("measCounterDetail");
+        if (measCounterEl) measCounterEl.textContent = "N_meas = - / - (A=-, B=-, C=-, D=-)";
         document.getElementById("cfgSubPct").textContent = "-";
         for (const slot of threadSlots) {
           setPct(`cfgSubFill${slot.label}`, 0);
