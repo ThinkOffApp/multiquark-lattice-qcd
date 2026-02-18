@@ -7,6 +7,24 @@ The run script writes two live files in the output directory:
 
 This workflow is supported on both Linux and macOS.
 
+## Advanced Analytical Features
+
+The dashboard provides real-time physics interpretation beyond simple progress tracking:
+
+### 1. Robust Physics Extraction
+- **Cornell Potential Fitting**: Automatically fits $V(R) = \sigma R - e/R + V_0$.
+- **Model Comparison**: Performs **AIC (Akaike Information Criterion)** testing to determine if the data favors a free Coulomb term or the theoretical **Lüscher term** ($\pi/12$).
+- **Sommer Scale**: Solves for $r_0$ and $r_1$ (via $r^2 F(r) = C$) to provide lattice-independent scale setting.
+- **Flux Tube Roughening**: Fits transverse width growth $w^2(R) = A + B \ln R$ to verify logarithmic broadening.
+
+### 2. Statistical Health Monitoring
+- **Autocorrelation Analysis**: Calculates $\tau_{int}$ for the plaquette to ensure configuration independence and suggests optimal `nskip` values.
+- **Signal-to-Noise (SNR)**: Real-time evaluation of signal emergence for Wilson loops and flux profiles, including stability and drift checks.
+- **Center Symmetry ($Z_2$)**: Visualizes $\text{Re } P_\mu$ sectors to detect the confinement phase vs. deconfined transitions.
+
+### 3. Direct Physical Comparison
+- **Benchmark Alignment**: Converts measured $\sigma$, $\sqrt{\sigma}$, and $r_0$ into physical units (GeV/fm) for direct comparison with literature benchmarks (e.g., SU(3) $\sqrt{\sigma} \approx 440$ MeV).
+
 ## Start dashboard
 
 From the project root (`/path/to/multiquark-lattice-qcd`):

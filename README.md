@@ -25,10 +25,29 @@ This codebase is actively maintained for both Linux and macOS, including Apple S
 ## Live Run Dashboard
 
 ![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
+![SU(2) physical-comparison and diagnostics view](images/dashboard/su2_admin_progress_view_with_legend.png)
 
-The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the view above, the top section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
+The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.json` and is designed to answer two questions continuously: whether the run is healthy, and whether the physics estimates are converging. In the top dashboard view, the first section reports phase, global progress, measurement counts, and synchronized all-thread current-config progress. The Per-Thread Monitor then shows each worker's current config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and live cursor positions in lattice-direction space.
 
-Below the screenshot, additional panels expose run parameters, per-thread status timing, thermalization sweep counters, ETA metrics, and observable charts for plaquette, selected Wilson loops, flux profiles, and $V(R)$ with fit overlays. The same page also includes autocorrelation and Polyakov-loop sector tracking, plus an admin chat pane and a next-jobs planner for follow-up scans.
+The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs (e.g., \(\sigma, e, V_0, r_0, r_1\)), flux-profile diagnostics, and agreement-status indicators that are updated live during production.
+
+### Analytical and Diagnostic Power
+
+Beyond tracking progress, the dashboard provides automated physics interpretation:
+- **Physics Extraction**: Real-time Cornell potential fitting, Sommer scale ($r_0, r_1$) determination, and flux tube width growth analysis.
+- **Statistical Health**: Integrated autocorrelation time ($\tau_{int}$) calculation and Signal-to-Noise (SNR) monitoring for all observables.
+- **Phase Detection**: Polyakov loop sector visualization for monitoring $Z_2$ center symmetry and confinement transitions.
+- **Physical Benchmarks**: Automatic conversion of lattice observables to physical units (GeV/fm) for direct comparison with literature.
+
+### Visualized Sections
+
+- **Phase and global bars**: production/thermalization state, overall progress, production measurement count, and all-thread current-config progress.
+- **Per-Thread Monitor (A/B/C/D)**: per-thread config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and real-time cursor positions over lattice directions.
+- **Cursor colors**: blue = time direction, amber = space direction, green = other directions, magenta = per-thread config progress track.
+- **Observable Charts**: plaquette history (running mean + SEM), selected Wilson-loop history, flux profile \(\Delta P(r_\perp)\), \(V(R)\) with errors and Cornell fit readout (\(\sigma, e, V_0, \chi^2/\mathrm{dof}\)), plaquette autocorrelation (\(\tau_\mathrm{int}\)), and Polyakov-loop sector tracking by direction.
+- **Admin Chat + Next Jobs**: run interpretation and suggested follow-up runs.
+
+See [SU2_DASHBOARD.md](tools/SU2_DASHBOARD.md) for detailed setup and usage instructions.
 
 ## Selected Earlier SU(2) Papers
 

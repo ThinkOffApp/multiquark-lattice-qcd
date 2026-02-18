@@ -3,7 +3,6 @@ import argparse
 import hmac
 import json
 import os
-import re
 import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -24,6 +23,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     protect_results = True
     json_cache = {}
     json_cache_lock = threading.Lock()
+    json_cache_max_entries = max(
+        32, int(os.environ.get("SU2_DASHBOARD_JSON_CACHE_MAX_ENTRIES", "256"))
+    )
     terminal_phases = {
         "interrupted",
         "complete",
@@ -156,51 +158,188 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return full
 
     @staticmethod
+    def file_sig(path: Path):
+        if not path.exists():
+            return (-1, -1)
+        try:
+            st = path.stat()
+        except Exception:
+            return (-1, -1)
+        return (int(st.st_mtime_ns), int(st.st_size))
+
+    @staticmethod
+    def cache_get(key: str, sig):
+        now_ns = time.monotonic_ns()
+        with DashboardHandler.json_cache_lock:
+            cached = DashboardHandler.json_cache.get(key)
+            if cached and cached.get("sig") == sig:
+                cached["atime_ns"] = now_ns
+                return cached.get("data")
+        return None
+
+    @staticmethod
+    def cache_put(key: str, sig, data):
+        now_ns = time.monotonic_ns()
+        with DashboardHandler.json_cache_lock:
+            DashboardHandler.json_cache[key] = {
+                "sig": sig,
+                "data": data,
+                "atime_ns": now_ns,
+            }
+            max_entries = int(DashboardHandler.json_cache_max_entries)
+            if max_entries > 0 and len(DashboardHandler.json_cache) > max_entries:
+                overflow = len(DashboardHandler.json_cache) - max_entries
+                oldest = sorted(
+                    DashboardHandler.json_cache.items(),
+                    key=lambda kv: int(kv[1].get("atime_ns", 0)),
+                )[:overflow]
+                for old_key, _ in oldest:
+                    DashboardHandler.json_cache.pop(old_key, None)
+
+    @staticmethod
     def read_json(path: Path):
         if not path.exists():
             return None, f"{path} not found"
         try:
-            mtime = path.stat().st_mtime_ns
+            sig = DashboardHandler.file_sig(path)
         except Exception as e:
             return None, str(e)
 
-        key = str(path)
-        with DashboardHandler.json_cache_lock:
-            cached = DashboardHandler.json_cache.get(key)
-            if cached and cached.get("mtime") == mtime:
-                return cached.get("data"), None
+        key = f"json:{path}"
+        cached = DashboardHandler.cache_get(key, sig)
+        if cached is not None:
+            return cached, None
 
         try:
             with path.open("r", encoding="utf-8") as f:
                 data = json.load(f)
-            with DashboardHandler.json_cache_lock:
-                DashboardHandler.json_cache[key] = {"mtime": mtime, "data": data}
+            DashboardHandler.cache_put(key, sig, data)
             return data, None
         except Exception as e:
             return None, str(e)
 
     @staticmethod
+    def read_jsonl(path: Path):
+        if not path.exists():
+            return [], None
+        sig = DashboardHandler.file_sig(path)
+        key = f"jsonl:{path}"
+        cached = DashboardHandler.cache_get(key, sig)
+        if cached is not None:
+            return cached, None
+        try:
+            meas = []
+            with path.open("r", encoding="utf-8") as f:
+                for raw in f:
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    try:
+                        row = json.loads(line)
+                    except Exception:
+                        # Ignore partial/truncated lines while writer appends.
+                        continue
+                    if isinstance(row, dict):
+                        meas.append(row)
+            DashboardHandler.cache_put(key, sig, meas)
+            return meas, None
+        except Exception as e:
+            return None, str(e)
+
+    @staticmethod
+    def infer_seed_from_live_path(path: Path):
+        name = path.name
+        if name.startswith("live_") and name.endswith(".json"):
+            return name[len("live_") : -len(".json")]
+        return ""
+
+    @staticmethod
+    def measurement_key(row):
+        if not isinstance(row, dict):
+            return None
+        idx = row.get("idx")
+        if isinstance(idx, (int, float)):
+            return ("idx", int(idx))
+        cfg_idx = row.get("cfg_idx")
+        if isinstance(cfg_idx, (int, float)):
+            return ("cfg_idx", int(cfg_idx))
+        return None
+
+    @staticmethod
+    def merge_measurements(base_rows, tail_rows):
+        out = []
+        seen = set()
+        if isinstance(base_rows, list):
+            for row in base_rows:
+                if not isinstance(row, dict):
+                    continue
+                out.append(row)
+                key = DashboardHandler.measurement_key(row)
+                if key is not None:
+                    seen.add(key)
+        if isinstance(tail_rows, list):
+            for row in tail_rows:
+                if not isinstance(row, dict):
+                    continue
+                key = DashboardHandler.measurement_key(row)
+                if key is not None and key in seen:
+                    continue
+                out.append(row)
+                if key is not None:
+                    seen.add(key)
+        return out
+
+    @staticmethod
     def load_live_with_jsonl(path: Path):
-        """Read the live JSON and merge measurements from its companion JSONL file."""
+        """Read the live JSON and merge measurements from checkpoint + JSONL tail."""
         data, err = DashboardHandler.read_json(path)
         if data is None:
             return data, err
-        if not data.get("measurements"):
-            jsonl_name = (data.get("meta") or {}).get("jsonl_path")
-            if jsonl_name:
-                jsonl_path = path.parent / jsonl_name
-                if jsonl_path.exists():
-                    meas = []
-                    try:
-                        with jsonl_path.open("r", encoding="utf-8") as f:
-                            for line in f:
-                                if line.strip():
-                                    meas.append(json.loads(line))
-                    except Exception:
-                        pass
-                    if meas:
-                        data["measurements"] = meas
-        return data, err
+        if not isinstance(data, dict):
+            return data, err
+        # Never mutate the cached JSON object in-place.
+        out = dict(data)
+
+        jsonl_path = None
+        jsonl_name = (out.get("meta") or {}).get("jsonl_path")
+        if isinstance(jsonl_name, str) and jsonl_name.strip():
+            jsonl_path = path.parent / jsonl_name.strip()
+        else:
+            fallback = path.with_suffix(".jsonl")
+            if fallback.exists():
+                jsonl_path = fallback
+
+        seed = ((out.get("meta") or {}).get("seed") or "").strip()
+        if not seed:
+            seed = DashboardHandler.infer_seed_from_live_path(path)
+
+        combined_rows = []
+        inline_rows = out.get("measurements")
+        if isinstance(inline_rows, list):
+            combined_rows = DashboardHandler.merge_measurements(combined_rows, inline_rows)
+
+        checkpoint_path = None
+        if seed:
+            checkpoint_path = path.parent / f"checkpoint_{seed}.json"
+        if checkpoint_path and checkpoint_path.exists():
+            checkpoint_data, checkpoint_err = DashboardHandler.read_json(checkpoint_path)
+            if isinstance(checkpoint_data, dict):
+                cp_rows = checkpoint_data.get("measurements")
+                if isinstance(cp_rows, list):
+                    combined_rows = DashboardHandler.merge_measurements(combined_rows, cp_rows)
+            if checkpoint_err and not err:
+                err = checkpoint_err
+
+        if jsonl_path and jsonl_path.exists():
+            meas, meas_err = DashboardHandler.read_jsonl(jsonl_path)
+            if isinstance(meas, list):
+                combined_rows = DashboardHandler.merge_measurements(combined_rows, meas)
+            if meas_err and not err:
+                err = meas_err
+
+        if isinstance(combined_rows, list) and len(combined_rows) > 0:
+            out["measurements"] = combined_rows
+        return out, err
 
     @staticmethod
     def with_live_elapsed(progress, progress_mtime):
@@ -228,19 +367,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     out["eta_sec"] = max(0.0, (float(total_sweeps) - float(sweeps_done)) * sec_per_sweep)
         return out
 
-    @staticmethod
-    def infer_thread_progress_paths(progress_path: Path):
-        m = re.match(r"^progress_(.+)\.json$", progress_path.name)
-        if not m:
-            return []
-        seed = m.group(1)
-        root_seed = re.sub(r"-(b|c|d)$", "", seed, flags=re.IGNORECASE)
-        out = []
-        for suffix in ("", "-b", "-c", "-d"):
-            s = f"{root_seed}{suffix}"
-            out.append((s, progress_path.with_name(f"progress_{s}.json")))
-        return out
-
     def handle_events(self, parsed):
         qs = parse_qs(parsed.query)
         progress_arg = qs.get("progress", ["/results/su2_signal_scan/progress_petrus-su2-signal.json"])[0]
@@ -254,7 +380,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
-        thread_paths = self.infer_thread_progress_paths(progress_path)
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -269,15 +394,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         try:
             while True:
                 now = time.time()
-                pm = progress_path.stat().st_mtime if progress_path.exists() else -1
-                lm = live_path.stat().st_mtime if live_path.exists() else -1
+                pm_sig = DashboardHandler.file_sig(progress_path)
+                lm_sig = DashboardHandler.file_sig(live_path)
                 jsonl_path = live_path.with_suffix(".jsonl")
-                jm = jsonl_path.stat().st_mtime if jsonl_path.exists() else -1
-                thread_mtimes = [
-                    tp.stat().st_mtime if tp.exists() else -1
-                    for _, tp in thread_paths
-                ]
-                sig = (pm, lm, jm, *thread_mtimes)
+                jm_sig = DashboardHandler.file_sig(jsonl_path)
+                sig = (pm_sig, lm_sig, jm_sig)
 
                 should_emit = sig != last_sig
                 if not should_emit and self.heartbeat_interval > 0:
@@ -286,6 +407,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if should_emit:
                     progress, progress_err = self.read_json(progress_path)
                     live, live_err = self.load_live_with_jsonl(live_path)
+                    pm = (pm_sig[0] / 1e9) if pm_sig[0] > 0 else -1
                     progress = self.with_live_elapsed(progress, pm)
                     payload = {
                         "ts": now,
@@ -293,20 +415,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "live": live,
                         "errors": {},
                     }
-                    if thread_paths:
-                        thread_progress = {}
-                        thread_errors = {}
-                        for (seed, tp), tm in zip(thread_paths, thread_mtimes):
-                            tp_data, tp_err = self.read_json(tp)
-                            tp_data = self.with_live_elapsed(tp_data, tm)
-                            if tp_data is not None:
-                                thread_progress[seed] = tp_data
-                            if tp_err:
-                                thread_errors[seed] = tp_err
-                        if thread_progress:
-                            payload["thread_progress"] = thread_progress
-                        if thread_errors:
-                            payload["errors"]["thread_progress"] = thread_errors
                     if sig == last_sig:
                         payload["heartbeat"] = True
                     if progress_err:

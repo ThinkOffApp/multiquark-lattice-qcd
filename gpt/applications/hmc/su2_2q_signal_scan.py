@@ -10,6 +10,7 @@
 # - multilevel/multihit-style averaging on copied fields
 # - flux tail vacuum subtraction for stable profiles
 #
+import gc
 import json
 import math
 import os
@@ -19,6 +20,19 @@ import time
 from datetime import UTC, datetime
 
 import gpt as g
+
+
+def clear_gpt_caches():
+    """Clear GPT's internal stencil/transport caches to free C++ memory."""
+    from gpt.qcd.gauge.loops import default_rectangle_cache
+    from gpt.qcd.gauge.stencil.plaquette import default_plaquette_cache
+    from gpt.qcd.gauge.stencil.staple import default_staple_cache
+    from gpt.core.foundation.lattice.matrix.exp import default_exp_cache
+
+    default_rectangle_cache.clear()
+    default_plaquette_cache.clear()
+    default_staple_cache.clear()
+    default_exp_cache.clear()
 
 
 def parse_list_int(value):
@@ -194,6 +208,20 @@ def make_progress_payload(
     sweeps_done,
     total_sweeps,
     elapsed_sec,
+    therm_sweep_substep_done=None,
+    therm_sweep_substep_total=None,
+    meas_cfg_index=None,
+    meas_cfg_total=None,
+    meas_cfg_stage=None,
+    meas_cfg_substep_done=None,
+    meas_cfg_substep_total=None,
+    meas_cursor_kind=None,
+    meas_cursor_tdir=None,
+    meas_cursor_sdir=None,
+    meas_cursor_r=None,
+    meas_cursor_t=None,
+    meas_cursor_r_perp=None,
+    meas_cursor_shift=None,
     last_plaquette=None,
     last_loop_re=None,
     last_flux0=None,
@@ -202,6 +230,28 @@ def make_progress_payload(
     eta_sec = None
     if sweeps_done > 0 and sweeps_done < total_sweeps:
         eta_sec = elapsed_sec * (total_sweeps - sweeps_done) / sweeps_done
+    sub_done = None
+    sub_total = None
+    sub_progress = None
+    if isinstance(therm_sweep_substep_done, (int, float)) and isinstance(therm_sweep_substep_total, (int, float)):
+        td = int(max(0, therm_sweep_substep_done))
+        tt = int(max(0, therm_sweep_substep_total))
+        if tt > 0:
+            sub_done = min(td, tt)
+            sub_total = tt
+            sub_progress = sub_done / sub_total
+
+    meas_sub_done = None
+    meas_sub_total = None
+    meas_sub_progress = None
+    if isinstance(meas_cfg_substep_done, (int, float)) and isinstance(meas_cfg_substep_total, (int, float)):
+        md = int(max(0, meas_cfg_substep_done))
+        mt = int(max(0, meas_cfg_substep_total))
+        if mt > 0:
+            meas_sub_done = min(md, mt)
+            meas_sub_total = mt
+            meas_sub_progress = meas_sub_done / meas_sub_total
+
     return {
         "timestamp_utc": datetime.now(UTC).isoformat(),
         "seed": seed,
@@ -214,6 +264,22 @@ def make_progress_payload(
         "meas_done": meas_done,
         "sweeps_done": sweeps_done,
         "total_sweeps": total_sweeps,
+        "therm_sweep_substep_done": sub_done,
+        "therm_sweep_substep_total": sub_total,
+        "therm_sweep_substep_progress": sub_progress,
+        "meas_cfg_index": meas_cfg_index,
+        "meas_cfg_total": meas_cfg_total,
+        "meas_cfg_stage": meas_cfg_stage,
+        "meas_cfg_substep_done": meas_sub_done,
+        "meas_cfg_substep_total": meas_sub_total,
+        "meas_cfg_substep_progress": meas_sub_progress,
+        "meas_cursor_kind": meas_cursor_kind,
+        "meas_cursor_tdir": meas_cursor_tdir,
+        "meas_cursor_sdir": meas_cursor_sdir,
+        "meas_cursor_r": meas_cursor_r,
+        "meas_cursor_t": meas_cursor_t,
+        "meas_cursor_r_perp": meas_cursor_r_perp,
+        "meas_cursor_shift": meas_cursor_shift,
         "progress": 0.0 if total_sweeps == 0 else sweeps_done / total_sweeps,
         "elapsed_sec": elapsed_sec,
         "eta_sec": eta_sec,
@@ -223,13 +289,18 @@ def make_progress_payload(
     }
 
 
-def one_sweep(U_field, hb, action, mask, mask_rb, mu_dirs):
+def one_sweep(U_field, hb, action, mask, mask_rb, mu_dirs, step_cb=None):
+    step_idx = 0
+    step_total = max(1, 2 * len(mu_dirs))
     for cb in [g.even, g.odd]:
         mask[:] = 0
         mask_rb.checkerboard(cb)
         g.set_checkerboard(mask, mask_rb)
         for mu in mu_dirs:
             hb(U_field[mu], action.staple(U_field, mu), mask)
+            step_idx += 1
+            if step_cb is not None:
+                step_cb(step_idx, step_total)
 
 
 def build_smear_ops(time_dirs, smear_steps, smear_rho, smear_spatial_only):
@@ -265,44 +336,135 @@ def iter_measurement_fields(U, time_dirs, smear_steps, smear_ops, smear_spatial_
             yield tdir, U_sm
 
 
-def measure_loops_for_tdir(U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc):
+def wilson_loop_field(U, mu, L_mu, nu, L_nu):
+    """Return Tr[W(R,T)] as a lattice complex field (one value per site)."""
+    nd = len(U)
+    W = g.copy(U[mu])
+    for i in range(1, L_mu):
+        W = g(W * g.cshift(U[mu], mu, i))
+    for j in range(L_nu):
+        tmp = U[nu]
+        for d in range(nd):
+            s = (L_mu if d == mu else 0) + (j if d == nu else 0)
+            if s != 0:
+                tmp = g.cshift(tmp, d, s)
+        W = g(W * tmp)
+    for i in range(L_mu - 1, -1, -1):
+        tmp = g.adj(U[mu])
+        for d in range(nd):
+            s = (i if d == mu else 0) + (L_nu if d == nu else 0)
+            if s != 0:
+                tmp = g.cshift(tmp, d, s)
+        W = g(W * tmp)
+    for j in range(L_nu - 1, 0, -1):
+        W = g(W * g.cshift(g.adj(U[nu]), nu, j))
+    W = g(W * g.adj(U[nu]))
+    ndim = U[0].otype.shape[0]
+    return g(g.trace(W) / ndim)
+
+
+def wilson_loop_trace(U, mu, L_mu, nu, L_nu):
+    """Compute Tr[W(R,T)] averaged over the lattice using only g.cshift.
+
+    Builds the closed rectangular path step-by-step so that at most two
+    full-lattice matrix fields are alive at any time (~40 MB for SU(2)
+    double on 24^4), avoiding the ~1 GB+ stencil allocations of
+    g.qcd.gauge.rectangle / parallel_transport_matrix.
+    """
+    nd = len(U)
+    # Forward mu: L_mu steps
+    W = g.copy(U[mu])
+    for i in range(1, L_mu):
+        W = g(W * g.cshift(U[mu], mu, i))
+    # Forward nu: L_nu steps
+    for j in range(L_nu):
+        shift = [0] * nd
+        shift[mu] = L_mu
+        shift[nu] = j
+        u_shifted = W  # will be overwritten
+        # Multi-dim shift via chained cshift
+        tmp = U[nu]
+        for d in range(nd):
+            if shift[d] != 0:
+                tmp = g.cshift(tmp, d, shift[d])
+        W = g(W * tmp)
+    # Backward mu: L_mu steps
+    for i in range(L_mu - 1, -1, -1):
+        shift = [0] * nd
+        shift[mu] = i
+        shift[nu] = L_nu
+        tmp = g.adj(U[mu])
+        for d in range(nd):
+            if shift[d] != 0:
+                tmp = g.cshift(tmp, d, shift[d])
+        W = g(W * tmp)
+    # Backward nu: L_nu steps
+    for j in range(L_nu - 1, 0, -1):
+        tmp = g.cshift(g.adj(U[nu]), nu, j)
+        W = g(W * tmp)
+    W = g(W * g.adj(U[nu]))
+    # Trace and volume average
+    ndim = U[0].otype.shape[0]
+    tr = g.sum(g.trace(W))
+    return tr / W.grid.gsites / ndim
+
+
+def polyakov_loop_trace(U, mu, L_mu, sampler=None):
+    """Compute average Polyakov loop Tr[prod U_mu] / N along direction mu."""
+    if L_mu <= 0:
+        return 0.0 + 0.0j
+    P = g.copy(U[mu])
+    for i in range(1, L_mu):
+        P = g(P * g.cshift(U[mu], mu, i))
+    ndim = U[0].otype.shape[0]
+    tr_field = g(g.trace(P) / ndim)
+    if sampler is not None and getattr(sampler, "enabled", False):
+        return sampler.mean(tr_field)
+    return g.sum(tr_field) / tr_field.grid.gsites
+
+
+def measure_polyakov_loops(U_field, dirs, extents, sampler=None):
+    out = {}
+    for mu in dirs:
+        if mu < 0 or mu >= len(U_field) or mu >= len(extents):
+            continue
+        l_mu = int(extents[mu])
+        if l_mu <= 0:
+            continue
+        tr = polyakov_loop_trace(U_field, mu, l_mu, sampler=sampler)
+        re, im = scalar_complex(tr)
+        out[f"mu{mu}"] = {
+            "re": re,
+            "im": im,
+            "phase": float(math.atan2(im, re)),
+        }
+    return out
+
+
+def measure_loops_for_tdir(U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc, progress_cb=None):
     if not orientations_for_tdir:
         return
 
-    loop_specs = []
-    keys = []
-    for sdir in orientations_for_tdir:
-        for r in Rs:
-            for t in Ts:
-                loop_specs.append([(tdir, t, sdir, r)])
-                keys.append(f"R{r}_T{t}")
-
-    if not loop_specs:
-        return
-
-    values = g.qcd.gauge.rectangle(
-        U_use,
-        loop_specs,
-        field=sampler.enabled,
-        trace=True,
-        real=False,
-    )
-    if isinstance(values, tuple):
-        pass
-    elif isinstance(values, list):
-        values = tuple(values)
-    else:
-        try:
-            values = tuple(values)
-        except TypeError:
-            values = (values,)
-
-    for key, val in zip(keys, values):
-        if sampler.enabled:
-            val = sampler.mean(val)
-        if key not in loops_acc:
-            loops_acc[key] = []
-        loops_acc[key].append(scalar_complex(val))
+    for r in Rs:
+        for t in Ts:
+            key = f"R{r}_T{t}"
+            for sdir in orientations_for_tdir:
+                tr = wilson_loop_trace(U_use, tdir, t, sdir, r)
+                if key not in loops_acc:
+                    loops_acc[key] = []
+                loops_acc[key].append(scalar_complex(tr))
+                if progress_cb is not None:
+                    progress_cb(
+                        "measure_loops",
+                        1,
+                        cursor={
+                            "kind": "loop",
+                            "tdir": int(tdir),
+                            "sdir": int(sdir),
+                            "r": int(r),
+                            "t": int(t),
+                        },
+                    )
 
 
 def measure_flux_profile_for_tdir(
@@ -315,6 +477,7 @@ def measure_flux_profile_for_tdir(
     orientations_for_tdir,
     sampler,
     profiles_acc,
+    progress_cb=None,
 ):
     p_field = g.qcd.gauge.plaquette(U_use, field=True)
     avg_p = sampler.mean(p_field)
@@ -323,13 +486,7 @@ def measure_flux_profile_for_tdir(
     t_mid = flux_t // 2
 
     for sdir in orientations_for_tdir:
-        w_field = g.qcd.gauge.rectangle(
-            U_use,
-            [[(tdir, flux_t, sdir, flux_r)]],
-            field=True,
-            trace=True,
-            real=False,
-        )
+        w_field = wilson_loop_field(U_use, tdir, flux_t, sdir, flux_r)
 
         avg_w = sampler.mean(w_field)
         avg_w_re = float(avg_w.real)
@@ -377,10 +534,47 @@ def measure_flux_profile_for_tdir(
             val = float(connected.real)
             for r_idx in r_indices:
                 profile_vals[r_idx].append(val)
+            if progress_cb is not None:
+                cursor_r_perp = int(r_indices[0]) if r_indices else 0
+                progress_cb(
+                    "measure_flux",
+                    1,
+                    cursor={
+                        "kind": "flux",
+                        "tdir": int(tdir),
+                        "sdir": int(sdir),
+                        "r": int(flux_r),
+                        "t": int(flux_t),
+                        "r_perp": cursor_r_perp,
+                        "shift": [int(x) for x in s_key],
+                    },
+                )
         
         # Average over rotationally equivalent points for this tube
         averaged_profile = [mean(vals) for vals in profile_vals]
         profiles_acc.append(averaged_profile)
+
+
+def single_measurement_step_count(time_dirs, orientations, nd, Rs, Ts, flux_r_perp_max, polyakov_dirs_count=0):
+    """Estimated fine-grained steps for one single_measurement() call."""
+    if not time_dirs:
+        return 1
+    orientations_by_tdir = {tdir: 0 for tdir in time_dirs}
+    for td, _ in orientations:
+        if td in orientations_by_tdir:
+            orientations_by_tdir[td] += 1
+
+    loop_steps = 0
+    flux_steps = 0
+    flux_shift_count_per_orientation = 1 + 2 * max(0, nd - 2) * max(0, flux_r_perp_max)
+    for tdir in time_dirs:
+        n_or = orientations_by_tdir.get(tdir, 0)
+        if n_or <= 0:
+            continue
+        loop_steps += n_or * len(Rs) * len(Ts)
+        flux_steps += n_or * flux_shift_count_per_orientation
+    poly_steps = max(0, int(polyakov_dirs_count))
+    return max(1, loop_steps + flux_steps + poly_steps)
 
 
 def mean_measurement_items(items):
@@ -403,6 +597,27 @@ def mean_measurement_items(items):
     m = len(items[0]["flux_profile_r_perp"])
     for j in range(m):
         out["flux_profile_r_perp"].append(mean([x["flux_profile_r_perp"][j] for x in items]))
+
+    poly_keys = sorted(
+        {
+            k
+            for x in items
+            for k in ((x.get("polyakov_loops") or {}).keys())
+        }
+    )
+    if poly_keys:
+        out["polyakov_loops"] = {}
+        for k in poly_keys:
+            vals = [x["polyakov_loops"][k] for x in items if isinstance(x.get("polyakov_loops", {}).get(k), dict)]
+            if not vals:
+                continue
+            re = mean([float(v.get("re", 0.0)) for v in vals])
+            im = mean([float(v.get("im", 0.0)) for v in vals])
+            out["polyakov_loops"][k] = {
+                "re": re,
+                "im": im,
+                "phase": float(math.atan2(im, re)),
+            }
 
     return out
 
@@ -567,6 +782,7 @@ def main():
     save_cfg_every = g.default.get_int("--save-cfg-every", 1)
     checkpoint_every = g.default.get_int("--checkpoint-every", 20)
     progress_every = max(1, g.default.get_int("--progress-every", 20))
+    progress_substep_min_interval = max(0.05, g.default.get_float("--progress-substep-min-interval-sec", 0.2))
     resume = g.default.get_int("--resume", 1) != 0
     resume_force = g.default.get_int("--resume-force", 0) != 0
     max_lag = max(10, g.default.get_int("--autocorr-max-lag", 200))
@@ -645,7 +861,8 @@ def main():
     g.message(f"Live file: {live_file}")
     g.message(
         f"Checkpoint every={checkpoint_every}, save_cfg_every={save_cfg_every}, "
-        f"progress_every={progress_every}, resume={int(resume)}"
+        f"progress_every={progress_every}, progress_substep_min_interval={progress_substep_min_interval:.3f}s, "
+        f"resume={int(resume)}"
     )
     g.message(f"Autocorr analysis: max_lag={max_lag}")
 
@@ -687,6 +904,7 @@ def main():
                 "sample_sites": sample_sites,
                 "sampling_mode": "random" if sampler.enabled else "full",
                 "time_dirs": time_dirs,
+                "polyakov_dirs": all_mu_dirs,
                 "avg_space_dirs": int(avg_space_dirs),
                 "smear_steps": smear_steps,
                 "smear_rho": smear_rho,
@@ -740,6 +958,7 @@ def main():
                     "sampling_mode": "random" if sampler.enabled else "full",
                     "precision": precision,
                     "time_dirs": time_dirs,
+                    "polyakov_dirs": all_mu_dirs,
                     "avg_space_dirs": int(avg_space_dirs),
                     "smear_steps": smear_steps,
                     "smear_rho": smear_rho,
@@ -754,40 +973,54 @@ def main():
             },
         )
 
-    def single_measurement(U_field):
+    def single_measurement(U_field, progress_cb=None):
         if sampler.enabled:
             plaq_re, _ = scalar_complex(sampler.mean(g.qcd.gauge.plaquette(U_field, field=True)))
             plaq = plaq_re
         else:
             plaq = float(g.qcd.gauge.plaquette(U_field))
-    
+
+        polyakov_loops = measure_polyakov_loops(U_field, all_mu_dirs, L, sampler=sampler)
+        if progress_cb is not None:
+            for mu in all_mu_dirs:
+                progress_cb(
+                    "measure_polyakov",
+                    1,
+                    cursor={
+                        "kind": "polyakov",
+                        "tdir": int(mu),
+                    },
+                )
+
         loops_acc = {}  # Key: "R{r}_T{t}", Value: list of (re, im) tuples
         flux_profiles_acc = []  # List of [val_at_r0, val_at_r1, ...]
-    
+
         # Iterate one time-direction at a time to save memory
         for tdir, U_use in iter_measurement_fields(
             U_field, time_dirs, smear_steps, smear_ops, smear_spatial_only
         ):
             # Filter orientations for this tdir
             orientations_for_tdir = [sdir for (td, sdir) in orientations if td == tdir]
-            if not orientations_for_tdir:
-                continue
-    
-            measure_loops_for_tdir(
-                U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc
-            )
-            measure_flux_profile_for_tdir(
-                U_use,
-                tdir,
-                Nd,
-                flux_r,
-                flux_t,
-                flux_r_perp_max,
-                orientations_for_tdir,
-                sampler,
-                flux_profiles_acc,
-            )
-    
+            if orientations_for_tdir:
+                measure_loops_for_tdir(
+                    U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc, progress_cb=progress_cb
+                )
+                measure_flux_profile_for_tdir(
+                    U_use,
+                    tdir,
+                    Nd,
+                    flux_r,
+                    flux_t,
+                    flux_r_perp_max,
+                    orientations_for_tdir,
+                    sampler,
+                    flux_profiles_acc,
+                    progress_cb=progress_cb,
+                )
+            # Free C++ lattice temporaries from smearing/loops/flux for this tdir
+            del U_use
+            gc.collect()
+
         # Aggregate loops
         loops = {}
         for k, v in loops_acc.items():
@@ -816,10 +1049,11 @@ def main():
             "plaquette": plaq,
             "loops": loops,
             "flux_profile_r_perp": final_flux_profile,
+            "polyakov_loops": polyakov_loops,
         }
-    def measure_with_variance_reduction(U_field):
+    def measure_with_variance_reduction(U_field, progress_cb=None):
         if multilevel_blocks == 1 and multihit_samples == 1:
-            return single_measurement(U_field)
+            return single_measurement(U_field, progress_cb=progress_cb)
 
         blocks = []
         U_block = g.copy(U_field)
@@ -827,6 +1061,8 @@ def main():
             if ib > 0 and multilevel_sweeps > 0:
                 for _ in range(multilevel_sweeps):
                     one_sweep(U_block, hb_estimator, action, mask, mask_rb, all_mu_dirs)
+                    if progress_cb is not None:
+                        progress_cb("multilevel_sweeps", 1)
 
             hits = []
             U_hit = g.copy(U_block)
@@ -834,7 +1070,10 @@ def main():
                 if ih > 0 and multihit_temporal_sweeps > 0:
                     for _ in range(multihit_temporal_sweeps):
                         one_sweep(U_hit, hb_estimator, action, mask, mask_rb, time_dirs)
-                hits.append(single_measurement(U_hit))
+                        if progress_cb is not None:
+                            progress_cb("multihit_temporal_sweeps", 1)
+                hits.append(single_measurement(U_hit, progress_cb=progress_cb))
+                gc.collect()
 
             blocks.append(mean_measurement_items(hits))
 
@@ -857,6 +1096,7 @@ def main():
                 "flux_r_perp_max": flux_r_perp_max,
                 "sample_sites": sample_sites,
                 "time_dirs": time_dirs,
+                "polyakov_dirs": all_mu_dirs,
                 "avg_space_dirs": int(avg_space_dirs),
                 "smear_steps": smear_steps,
                 "smear_rho": smear_rho,
@@ -899,14 +1139,15 @@ def main():
                 f"Resume state: therm={therm_start}/{ntherm}, meas={meas_start}/{nmeas}, sweeps={sweeps_done}/{total_sweeps}"
             )
             
-            # Rewrite JSONL to ensure consistency with checkpoint
-            if measurements:
-                try:
-                    with open(live_file_jsonl, "w", encoding="utf-8") as f:
-                        for m in measurements:
-                            f.write(json.dumps(m) + "\n")
-                except Exception as e:
-                    g.message(f"Warning: failed to rewrite JSONL on resume: {e}")
+            # Rewrite JSONL to ensure consistency with checkpoint.
+            # Important: truncate even when measurements is empty, otherwise
+            # stale points from prior runs can remain visible in the dashboard.
+            try:
+                with open(live_file_jsonl, "w", encoding="utf-8") as f:
+                    for m in measurements:
+                        f.write(json.dumps(m) + "\n")
+            except Exception as e:
+                g.message(f"Warning: failed to rewrite JSONL on resume: {e}")
 
         else:
             g.message("Checkpoint found but seed mismatch; starting fresh.")
@@ -936,8 +1177,42 @@ def main():
     therm_log_every = max(1, ntherm // 10)
     therm_done = therm_start
     meas_done = meas_start
+    last_substep_progress_write = 0.0
     for i in range(therm_start, ntherm):
-        one_sweep(U, hb_chain, action, mask, mask_rb, all_mu_dirs)
+        substate = {"done": 0, "total": max(1, 2 * len(all_mu_dirs))}
+
+        def on_therm_substep(done, total):
+            nonlocal last_substep_progress_write
+            substate["done"] = int(done)
+            substate["total"] = int(max(1, total))
+            now = time.time()
+            # Publish mid-sweep progress at a bounded rate to keep UI responsive.
+            if (now - last_substep_progress_write) < progress_substep_min_interval and done < total:
+                return
+            write_json(
+                progress_file,
+                make_progress_payload(
+                    seed=seed,
+                    out_dir=out_dir,
+                    phase="thermalization",
+                    ntherm=ntherm,
+                    nmeas=nmeas,
+                    therm_done=i,
+                    meas_done=meas_start,
+                    sweeps_done=sweeps_done,
+                    total_sweeps=total_sweeps,
+                    elapsed_sec=time.time() - run_start,
+                    therm_sweep_substep_done=substate["done"],
+                    therm_sweep_substep_total=substate["total"],
+                    last_plaquette=last_plaquette,
+                    last_loop_re=last_loop_re,
+                    last_flux0=last_flux0,
+                    done=False,
+                ),
+            )
+            last_substep_progress_write = now
+
+        one_sweep(U, hb_chain, action, mask, mask_rb, all_mu_dirs, step_cb=on_therm_substep)
         sweeps_done += 1
         therm_done = i + 1
         if (i + 1) % therm_log_every == 0:
@@ -969,14 +1244,175 @@ def main():
         if stop_requested:
             break
 
+    # If thermalization is already complete (e.g. resumed at ntherm), publish
+    # production phase immediately so dashboard reflects measuring threads
+    # without waiting for the first full measurement to finish.
+    if not stop_requested and meas_start < nmeas and therm_done >= ntherm:
+        write_json(
+            progress_file,
+            make_progress_payload(
+                seed=seed,
+                out_dir=out_dir,
+                phase="production",
+                ntherm=ntherm,
+                nmeas=nmeas,
+                therm_done=therm_done,
+                meas_done=meas_start,
+                sweeps_done=sweeps_done,
+                total_sweeps=total_sweeps,
+                elapsed_sec=time.time() - run_start,
+                meas_cfg_index=meas_start + 1,
+                meas_cfg_total=nmeas,
+                meas_cfg_stage="ready",
+                meas_cfg_substep_done=0,
+                meas_cfg_substep_total=1,
+                last_plaquette=last_plaquette,
+                last_loop_re=last_loop_re,
+                last_flux0=last_flux0,
+                done=False,
+            ),
+        )
+
+    last_meas_substep_progress_write = 0.0
     for i in range(meas_start, nmeas):
         if stop_requested:
             break
-        for _ in range(nskip):
-            one_sweep(U, hb_chain, action, mask, mask_rb, all_mu_dirs)
-            sweeps_done += 1
 
-        measured = measure_with_variance_reduction(U)
+        single_meas_steps = single_measurement_step_count(
+            time_dirs,
+            orientations,
+            Nd,
+            Rs,
+            Ts,
+            flux_r_perp_max,
+            polyakov_dirs_count=len(all_mu_dirs),
+        )
+        meas_stage_steps = single_meas_steps * multilevel_blocks * multihit_samples
+        meas_extra_sweeps = max(0, multilevel_blocks - 1) * multilevel_sweeps
+        meas_extra_sweeps += multilevel_blocks * max(0, multihit_samples - 1) * multihit_temporal_sweeps
+        skip_sweep_substeps = max(1, 2 * len(all_mu_dirs))
+        meas_substate = {
+            "done": 0,
+            "total": max(1, nskip * skip_sweep_substeps + meas_extra_sweeps + meas_stage_steps),
+            "stage": "skip_sweeps" if nskip > 0 else "measure_tdirs",
+            "cursor": None,
+        }
+
+        def emit_meas_subprogress(force=False):
+            nonlocal last_meas_substep_progress_write
+            now = time.time()
+            if (
+                not force
+                and (now - last_meas_substep_progress_write) < progress_substep_min_interval
+                and meas_substate["done"] < meas_substate["total"]
+            ):
+                return
+            cursor = meas_substate.get("cursor") or {}
+            write_json(
+                progress_file,
+                make_progress_payload(
+                    seed=seed,
+                    out_dir=out_dir,
+                    phase="production",
+                    ntherm=ntherm,
+                    nmeas=nmeas,
+                    therm_done=ntherm,
+                    meas_done=i,
+                    sweeps_done=sweeps_done,
+                    total_sweeps=total_sweeps,
+                    elapsed_sec=now - run_start,
+                    meas_cfg_index=i + 1,
+                    meas_cfg_total=nmeas,
+                    meas_cfg_stage=meas_substate["stage"],
+                    meas_cfg_substep_done=meas_substate["done"],
+                    meas_cfg_substep_total=meas_substate["total"],
+                    meas_cursor_kind=cursor.get("kind"),
+                    meas_cursor_tdir=cursor.get("tdir"),
+                    meas_cursor_sdir=cursor.get("sdir"),
+                    meas_cursor_r=cursor.get("r"),
+                    meas_cursor_t=cursor.get("t"),
+                    meas_cursor_r_perp=cursor.get("r_perp"),
+                    meas_cursor_shift=cursor.get("shift"),
+                    last_plaquette=last_plaquette,
+                    last_loop_re=last_loop_re,
+                    last_flux0=last_flux0,
+                    done=False,
+                ),
+            )
+            last_meas_substep_progress_write = now
+
+        def advance_meas_subprogress(stage, inc=1, force=False, cursor=None, absolute_done=None):
+            meas_substate["stage"] = stage
+            if cursor is not None:
+                meas_substate["cursor"] = cursor
+            if absolute_done is not None:
+                meas_substate["done"] = min(
+                    meas_substate["total"],
+                    max(0, int(absolute_done)),
+                )
+            elif inc > 0:
+                meas_substate["done"] = min(meas_substate["total"], meas_substate["done"] + int(inc))
+            emit_meas_subprogress(force=force)
+
+        emit_meas_subprogress(force=True)
+        skip_mu_counts = [0 for _ in range(max(1, len(all_mu_dirs)))]
+        for skip_idx in range(nskip):
+            skip_base_done = int(meas_substate["done"])
+            saw_skip_substep = False
+            mu_count = max(1, len(all_mu_dirs))
+            skip_step_seen = 0
+
+            def on_skip_substep(done, total):
+                nonlocal saw_skip_substep, skip_step_seen
+                saw_skip_substep = True
+                d = int(max(0, min(total, done)))
+                if d <= skip_step_seen:
+                    return
+                for local_step in range(skip_step_seen, d):
+                    mu_local = int(local_step % mu_count)
+                    skip_mu_counts[mu_local] += 1
+                skip_step_seen = d
+                mu_idx = int((max(0, d - 1)) % mu_count)
+                advance_meas_subprogress(
+                    "skip_sweeps",
+                    inc=0,
+                    cursor={
+                        "kind": "skip",
+                        "tdir": mu_idx,
+                        "r": int(skip_idx + 1),
+                        "t": int(nskip),
+                        "shift": [int(x) for x in skip_mu_counts],
+                    },
+                    absolute_done=skip_base_done + d,
+                )
+
+            one_sweep(U, hb_chain, action, mask, mask_rb, all_mu_dirs, step_cb=on_skip_substep)
+            sweeps_done += 1
+            if not saw_skip_substep:
+                for local_step in range(skip_sweep_substeps):
+                    mu_local = int(local_step % mu_count)
+                    skip_mu_counts[mu_local] += 1
+                mu_idx = int((max(0, skip_sweep_substeps - 1)) % mu_count)
+                advance_meas_subprogress(
+                    "skip_sweeps",
+                    inc=skip_sweep_substeps,
+                    cursor={
+                        "kind": "skip",
+                        "tdir": mu_idx,
+                        "r": int(skip_idx + 1),
+                        "t": int(nskip),
+                        "shift": [int(x) for x in skip_mu_counts],
+                    },
+                )
+
+        measured = measure_with_variance_reduction(U, progress_cb=advance_meas_subprogress)
+        meas_substate["done"] = meas_substate["total"]
+        advance_meas_subprogress("finalize", inc=0, force=True, cursor={"kind": "finalize"})
+
+        # Free C++ lattice temporaries from smearing/loops/flux measurements.
+        # The grid stays the same so caches stabilize, but gc.collect() ensures
+        # reference-cycled C++ objects are freed promptly.
+        gc.collect()
 
         item = {
             "idx": i,
@@ -997,6 +1433,11 @@ def main():
             f"flux(r_perp=0)={last_flux0:.6e}"
         )
 
+        checkpoint_now = checkpoint_every > 0 and (((i + 1) % checkpoint_every) == 0 or (i + 1) == nmeas)
+        if checkpoint_now:
+            # Persist completed measurement state first so resume does not drop back.
+            save_checkpoint("production", ntherm, i + 1)
+
         write_live(new_item=item)
         write_json(
             progress_file,
@@ -1011,6 +1452,11 @@ def main():
                 sweeps_done=sweeps_done,
                 total_sweeps=total_sweeps,
                 elapsed_sec=time.time() - run_start,
+                meas_cfg_index=i + 1,
+                meas_cfg_total=nmeas,
+                meas_cfg_stage="complete",
+                meas_cfg_substep_done=meas_substate["total"],
+                meas_cfg_substep_total=meas_substate["total"],
                 last_plaquette=last_plaquette,
                 last_loop_re=last_loop_re,
                 last_flux0=last_flux0,
@@ -1021,8 +1467,6 @@ def main():
         if save_cfg_every > 0 and ((i + 1) % save_cfg_every) == 0:
             cfg_file = os.path.join(cfg_dir, f"cfg_{seed}_{i+1:05d}.cfg")
             g.save(cfg_file, U)
-        if checkpoint_every > 0 and (((i + 1) % checkpoint_every) == 0 or (i + 1) == nmeas):
-            save_checkpoint("production", ntherm, i + 1)
 
     if stop_requested:
         write_live()
@@ -1067,6 +1511,26 @@ def main():
         measurements, flux_r_perp_max, bin_size
     )
 
+    mean_polyakov = {}
+    poly_keys = sorted(
+        {
+            k
+            for m in measurements
+            for k in ((m.get("polyakov_loops") or {}).keys())
+        }
+    )
+    for k in poly_keys:
+        vals = [m["polyakov_loops"][k] for m in measurements if isinstance(m.get("polyakov_loops", {}).get(k), dict)]
+        if not vals:
+            continue
+        re = mean([float(v.get("re", 0.0)) for v in vals])
+        im = mean([float(v.get("im", 0.0)) for v in vals])
+        mean_polyakov[k] = {
+            "re": re,
+            "im": im,
+            "phase": float(math.atan2(im, re)),
+        }
+
     output = {
         "meta": {
             "timestamp_utc": datetime.now(UTC).isoformat(),
@@ -1096,6 +1560,7 @@ def main():
             "multihit_temporal_sweeps": multihit_temporal_sweeps,
             "flux_vacuum_mode": flux_vacuum_mode,
             "flux_vacuum_tail": flux_vacuum_tail,
+            "polyakov_dirs": all_mu_dirs,
             "autocorr_max_lag": max_lag,
             "tau_int_plaquette": tau_plaq,
             "tau_int_loop_re": tau_loop,
@@ -1105,6 +1570,7 @@ def main():
         },
         "mean_plaquette": mean([m["plaquette"] for m in measurements]),
         "mean_loops": mean_loops,
+        "mean_polyakov_loops": mean_polyakov,
         "veff": veff,
         "veff_err": veff_err,
         "veff_nbins": veff_nbins,
