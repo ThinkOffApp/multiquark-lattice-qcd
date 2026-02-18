@@ -35,6 +35,27 @@ This workflow is actively developed for both Linux and macOS (including Apple Si
 - Tool defaults now use repo-relative paths or environment variables (`SU2_OUT_DIR`, `SU2_GPT_DIR`) instead of machine-specific absolute paths.
 - Recommended memory for serious production scans is 64 GB (or higher) on both platforms.
 
+## Live Run Dashboard
+
+![SU(2) live run dashboard](images/dashboard/live_run_dashboard.png)
+
+The dashboard streams progress and measurements directly from live `progress_<seed>.json` and `live_<seed>.json` files.
+
+### In the screenshot above
+
+- **Phase and global bars**: production/thermalization state, overall progress, production measurement count, and all-thread current-config progress.
+- **Per-Thread Monitor (A/B/C/D)**: per-thread config id, stage pipeline (`skip -> loop -> flux -> final -> done`), and real-time cursor positions over lattice directions.
+- **Cursor colors**: blue = time direction, amber = space direction, green = other directions, magenta = per-thread config progress track.
+
+### Additional dashboard sections (below the screenshot)
+
+- **Run Parameters**: seed, lattice size, beta, `R/T` sets, flux probe setup, and sampling mode.
+- **Thread Status Table**: per-thread phase, thermalization/measurement counters, config index, and update timestamp.
+- **Thermalization Sweep Count**: live sweep counter with in-sweep progress.
+- **Time Metrics**: elapsed runtime and ETA.
+- **Observable Charts**: plaquette history (running mean + SEM), selected Wilson-loop history, flux profile \(\Delta P(r_\perp)\), \(V(R)\) with errors and Cornell fit readout (\(\sigma, e, V_0, \chi^2/\mathrm{dof}\)), plaquette autocorrelation (\(\tau_\mathrm{int}\)), and Polyakov-loop sector tracking by direction.
+- **Admin Chat + Next Jobs**: run interpretation and suggested follow-up runs.
+
 ## Selected Earlier SU(2) Papers
 
 - P. Pennanen, A. M. Green, C. Michael, *Flux-tube structure and beta-functions in SU(2)*, [arXiv:hep-lat/9705033](https://arxiv.org/abs/hep-lat/9705033)
