@@ -32,7 +32,7 @@ The dashboard streams live data from `progress_<seed>.json` and `live_<seed>.jso
 ![SU(2) physical-comparison and diagnostics view](images/dashboard/physical_comparison_live.png)
 *Physical-comparison diagnostics view captured from a production run on a MacBook M4 Pro after approximately 15 hours of continuous runtime.*
 
-The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs such as $\sigma$, $e$, $V_0$, $r_0$, and $r_1$, flux-profile diagnostics, and agreement-status indicators that are updated live during production.
+The second screenshot highlights the analysis side of the same page, especially the physical-comparison diagnostics used to benchmark extracted observables against reference scales and expected behaviors. This includes potential-fit outputs such as $(\sigma, e, V_0, r_0, r_1)$, flux-profile diagnostics, and agreement-status indicators that are updated live during production.
 
 ### Analytical and Diagnostic Power
 
