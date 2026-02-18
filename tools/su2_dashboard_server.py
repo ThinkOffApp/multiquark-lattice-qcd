@@ -3,6 +3,8 @@ import argparse
 import hmac
 import json
 import os
+import re
+import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -14,11 +16,23 @@ from urllib.request import Request, urlopen
 class DashboardHandler(SimpleHTTPRequestHandler):
     root = Path(".").resolve()
     poll_interval = 0.5
+    heartbeat_interval = 10.0
     chat_model = "gpt-4o-mini"
     allowed_tailscale_login = ""
     auth_token = ""
     cors_origin = ""
     protect_results = True
+    json_cache = {}
+    json_cache_lock = threading.Lock()
+    terminal_phases = {
+        "interrupted",
+        "complete",
+        "done",
+        "failed",
+        "error",
+        "aborted",
+        "stopped",
+    }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(self.root), **kwargs)
@@ -47,6 +61,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.handle_events(parsed)
             return
+        # Serve live_*.json with JSONL measurements merged in
+        if parsed.path.startswith("/results/") and "/live_" in parsed.path and parsed.path.endswith(".json"):
+            try:
+                local = self.resolve_local_path(parsed.path)
+            except ValueError:
+                pass
+            else:
+                data, err = self.load_live_with_jsonl(local)
+                if data is not None:
+                    body = json.dumps(data, separators=(",", ":")).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
         super().do_GET()
 
     def do_POST(self):
@@ -130,10 +160,86 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if not path.exists():
             return None, f"{path} not found"
         try:
-            with path.open("r", encoding="utf-8") as f:
-                return json.load(f), None
+            mtime = path.stat().st_mtime_ns
         except Exception as e:
             return None, str(e)
+
+        key = str(path)
+        with DashboardHandler.json_cache_lock:
+            cached = DashboardHandler.json_cache.get(key)
+            if cached and cached.get("mtime") == mtime:
+                return cached.get("data"), None
+
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            with DashboardHandler.json_cache_lock:
+                DashboardHandler.json_cache[key] = {"mtime": mtime, "data": data}
+            return data, None
+        except Exception as e:
+            return None, str(e)
+
+    @staticmethod
+    def load_live_with_jsonl(path: Path):
+        """Read the live JSON and merge measurements from its companion JSONL file."""
+        data, err = DashboardHandler.read_json(path)
+        if data is None:
+            return data, err
+        if not data.get("measurements"):
+            jsonl_name = (data.get("meta") or {}).get("jsonl_path")
+            if jsonl_name:
+                jsonl_path = path.parent / jsonl_name
+                if jsonl_path.exists():
+                    meas = []
+                    try:
+                        with jsonl_path.open("r", encoding="utf-8") as f:
+                            for line in f:
+                                if line.strip():
+                                    meas.append(json.loads(line))
+                    except Exception:
+                        pass
+                    if meas:
+                        data["measurements"] = meas
+        return data, err
+
+    @staticmethod
+    def with_live_elapsed(progress, progress_mtime):
+        if not isinstance(progress, dict):
+            return progress
+        out = dict(progress)
+        phase = str(out.get("phase") or "").strip().lower()
+        if out.get("done") or phase in DashboardHandler.terminal_phases:
+            return out
+        if not isinstance(progress_mtime, (int, float)) or progress_mtime < 0:
+            return out
+        base_elapsed = out.get("elapsed_sec")
+        if not isinstance(base_elapsed, (int, float)):
+            return out
+        live_elapsed = float(base_elapsed) + max(0.0, time.time() - float(progress_mtime))
+        out["elapsed_sec"] = live_elapsed
+        out["elapsed_sec_live"] = live_elapsed
+
+        sweeps_done = out.get("sweeps_done")
+        total_sweeps = out.get("total_sweeps")
+        if isinstance(sweeps_done, (int, float)) and isinstance(total_sweeps, (int, float)):
+            if sweeps_done > 0 and total_sweeps > sweeps_done and live_elapsed > 0:
+                sec_per_sweep = live_elapsed / float(sweeps_done)
+                if sec_per_sweep > 0:
+                    out["eta_sec"] = max(0.0, (float(total_sweeps) - float(sweeps_done)) * sec_per_sweep)
+        return out
+
+    @staticmethod
+    def infer_thread_progress_paths(progress_path: Path):
+        m = re.match(r"^progress_(.+)\.json$", progress_path.name)
+        if not m:
+            return []
+        seed = m.group(1)
+        root_seed = re.sub(r"-(b|c|d)$", "", seed, flags=re.IGNORECASE)
+        out = []
+        for suffix in ("", "-b", "-c", "-d"):
+            s = f"{root_seed}{suffix}"
+            out.append((s, progress_path.with_name(f"progress_{s}.json")))
+        return out
 
     def handle_events(self, parsed):
         qs = parse_qs(parsed.query)
@@ -148,6 +254,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
+        thread_paths = self.infer_thread_progress_paths(progress_path)
 
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -158,21 +265,50 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         last_sig = None
         last_ping = 0.0
+        last_emit = 0.0
         try:
             while True:
+                now = time.time()
                 pm = progress_path.stat().st_mtime if progress_path.exists() else -1
                 lm = live_path.stat().st_mtime if live_path.exists() else -1
-                sig = (pm, lm)
+                jsonl_path = live_path.with_suffix(".jsonl")
+                jm = jsonl_path.stat().st_mtime if jsonl_path.exists() else -1
+                thread_mtimes = [
+                    tp.stat().st_mtime if tp.exists() else -1
+                    for _, tp in thread_paths
+                ]
+                sig = (pm, lm, jm, *thread_mtimes)
 
-                if sig != last_sig:
+                should_emit = sig != last_sig
+                if not should_emit and self.heartbeat_interval > 0:
+                    should_emit = (now - last_emit) >= self.heartbeat_interval
+
+                if should_emit:
                     progress, progress_err = self.read_json(progress_path)
-                    live, live_err = self.read_json(live_path)
+                    live, live_err = self.load_live_with_jsonl(live_path)
+                    progress = self.with_live_elapsed(progress, pm)
                     payload = {
-                        "ts": time.time(),
+                        "ts": now,
                         "progress": progress,
                         "live": live,
                         "errors": {},
                     }
+                    if thread_paths:
+                        thread_progress = {}
+                        thread_errors = {}
+                        for (seed, tp), tm in zip(thread_paths, thread_mtimes):
+                            tp_data, tp_err = self.read_json(tp)
+                            tp_data = self.with_live_elapsed(tp_data, tm)
+                            if tp_data is not None:
+                                thread_progress[seed] = tp_data
+                            if tp_err:
+                                thread_errors[seed] = tp_err
+                        if thread_progress:
+                            payload["thread_progress"] = thread_progress
+                        if thread_errors:
+                            payload["errors"]["thread_progress"] = thread_errors
+                    if sig == last_sig:
+                        payload["heartbeat"] = True
                     if progress_err:
                         payload["errors"]["progress"] = progress_err
                     if live_err:
@@ -181,11 +317,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(msg.encode("utf-8"))
                     self.wfile.flush()
                     last_sig = sig
-                    last_ping = time.time()
-                elif time.time() - last_ping >= 15:
+                    last_ping = now
+                    last_emit = now
+                elif now - last_ping >= 20:
                     self.wfile.write(b": ping\n\n")
                     self.wfile.flush()
-                    last_ping = time.time()
+                    last_ping = now
 
                 time.sleep(self.poll_interval)
         except (BrokenPipeError, ConnectionResetError):
@@ -300,6 +437,12 @@ def main():
     p.add_argument("--port", type=int, default=8001)
     p.add_argument("--root", default=str(default_root))
     p.add_argument("--poll-ms", type=int, default=500)
+    p.add_argument(
+        "--heartbeat-sec",
+        type=float,
+        default=float(os.environ.get("SU2_DASHBOARD_HEARTBEAT_SEC", "10")),
+        help="Emit SSE snapshots periodically even if files are unchanged.",
+    )
     p.add_argument("--chat-model", default=os.environ.get("SU2_DASHBOARD_CHAT_MODEL", "gpt-4o-mini"))
     p.add_argument(
         "--allowed-tailscale-login",
@@ -329,6 +472,7 @@ def main():
 
     DashboardHandler.root = root
     DashboardHandler.poll_interval = max(0.05, args.poll_ms / 1000.0)
+    DashboardHandler.heartbeat_interval = max(0.0, float(args.heartbeat_sec))
     DashboardHandler.chat_model = args.chat_model
     DashboardHandler.allowed_tailscale_login = args.allowed_tailscale_login
     DashboardHandler.auth_token = args.auth_token

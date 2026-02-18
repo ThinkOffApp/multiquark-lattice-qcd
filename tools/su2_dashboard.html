@@ -122,6 +122,62 @@
       background: #0d1526;
       display: block;
     }
+    .cursor-canvas {
+      height: 170px;
+    }
+    .cursor-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    @media (max-width: 900px) {
+      .cursor-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .cursor-thread-card {
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 7px;
+      background: #0d1526;
+    }
+    .cursor-thread-card .row {
+      margin-bottom: 4px;
+    }
+    .cursor-thread-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .cursor-canvas-thread {
+      height: 108px;
+    }
+    .cursor-thread-info {
+      margin-top: 4px;
+      min-height: 14px;
+      font-size: 11px;
+      line-height: 1.2;
+    }
+    .thread-viz-card.cursor-mode-speed .cursor-grid {
+      display: none;
+    }
+    .thread-viz-card:not(.cursor-mode-speed) .speed-combined-wrap {
+      display: none;
+    }
+    .speed-canvas-all {
+      height: 190px;
+    }
+    .cursor-pane-speed {
+      display: none;
+    }
+    .viz-select {
+      padding: 4px 8px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: #0f1627;
+      color: var(--text);
+      font-size: 12px;
+    }
     .row {
       display: flex;
       align-items: center;
@@ -159,6 +215,72 @@
       gap: 8px;
       margin-top: 8px;
     }
+    .mono-list {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+      margin-top: 8px;
+      white-space: pre-wrap;
+    }
+    .table-wrap {
+      overflow-x: auto;
+    }
+    .status-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .status-table th,
+    .status-table td {
+      text-align: left;
+      padding: 8px 6px;
+      border-bottom: 1px solid var(--line);
+      white-space: nowrap;
+    }
+    .status-table th {
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .phase-pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      border: 1px solid transparent;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+    .phase-therm {
+      color: #82c7ff;
+      background: rgba(82, 173, 255, 0.16);
+      border-color: rgba(82, 173, 255, 0.42);
+    }
+    .phase-meas {
+      color: #9fe9b8;
+      background: rgba(47, 208, 138, 0.16);
+      border-color: rgba(47, 208, 138, 0.42);
+    }
+    .phase-init {
+      color: #ffd38a;
+      background: rgba(245, 158, 11, 0.16);
+      border-color: rgba(245, 158, 11, 0.42);
+    }
+    .phase-done {
+      color: #b8f6d4;
+      background: rgba(34, 197, 94, 0.16);
+      border-color: rgba(34, 197, 94, 0.44);
+    }
+    .phase-stop {
+      color: #ffc6c6;
+      background: rgba(248, 113, 113, 0.16);
+      border-color: rgba(248, 113, 113, 0.42);
+    }
+    .phase-unknown {
+      color: var(--muted);
+      background: rgba(117, 138, 170, 0.16);
+      border-color: rgba(117, 138, 170, 0.42);
+    }
   </style>
 </head>
 <body>
@@ -184,13 +306,41 @@
         <label>API base URL (stream/chat/data, optional)</label>
         <input id="apiBase" placeholder="http://127.0.0.1:8001">
       </div>
+      <div style="margin-top: 8px;">
+        <label>Lattice spacing a (fm, optional)</label>
+        <input id="aFmInput" placeholder="e.g. 0.10">
+      </div>
+      <div class="grid-3" style="margin-top: 8px;">
+        <div>
+          <label>Flux Display</label>
+          <select id="fluxDisplayMode" style="width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:#0f1627; color:var(--text);">
+            <option value="stored" selected>Stored</option>
+            <option value="raw">Raw</option>
+            <option value="tail_subtracted">Tail-subtracted</option>
+          </select>
+        </div>
+        <div>
+          <label>Flux Tail N</label>
+          <input id="fluxTailN" value="2" placeholder="tail bins for subtraction">
+        </div>
+        <div>
+          <label>Flux Mode Note</label>
+          <div class="hint" id="fluxModeNote" style="padding-top: 9px;">stored profile from file</div>
+        </div>
+      </div>
       <div class="btn-row">
         <button id="reloadBtn">Reload Now</button>
         <button id="toggleBtn">Pause</button>
       </div>
+      <div class="hint" style="margin-top: 8px;">
+        <label style="display:flex; align-items:center; gap:8px; color:var(--text);">
+          <input id="legacyFilter" type="checkbox">
+          Use legacy positive-sample filtering for V(R) (off = use all samples, recommended)
+        </label>
+      </div>
       <div class="hint" id="streamStatus" style="margin-top: 8px;">stream: polling</div>
       <div class="hint" style="margin-top: 8px;">
-        Stream server: <code>cd /Users/petrus/AndroidStudioProjects/ThinkOff && python3 /Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt/tools/su2_dashboard_server.py --port 8001</code>
+        Stream server: <code>cd .. && python3 grid-gpt/tools/su2_dashboard_server.py --port 8001</code>
       </div>
     </div>
 
@@ -206,6 +356,10 @@
           <div class="param-k">R values</div><div class="param-v" id="paramR">-</div>
           <div class="param-k">T values</div><div class="param-v" id="paramT">-</div>
           <div class="param-k">Flux probe</div><div class="param-v" id="paramFlux">-</div>
+          <div class="param-k">Sampling</div><div class="param-v" id="paramSampling">full</div>
+          <div class="param-k">a (fm)</div><div class="param-v" id="paramAFm">-</div>
+          <div class="param-k">a^-1 (GeV)</div><div class="param-v" id="paramAinvGeV">-</div>
+          <div class="param-k">Box size (fm)</div><div class="param-v" id="paramBoxFm">-</div>
         </div>
       </div>
       <div class="card">
@@ -246,11 +400,11 @@
         <div class="hint" id="lastUpdate">Last update: -</div>
       </div>
 
-      <div class="row"><div class="hint">Overall progress</div><div class="hint" id="overallPct">0%</div></div>
+      <div class="row"><div class="hint" id="overallLabel">Overall progress</div><div class="hint" id="overallPct">0%</div></div>
       <div class="bar"><div class="fill" id="overallFill"></div></div>
 
       <div style="height: 10px;"></div>
-      <div class="row"><div class="hint">Thermalization</div><div class="hint" id="thermPct">0 / 0</div></div>
+      <div class="row"><div class="hint">Thermalization progress</div><div class="hint" id="thermPct">0.0%</div></div>
       <div class="bar"><div class="fill sub-fill" id="thermFill"></div></div>
 
       <div style="height: 10px;"></div>
@@ -258,7 +412,86 @@
       <div class="bar"><div class="fill warn-fill" id="measFill"></div></div>
 
       <div style="height: 10px;"></div>
+      <div class="row"><div class="hint">Current config progress (all threads)</div><div class="hint" id="cfgSubPct">-</div></div>
+      <div class="bar"><div class="fill warn-fill" id="cfgSubFill"></div></div>
+
+      <div style="height: 10px;"></div>
       <div class="row"><div class="hint">Configs done / measured</div><div class="hint" id="cfgDoneMeasured">0 / 0</div></div>
+    </div>
+
+    <div class="card thread-viz-card" id="threadVizCard">
+      <div class="row">
+        <div class="metric-title">Per-Thread Monitor</div>
+        <label class="hint" style="display:flex; align-items:center; gap:6px; margin:0;">
+          view
+          <select id="threadVizMode" class="viz-select">
+            <option value="cursor" selected>Cursor</option>
+            <option value="speed">Speed graph</option>
+          </select>
+        </label>
+      </div>
+      <div class="cursor-grid">
+        <div class="cursor-thread-card">
+          <div class="row">
+            <div class="cursor-thread-title">Thread A</div>
+            <div class="hint" id="cursorKindA">A: waiting</div>
+          </div>
+          <div class="cursor-pane-cursor">
+            <canvas id="cursorCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="cursorInfoA">Waiting for measurement cursor telemetry...</div>
+          </div>
+          <div class="cursor-pane-speed">
+            <canvas id="speedCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="speedInfoA">Waiting for speed samples...</div>
+          </div>
+        </div>
+        <div class="cursor-thread-card">
+          <div class="row">
+            <div class="cursor-thread-title">Thread B</div>
+            <div class="hint" id="cursorKindB">B: waiting</div>
+          </div>
+          <div class="cursor-pane-cursor">
+            <canvas id="cursorCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="cursorInfoB">Waiting for measurement cursor telemetry...</div>
+          </div>
+          <div class="cursor-pane-speed">
+            <canvas id="speedCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="speedInfoB">Waiting for speed samples...</div>
+          </div>
+        </div>
+        <div class="cursor-thread-card">
+          <div class="row">
+            <div class="cursor-thread-title">Thread C</div>
+            <div class="hint" id="cursorKindC">C: waiting</div>
+          </div>
+          <div class="cursor-pane-cursor">
+            <canvas id="cursorCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="cursorInfoC">Waiting for measurement cursor telemetry...</div>
+          </div>
+          <div class="cursor-pane-speed">
+            <canvas id="speedCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="speedInfoC">Waiting for speed samples...</div>
+          </div>
+        </div>
+        <div class="cursor-thread-card">
+          <div class="row">
+            <div class="cursor-thread-title">Thread D</div>
+            <div class="hint" id="cursorKindD">D: waiting</div>
+          </div>
+          <div class="cursor-pane-cursor">
+            <canvas id="cursorCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="cursorInfoD">Waiting for measurement cursor telemetry...</div>
+          </div>
+          <div class="cursor-pane-speed">
+            <canvas id="speedCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+            <div class="hint cursor-thread-info" id="speedInfoD">Waiting for speed samples...</div>
+          </div>
+        </div>
+      </div>
+      <div class="speed-combined-wrap">
+        <canvas id="speedCanvasAll" class="cursor-canvas speed-canvas-all" width="1140" height="220"></canvas>
+        <div class="hint cursor-thread-info" id="speedInfoAll">Waiting for speed samples...</div>
+      </div>
     </div>
 
     <div class="grid-3">
@@ -276,6 +509,46 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="row">
+        <div class="metric-title">Thermalization Sweep Count</div>
+        <div class="hint" id="thermSweepMeta">waiting for thermalization data</div>
+      </div>
+      <div class="metric-value" id="thermSweepCount">- / -</div>
+      <div style="height: 8px;"></div>
+      <div class="row"><div class="hint">Current sweep (estimated)</div><div class="hint" id="thermStepPct">0%</div></div>
+      <div class="bar"><div class="fill sub-fill" id="thermStepFill"></div></div>
+      <div class="hint" id="thermSweepHint">font color = overall thermalization progress (cold to hot)</div>
+    </div>
+
+    <div class="card">
+      <div class="row">
+        <div class="metric-title">Thread Status</div>
+        <div class="hint" id="threadTableNote">seed group: -</div>
+      </div>
+      <div class="table-wrap">
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Thread</th>
+              <th>Seed</th>
+              <th>Phase</th>
+              <th>Therm</th>
+              <th>Meas</th>
+              <th>Cfg</th>
+              <th>Cfg time</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="threadStatusBody">
+            <tr>
+              <td colspan="8" class="hint">Waiting for progress files...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="grid-2">
       <div class="chart-card">
         <div class="row">
@@ -283,6 +556,7 @@
           <div class="hint" id="historyCount">0 points</div>
         </div>
         <canvas id="plaqCanvas" width="560" height="220"></canvas>
+        <div class="hint" id="plaqAxes">x: measurement index, y: plaquette running mean</div>
       </div>
       <div class="chart-card">
         <div class="row">
@@ -290,6 +564,7 @@
           <div class="hint" id="loopKeyLabel">key: -</div>
         </div>
         <canvas id="loopCanvas" width="560" height="220"></canvas>
+        <div class="hint" id="loopAxes">x: measurement index, y: running mean of Re W(R,T) for selected key</div>
       </div>
     </div>
 
@@ -299,11 +574,23 @@
         <div class="hint" id="fluxLabel">aggregated over measured configs</div>
       </div>
       <canvas id="fluxCanvas" width="1140" height="260"></canvas>
+      <div class="hint" id="fluxAxes">x: r⊥ (lattice units), y: connected flux ΔP(r⊥)</div>
+    </div>
+
+    <div class="chart-card">
+      <div class="row">
+        <div class="metric-title">2Q Potential V(R) (Mean ± SEM)</div>
+        <div class="hint" id="vLabel">V(R) unavailable</div>
+      </div>
+      <canvas id="vCanvas" width="1140" height="260"></canvas>
+      <div class="hint" id="vAxes">x: R (lattice units), y: V(R)</div>
+      <div id="vTable" class="mono-list">No valid V(R) points yet.</div>
     </div>
   </div>
 
   <script>
-    const pollMs = 2000;
+    const pollMs = 1000;
+    const streamStaleMs = 15000;
     let paused = false;
     let loopKey = null;
     let eventSource = null;
@@ -311,8 +598,36 @@
     let lastStreamAt = 0;
     let currentProgress = null;
     let currentMeta = null;
+    let lastRenderSignature = "";
     let chatHistory = [];
     let chatBusy = false;
+    const progressStateBySeed = {};
+    const progressOrderBySeed = {};
+    const thermSweepStateBySeed = {};
+    const threadProgressBySeed = {};
+    const threadCfgSpeedStateBySeed = {};
+    const threadCfgSpeedHistoryBySeed = {};
+    const cursorRenderStateByThread = {};
+    const cursorMuStateByThread = {};
+    const speedRenderStateByThread = {};
+    const speedAxisState = { cfgSig: "", axisMax: 10 };
+    const terminalPhaseSet = new Set([
+      "interrupted",
+      "complete",
+      "done",
+      "failed",
+      "error",
+      "aborted",
+      "stopped",
+    ]);
+    const threadSlots = [
+      { suffix: "", label: "A" },
+      { suffix: "-b", label: "B" },
+      { suffix: "-c", label: "C" },
+      { suffix: "-d", label: "D" },
+    ];
+    let threadStatusBusy = false;
+    let threadStatusNextAtMs = 0;
 
     function setStreamStatus(text) {
       document.getElementById("streamStatus").textContent = text;
@@ -378,6 +693,8 @@
       const live = params.get("live");
       const token = params.get("token");
       const api = params.get("api");
+      const aFm = params.get("a_fm") || params.get("a") || params.get("afm");
+      const legacyFilter = params.get("legacy_filter");
 
       const progressEl = document.getElementById("progressPath");
       const liveEl = document.getElementById("livePath");
@@ -394,6 +711,14 @@
       } else if (window.location.port === "8000") {
         document.getElementById("apiBase").value = "http://127.0.0.1:8001";
       }
+      if (aFm) document.getElementById("aFmInput").value = aFm;
+      if (legacyFilter !== null) {
+        document.getElementById("legacyFilter").checked =
+          legacyFilter === "1" || legacyFilter === "true" || legacyFilter === "yes";
+      } else {
+        // Default to improved estimator.
+        document.getElementById("legacyFilter").checked = false;
+      }
     }
 
     function normalizePath(path) {
@@ -402,6 +727,485 @@
       if (p.startsWith("http://") || p.startsWith("https://")) return p;
       if (p.startsWith("/")) return p;
       return `/${p.replace(/^\.\//, "")}`;
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function inferSeedFromProgressPath(path) {
+      const p = normalizePath(path || "");
+      const m = p.match(/progress_([^/]+)\.json$/i);
+      return m ? m[1] : "";
+    }
+
+    function baseSeed(seed) {
+      return String(seed || "").replace(/-(b|c|d)$/i, "");
+    }
+
+    function latestLoadedThreadBaseSeed() {
+      let bestSeed = "";
+      let bestTs = -Infinity;
+      for (const [seed, p] of Object.entries(threadProgressBySeed)) {
+        const ts = Date.parse(p?.timestamp_utc || "");
+        const score = Number.isFinite(ts) ? ts : -Infinity;
+        if (score > bestTs && seed) {
+          bestTs = score;
+          bestSeed = seed;
+        }
+      }
+      return baseSeed(bestSeed);
+    }
+
+    function resolveThreadBaseSeed() {
+      const fromCurrent = baseSeed(currentProgress?.seed || "");
+      if (fromCurrent) return fromCurrent;
+      const fromLoaded = latestLoadedThreadBaseSeed();
+      if (fromLoaded) return fromLoaded;
+      const progressPath = document.getElementById("progressPath")?.value || "";
+      const fromPath = baseSeed(inferSeedFromProgressPath(progressPath));
+      return fromPath || "petrus-su2-signal";
+    }
+
+    function threadCursorEntries(fallbackProgress = null) {
+      const rootSeed = resolveThreadBaseSeed();
+      return threadSlots.map((slot) => {
+        const seed = `${rootSeed}${slot.suffix}`;
+        const progress = threadProgressBySeed[seed] || (fallbackProgress?.seed === seed ? fallbackProgress : null);
+        return { slot, seed, progress: progress || null };
+      });
+    }
+
+    function aggregateThreadMeasurementCounters(fallbackProgress = null) {
+      const entries = threadCursorEntries(fallbackProgress);
+      let done = 0;
+      let total = 0;
+      let active = 0;
+      for (const entry of entries) {
+        const p = entry?.progress || null;
+        const n = toFiniteNumber(p?.nmeas, NaN);
+        const d = toFiniteNumber(p?.meas_done, NaN);
+        if (!(Number.isFinite(n) && n > 0 && Number.isFinite(d))) continue;
+        done += Math.max(0, Math.min(n, d));
+        total += n;
+        active += 1;
+      }
+      if (!(active > 1 && total > 0)) return null;
+      return { done, total, active };
+    }
+
+    function threadPhaseBadge(phaseRaw, doneFlag) {
+      const phase = String(phaseRaw || "").toLowerCase();
+      if (doneFlag || phase === "done" || phase === "complete") return { label: "Complete", cls: "phase-done" };
+      if (phase === "thermalization") return { label: "Thermalizing", cls: "phase-therm" };
+      if (phase === "production") return { label: "Measuring", cls: "phase-meas" };
+      if (phase === "initializing") return { label: "Starting", cls: "phase-init" };
+      if (terminalPhaseSet.has(phase)) return { label: "Stopped", cls: "phase-stop" };
+      if (!phase) return { label: "Unknown", cls: "phase-unknown" };
+      return { label: `${phase[0].toUpperCase()}${phase.slice(1)}`, cls: "phase-unknown" };
+    }
+
+    function fmtDoneTotal(done, total) {
+      const d = toFiniteNumber(done, NaN);
+      const t = toFiniteNumber(total, NaN);
+      if (!Number.isFinite(d) || !Number.isFinite(t) || t < 0) return "-";
+      return `${Math.round(d)} / ${Math.round(t)}`;
+    }
+
+    function fmtThreadCfgIndex(p, meta = null) {
+      const phase = String(p?.phase || "").toLowerCase();
+      const nmeas = toFiniteNumber(p?.nmeas, NaN);
+      if (p?.done || phase === "complete" || phase === "done") {
+        return Number.isFinite(nmeas) && nmeas > 0 ? `${Math.round(nmeas)} (done)` : "done";
+      }
+      const snap = configStageSnapshot(p, meta);
+      const idx = Math.round(toFiniteNumber(snap?.cfgIdx, NaN));
+      if (Number.isFinite(idx) && idx > 0) return `${idx}`;
+      return "-";
+    }
+
+    function fmtUpdated(ts) {
+      const ms = Date.parse(ts || "");
+      return Number.isFinite(ms) ? new Date(ms).toLocaleTimeString() : "-";
+    }
+
+    function getThreadVizMode() {
+      const v = String(document.getElementById("threadVizMode")?.value || "cursor").toLowerCase();
+      return v === "speed" ? "speed" : "cursor";
+    }
+
+    function applyThreadVizMode() {
+      const card = document.getElementById("threadVizCard");
+      if (!card) return;
+      const mode = getThreadVizMode();
+      card.classList.toggle("cursor-mode-speed", mode === "speed");
+    }
+
+    function threadCfgPositionSnapshot(p, meta = null) {
+      const snap = configStageSnapshot(p, meta);
+      if (!snap) return null;
+      const cfgIdxRaw = toFiniteNumber(snap.cfgIdx, NaN);
+      const cfgProgressRaw = toFiniteNumber(snap.progress, NaN);
+      if (!Number.isFinite(cfgIdxRaw) || !Number.isFinite(cfgProgressRaw)) return null;
+      const cfgIdx = Math.max(1, Math.round(cfgIdxRaw));
+      const cfgProgress = clamp01(cfgProgressRaw);
+      return {
+        cfgIdx,
+        cfgProgress,
+        cfgPos: Math.max(0, cfgIdx - 1 + cfgProgress),
+      };
+    }
+
+    function estimateLiveCfgProgress(seed, cfgIdx, cfgProgress, tsMs, inProduction = true) {
+      const base = toFiniteNumber(cfgProgress, NaN);
+      if (!Number.isFinite(base)) return NaN;
+      // Show exact reported progress sample (no client-side interpolation).
+      return clamp01(base);
+    }
+
+    function stabilizeDisplayedCfgProgress(seed, cfgIdx, progress, inProduction = true) {
+      const p = toFiniteNumber(progress, NaN);
+      if (!Number.isFinite(p)) return p;
+      // Show exact telemetry sample; no forward-only display smoothing.
+      return clamp01(p);
+    }
+
+    function pruneThreadCfgSpeedHistory(seed, currentCfgIdx) {
+      const k = String(seed || "");
+      if (!k || !Array.isArray(threadCfgSpeedHistoryBySeed[k])) return;
+      const hist = threadCfgSpeedHistoryBySeed[k];
+      if (hist.length <= 2000) return;
+
+      const curIdx = Number.isFinite(currentCfgIdx) ? Math.round(currentCfgIdx) : NaN;
+      const keepCurrent = [];
+      const keepOlder = [];
+      for (const item of hist) {
+        const idx = Math.round(toFiniteNumber(item?.cfgIdx, NaN));
+        if (Number.isFinite(curIdx) && Number.isFinite(idx) && idx === curIdx) {
+          keepCurrent.push(item);
+        } else {
+          keepOlder.push(item);
+        }
+      }
+
+      const olderTail = keepOlder.slice(Math.max(0, keepOlder.length - 320));
+      threadCfgSpeedHistoryBySeed[k] = olderTail.concat(keepCurrent);
+    }
+
+    function estimateThreadCfgSeconds(seed, p = null, meta = null) {
+      const k = String(seed || "");
+      if (!k) return NaN;
+      const prev = threadCfgSpeedStateBySeed[k] || {
+        cfgPos: NaN,
+        cfgIdx: NaN,
+        cfgProgress: NaN,
+        tsMs: NaN,
+        secPerCfg: NaN,
+        cfgAnchorIdx: NaN,
+        cfgAnchorPos: NaN,
+        cfgAnchorTsMs: NaN,
+        rawTsMs: NaN,
+        rawCfgProgress: NaN,
+        cfgRatePerSec: NaN,
+      };
+      if (!p) return prev.secPerCfg;
+
+      const pos = threadCfgPositionSnapshot(p, meta);
+      const tsMs = Date.parse(p?.timestamp_utc || "");
+      let secPerCfg = prev.secPerCfg;
+      let cfgAnchorIdx = prev.cfgAnchorIdx;
+      let cfgAnchorPos = prev.cfgAnchorPos;
+      let cfgAnchorTsMs = prev.cfgAnchorTsMs;
+      let rawTsMs = prev.rawTsMs;
+      let rawCfgProgress = prev.rawCfgProgress;
+      let cfgRatePerSec = prev.cfgRatePerSec;
+
+      if (pos && Number.isFinite(tsMs)) {
+        const cfgChanged =
+          !Number.isFinite(cfgAnchorIdx) ||
+          pos.cfgIdx !== cfgAnchorIdx ||
+          (Number.isFinite(prev.tsMs) && tsMs + 1 < prev.tsMs);
+        if (cfgChanged) {
+          cfgAnchorIdx = pos.cfgIdx;
+          cfgAnchorPos = Math.max(0, pos.cfgIdx - 1);
+          cfgAnchorTsMs = tsMs;
+          rawTsMs = tsMs;
+          rawCfgProgress = pos.cfgProgress;
+        }
+
+        const hasNewProgressSample =
+          cfgChanged ||
+          !Number.isFinite(prev.tsMs) ||
+          tsMs > prev.tsMs + 1;
+        if (hasNewProgressSample) {
+          const wrapped =
+            Number.isFinite(prev.cfgProgress) &&
+            (pos.cfgProgress + 1e-4) < prev.cfgProgress;
+          if (wrapped) {
+            rawTsMs = tsMs;
+            rawCfgProgress = pos.cfgProgress;
+          } else if (Number.isFinite(rawTsMs) && Number.isFinite(rawCfgProgress) && tsMs > rawTsMs + 1) {
+            const dProg = pos.cfgProgress - rawCfgProgress;
+            const dSec = (tsMs - rawTsMs) / 1000.0;
+            if (Number.isFinite(dProg) && Number.isFinite(dSec) && dProg >= 0 && dSec > 0) {
+              const instRate = dProg / dSec;
+              if (Number.isFinite(instRate) && instRate > 0) {
+                cfgRatePerSec = Number.isFinite(cfgRatePerSec)
+                  ? (0.35 * cfgRatePerSec + 0.65 * instRate)
+                  : instRate;
+              }
+            }
+            rawTsMs = tsMs;
+            rawCfgProgress = pos.cfgProgress;
+          } else {
+            rawTsMs = tsMs;
+            rawCfgProgress = pos.cfgProgress;
+          }
+        }
+        if (hasNewProgressSample && Number.isFinite(cfgAnchorPos) && Number.isFinite(cfgAnchorTsMs) && tsMs >= cfgAnchorTsMs) {
+          const deltaCfg = pos.cfgPos - cfgAnchorPos;
+          const deltaSec = (tsMs - cfgAnchorTsMs) / 1000.0;
+          if (Number.isFinite(deltaCfg) && Number.isFinite(deltaSec) && deltaCfg > 1e-6 && deltaSec > 0) {
+            const sampleFromCfgStart = deltaSec / deltaCfg;
+            secPerCfg = Number.isFinite(secPerCfg) ? (0.35 * secPerCfg + 0.65 * sampleFromCfgStart) : sampleFromCfgStart;
+            if (!Array.isArray(threadCfgSpeedHistoryBySeed[k])) threadCfgSpeedHistoryBySeed[k] = [];
+            const hist = threadCfgSpeedHistoryBySeed[k];
+            const last = hist.length > 0 ? hist[hist.length - 1] : null;
+            if (!last || pos.cfgIdx !== last.cfgIdx || tsMs > last.tsMs + 1) {
+              hist.push({
+                tsMs,
+                secPerCfg: sampleFromCfgStart,
+                secPerCfgSmooth: secPerCfg,
+                cfgPos: pos.cfgPos,
+                cfgIdx: pos.cfgIdx,
+                cfgProgress: pos.cfgProgress,
+              });
+              pruneThreadCfgSpeedHistory(k, pos.cfgIdx);
+            }
+          }
+        }
+      }
+
+      threadCfgSpeedStateBySeed[k] = {
+        cfgPos: pos && Number.isFinite(pos.cfgPos) ? pos.cfgPos : prev.cfgPos,
+        cfgIdx: pos && Number.isFinite(pos.cfgIdx) ? pos.cfgIdx : prev.cfgIdx,
+        cfgProgress: pos && Number.isFinite(pos.cfgProgress) ? pos.cfgProgress : prev.cfgProgress,
+        tsMs: Number.isFinite(tsMs) ? tsMs : prev.tsMs,
+        secPerCfg,
+        cfgAnchorIdx: Number.isFinite(cfgAnchorIdx) ? cfgAnchorIdx : prev.cfgAnchorIdx,
+        cfgAnchorPos: Number.isFinite(cfgAnchorPos) ? cfgAnchorPos : prev.cfgAnchorPos,
+        cfgAnchorTsMs: Number.isFinite(cfgAnchorTsMs) ? cfgAnchorTsMs : prev.cfgAnchorTsMs,
+        rawTsMs: Number.isFinite(rawTsMs) ? rawTsMs : prev.rawTsMs,
+        rawCfgProgress: Number.isFinite(rawCfgProgress) ? rawCfgProgress : prev.rawCfgProgress,
+        cfgRatePerSec: Number.isFinite(cfgRatePerSec) ? cfgRatePerSec : prev.cfgRatePerSec,
+      };
+      return secPerCfg;
+    }
+
+    function fmtCfgSeconds(secPerCfg) {
+      const v = Number(secPerCfg);
+      if (!Number.isFinite(v) || v <= 0) return "-";
+      if (v < 60) return `${v.toFixed(1)} s/cfg`;
+      return `${(v / 60).toFixed(1)} min/cfg`;
+    }
+
+    function getThreadCurrentCfgSpeedSeries(seed) {
+      const k = String(seed || "");
+      const st = threadCfgSpeedStateBySeed[k] || {};
+      const cfgIdx = Number.isFinite(toFiniteNumber(st.cfgIdx, NaN)) ? Math.round(st.cfgIdx) : NaN;
+      const anchorTsMs = toFiniteNumber(st.cfgAnchorTsMs, NaN);
+      const history = Array.isArray(threadCfgSpeedHistoryBySeed[k]) ? threadCfgSpeedHistoryBySeed[k] : [];
+      const filtered = Number.isFinite(cfgIdx)
+        ? history.filter((x) => Math.round(toFiniteNumber(x?.cfgIdx, NaN)) === cfgIdx)
+        : history;
+      let points = filtered
+        .map((x) => {
+          const tsMs = toFiniteNumber(x?.tsMs, NaN);
+          const sec = toFiniteNumber(x?.secPerCfg, NaN);
+          if (!Number.isFinite(tsMs) || !Number.isFinite(sec) || sec <= 0) return null;
+          const xSec = Number.isFinite(anchorTsMs) ? Math.max(0, (tsMs - anchorTsMs) / 1000.0) : NaN;
+          if (!Number.isFinite(xSec)) return null;
+          return { xSec, sec, tsMs };
+        })
+        .filter(Boolean);
+      if (points.length > 0 && points[0].xSec > 1e-6) {
+        points = [{ xSec: 0, sec: points[0].sec, tsMs: points[0].tsMs }, ...points];
+      }
+      const currentSec = toFiniteNumber(st.secPerCfg, NaN);
+      if (points.length === 0 && Number.isFinite(currentSec)) {
+        points = [{ xSec: 0, sec: currentSec, tsMs: anchorTsMs }];
+      }
+      if (points.length > 0 && Number.isFinite(anchorTsMs) && Number.isFinite(currentSec)) {
+        const nowMs = Date.now();
+        const xNow = Math.max(0, (nowMs - anchorTsMs) / 1000.0);
+        const last = points[points.length - 1];
+        const lastX = toFiniteNumber(last?.xSec, NaN);
+        // Keep the line extending between sparse progress-file writes.
+        if (Number.isFinite(xNow) && (!Number.isFinite(lastX) || xNow > lastX + 0.2)) {
+          points = [...points, { xSec: xNow, sec: currentSec, tsMs: nowMs }];
+        }
+      }
+      return {
+        cfgIdx,
+        points,
+        currentSec,
+      };
+    }
+
+    function computeSpeedYAxisMax(entries = []) {
+      let maxV = NaN;
+      const cfgBits = [];
+      for (const entry of entries) {
+        const seed = String(entry?.seed || "");
+        if (!seed) continue;
+        const series = getThreadCurrentCfgSpeedSeries(seed);
+        const cfgIdx = Number.isFinite(series.cfgIdx) ? Math.round(series.cfgIdx) : "na";
+        cfgBits.push(`${seed}:${cfgIdx}`);
+        for (const point of series.points) {
+          const v = toFiniteNumber(point?.sec, NaN);
+          if (Number.isFinite(v) && v > 0) {
+            maxV = Number.isFinite(maxV) ? Math.max(maxV, v) : v;
+          }
+        }
+        if (Number.isFinite(series.currentSec) && series.currentSec > 0) {
+          maxV = Number.isFinite(maxV) ? Math.max(maxV, series.currentSec) : series.currentSec;
+        }
+      }
+
+      const cfgSig = cfgBits.join("|");
+      const targetMax = Number.isFinite(maxV)
+        ? Math.max(10, 2 * Math.ceil((maxV * 1.10) / 2))
+        : 10;
+
+      if (speedAxisState.cfgSig !== cfgSig) {
+        speedAxisState.cfgSig = cfgSig;
+        speedAxisState.axisMax = targetMax;
+      } else if (targetMax > speedAxisState.axisMax) {
+        // Grow within a config, never shrink (prevents jittery axis rescaling).
+        speedAxisState.axisMax = targetMax;
+      }
+      return Math.max(2, speedAxisState.axisMax);
+    }
+
+    function threadStatusCfgPosForCompare(p) {
+      const snap = threadCfgPositionSnapshot(p, currentMeta);
+      return Number.isFinite(toFiniteNumber(snap?.cfgPos, NaN)) ? snap.cfgPos : NaN;
+    }
+
+    function shouldAcceptThreadProgress(seed, candidate) {
+      if (!candidate) return false;
+      const k = String(seed || candidate?.seed || "");
+      const prev = k ? threadProgressBySeed[k] : null;
+      if (!prev) return true;
+
+      const nextTs = Date.parse(candidate?.timestamp_utc || "");
+      const prevTs = Date.parse(prev?.timestamp_utc || "");
+      if (Number.isFinite(nextTs) && Number.isFinite(prevTs)) {
+        if (nextTs + 1 < prevTs) return false;
+        if (Math.abs(nextTs - prevTs) <= 1) {
+          const nextPos = threadStatusCfgPosForCompare(candidate);
+          const prevPos = threadStatusCfgPosForCompare(prev);
+          if (Number.isFinite(nextPos) && Number.isFinite(prevPos) && nextPos + 1e-6 < prevPos) {
+            return false;
+          }
+        }
+      } else if (!Number.isFinite(nextTs) && Number.isFinite(prevTs)) {
+        return false;
+      }
+      return true;
+    }
+
+    function threadStatusUnavailableRow(slot) {
+      return `<tr>
+        <td>${escapeHtml(slot.label)}</td>
+        <td>${escapeHtml(slot.seed)}</td>
+        <td><span class="phase-pill phase-unknown">Unavailable</span></td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+        <td>-</td>
+      </tr>`;
+    }
+
+    function threadStatusRow(slot, p, accepted = true) {
+      const phase = threadPhaseBadge(p?.phase, Boolean(p?.done));
+      const cfgCell = fmtThreadCfgIndex(p, currentMeta);
+      const cfgSec = estimateThreadCfgSeconds(slot.seed, p, currentMeta);
+      const updatedTxt = fmtUpdated(p?.timestamp_utc);
+      const phaseLabel = accepted ? phase.label : `${phase.label} (stale)`;
+      const updatedCell = accepted ? updatedTxt : (updatedTxt === "-" ? "-" : `${updatedTxt} (stale)`);
+      return `<tr>
+        <td>${escapeHtml(slot.label)}</td>
+        <td>${escapeHtml(slot.seed)}</td>
+        <td><span class="phase-pill ${phase.cls}">${escapeHtml(phaseLabel)}</span></td>
+        <td>${escapeHtml(fmtDoneTotal(p?.therm_done, p?.ntherm))}</td>
+        <td>${escapeHtml(fmtDoneTotal(p?.meas_done, p?.nmeas))}</td>
+        <td>${escapeHtml(cfgCell)}</td>
+        <td>${escapeHtml(fmtCfgSeconds(cfgSec))}</td>
+        <td>${escapeHtml(updatedCell)}</td>
+      </tr>`;
+    }
+
+    async function refreshThreadStatusTable(force = false) {
+      const now = Date.now();
+      if (!force && (threadStatusBusy || now < threadStatusNextAtMs)) return;
+      const tbody = document.getElementById("threadStatusBody");
+      const note = document.getElementById("threadTableNote");
+      if (!tbody || !note) return;
+
+      threadStatusBusy = true;
+      threadStatusNextAtMs = now + 1000;
+      try {
+        const rootSeed = resolveThreadBaseSeed();
+        note.textContent = `seed group: ${rootSeed}{,-b,-c,-d}`;
+        const seeds = threadSlots.map((slot) => ({ ...slot, seed: `${rootSeed}${slot.suffix}` }));
+        const streamFresh = usingStream && (Date.now() - lastStreamAt) <= streamStaleMs;
+        if (!force && streamFresh) {
+          const rows = seeds.map((slot) => {
+            const p = threadProgressBySeed[slot.seed] || null;
+            return p ? threadStatusRow(slot, p, true) : threadStatusUnavailableRow(slot);
+          });
+          tbody.innerHTML = rows.join("");
+          renderThreadCursors(currentProgress);
+          return;
+        }
+        const loadedBySeed = {};
+        const rows = await Promise.all(seeds.map(async (slot) => {
+          const path = `/results/su2_signal_scan/progress_${slot.seed}.json`;
+          try {
+            const fetched = await fetchJson(path);
+            const accepted = shouldAcceptThreadProgress(slot.seed, fetched);
+            const cached = threadProgressBySeed[slot.seed] || null;
+            const p = accepted ? fetched : (cached || fetched);
+            loadedBySeed[slot.seed] = accepted ? fetched : null;
+            return threadStatusRow(slot, p, accepted);
+          } catch (_) {
+            loadedBySeed[slot.seed] = null;
+            const cached = threadProgressBySeed[slot.seed] || null;
+            if (cached) {
+              return threadStatusRow(slot, cached, false);
+            }
+            return threadStatusUnavailableRow(slot);
+          }
+        }));
+        for (const slot of seeds) {
+          const seed = slot.seed;
+          const loaded = loadedBySeed[seed];
+          if (loaded) {
+            threadProgressBySeed[seed] = loaded;
+          }
+        }
+        tbody.innerHTML = rows.join("");
+        renderThreadCursors(currentProgress);
+      } finally {
+        threadStatusBusy = false;
+      }
     }
 
     function getApiBase() {
@@ -428,6 +1232,168 @@
       return `${ss}s`;
     }
 
+    function toFiniteNumber(v, fallback = NaN) {
+      const x = Number(v);
+      return Number.isFinite(x) ? x : fallback;
+    }
+
+    function fmtSweepCounter(v) {
+      if (!Number.isFinite(v)) return "-";
+      const r = Math.round(v);
+      return Math.abs(v - r) < 1e-6 ? `${r}` : v.toFixed(2);
+    }
+
+    function progressSeed(p) {
+      return (String(p?.seed || "").trim() || "__default__");
+    }
+
+    function shouldApplyProgressUpdate(p, source = "unknown") {
+      const sourceTag = String(source || "").toLowerCase();
+      if (sourceTag === "poll" && usingStream && Date.now() - lastStreamAt <= streamStaleMs) {
+        return false;
+      }
+
+      const seed = progressSeed(p);
+      const tsMs = Date.parse(p?.timestamp_utc || "");
+      const prev = progressOrderBySeed[seed];
+      if (prev && Number.isFinite(tsMs) && Number.isFinite(prev.tsMs) && tsMs + 1 < prev.tsMs) {
+        return false;
+      }
+
+      progressOrderBySeed[seed] = {
+        tsMs: Number.isFinite(tsMs) ? tsMs : (prev?.tsMs ?? NaN),
+      };
+      return true;
+    }
+
+    function stabilizeInSweepFraction(p, phase, thermDone, rawFrac) {
+      const seed = progressSeed(p);
+      if (phase !== "thermalization" || !Number.isFinite(thermDone)) {
+        delete thermSweepStateBySeed[seed];
+        return Number.isFinite(rawFrac) ? clamp01(rawFrac) : 0.0;
+      }
+
+      const prev = thermSweepStateBySeed[seed];
+      const sameSweep = Boolean(prev) && Math.abs(prev.thermDone - thermDone) < 1e-9;
+      if (!Number.isFinite(rawFrac)) {
+        if (sameSweep) return prev.inSweepFrac;
+        thermSweepStateBySeed[seed] = { thermDone, inSweepFrac: 0.0 };
+        return 0.0;
+      }
+
+      const frac = clamp01(rawFrac);
+      if (!sameSweep) {
+        thermSweepStateBySeed[seed] = { thermDone, inSweepFrac: frac };
+        return frac;
+      }
+      const stable = Math.max(prev.inSweepFrac, frac);
+      prev.inSweepFrac = stable;
+      return stable;
+    }
+
+    function estimateThermState(p, elapsedSec) {
+      const phase = String(p?.phase || "").toLowerCase();
+      const ntherm = toFiniteNumber(p?.ntherm, NaN);
+      const thermDone = toFiniteNumber(p?.therm_done, NaN);
+      const subDone = toFiniteNumber(p?.therm_sweep_substep_done, NaN);
+      const subTotal = toFiniteNumber(p?.therm_sweep_substep_total, NaN);
+      const tsMs = Date.parse(p?.timestamp_utc || "");
+      const elapsedVal = Number.isFinite(elapsedSec) ? elapsedSec : toFiniteNumber(p?.elapsed_sec, NaN);
+
+      let thermLive = thermDone;
+      let inSweepFrac = 0.0;
+      let haveEstimate = false;
+
+      if (
+        phase === "thermalization" &&
+        !p?.done &&
+        Number.isFinite(ntherm) &&
+        ntherm > 0 &&
+        Number.isFinite(thermDone) &&
+        thermDone >= 0 &&
+        thermDone < ntherm &&
+        Number.isFinite(subDone) &&
+        Number.isFinite(subTotal) &&
+        subTotal > 0
+      ) {
+        inSweepFrac = clamp01(subDone / subTotal);
+        thermLive = Math.min(ntherm, thermDone + inSweepFrac);
+        haveEstimate = true;
+      } else if (
+        phase === "thermalization" &&
+        !p?.done &&
+        Number.isFinite(ntherm) &&
+        ntherm > 0 &&
+        Number.isFinite(thermDone) &&
+        thermDone > 0 &&
+        thermDone < ntherm &&
+        Number.isFinite(tsMs) &&
+        Number.isFinite(elapsedVal)
+      ) {
+        const ageSec = Math.max(0, (Date.now() - tsMs) / 1000.0);
+        const secPerSweep = elapsedVal / thermDone;
+        if (Number.isFinite(secPerSweep) && secPerSweep > 0) {
+          inSweepFrac = clamp01(Math.min(0.999, ageSec / secPerSweep));
+          thermLive = Math.min(ntherm, thermDone + inSweepFrac);
+          haveEstimate = true;
+        }
+      }
+
+      if (phase === "thermalization" && !p?.done && Number.isFinite(thermDone)) {
+        inSweepFrac = stabilizeInSweepFraction(
+          p,
+          phase,
+          thermDone,
+          haveEstimate ? inSweepFrac : NaN
+        );
+        if (Number.isFinite(ntherm) && ntherm > 0) {
+          thermLive = Math.min(ntherm, thermDone + inSweepFrac);
+        }
+      } else {
+        stabilizeInSweepFraction(p, phase, thermDone, NaN);
+      }
+
+      return { phase, ntherm, thermDone, thermLive, inSweepFrac, elapsedVal };
+    }
+
+    function avgTail(arr, n) {
+      const m = Math.max(1, Math.min(arr.length, Math.floor(n)));
+      const tail = arr.slice(arr.length - m);
+      if (tail.length === 0) return 0.0;
+      return tail.reduce((a, b) => a + b, 0) / tail.length;
+    }
+
+    function buildFluxDisplaySeries(ms, meta) {
+      const mode = (document.getElementById("fluxDisplayMode").value || "stored").trim();
+      const tailInput = toFiniteNumber(document.getElementById("fluxTailN").value, NaN);
+      const defaultTail = toFiniteNumber(meta?.flux_vacuum_tail, 2);
+      const tailN = Number.isFinite(tailInput) && tailInput > 0 ? Math.floor(tailInput) : Math.max(1, Math.floor(defaultTail));
+      const hasRaw = ms.some(x => Array.isArray(x?.flux_profile_r_perp_raw));
+
+      const series = ms.map((x) => {
+        const stored = Array.isArray(x?.flux_profile_r_perp) ? x.flux_profile_r_perp : [];
+        const raw = Array.isArray(x?.flux_profile_r_perp_raw) ? x.flux_profile_r_perp_raw : stored;
+
+        if (mode === "raw") return raw;
+        if (mode === "tail_subtracted") {
+          if (raw.length === 0) return raw;
+          const vac = avgTail(raw, tailN);
+          return raw.map(v => v - vac);
+        }
+        return stored;
+      });
+
+      let note = "stored profile from file";
+      if (mode === "raw") {
+        note = hasRaw ? "raw profile from file" : "raw not present; using stored profile";
+      } else if (mode === "tail_subtracted") {
+        note = hasRaw
+          ? `tail-subtracted from raw (N=${tailN})`
+          : `tail-subtracted from stored (raw not present, N=${tailN})`;
+      }
+      return { series, mode, tailN, hasRaw, note };
+    }
+
     function setPct(fillId, pct) {
       document.getElementById(fillId).style.width = `${Math.max(0, Math.min(100, pct))}%`;
     }
@@ -435,6 +1401,823 @@
     function fmtList(v) {
       if (!Array.isArray(v)) return "-";
       return `[${v.join(", ")}]`;
+    }
+
+    function parseAFm(meta) {
+      const raw = (document.getElementById("aFmInput").value || "").trim().replace(",", ".");
+      const inputVal = Number(raw);
+      if (Number.isFinite(inputVal) && inputVal > 0) return inputVal;
+      if (meta) {
+        const fromMeta = Number(meta.a_fm ?? meta.lattice_spacing_fm ?? 0);
+        if (Number.isFinite(fromMeta) && fromMeta > 0) {
+          document.getElementById("aFmInput").value = String(fromMeta);
+          return fromMeta;
+        }
+      }
+      return null;
+    }
+
+    function inferLFromUIOrMeta(meta) {
+      if (meta && Array.isArray(meta.L) && meta.L.length > 0) {
+        return meta.L.map(x => Number(x)).filter(Number.isFinite);
+      }
+      const txt = (document.getElementById("paramL").textContent || "").trim();
+      if (!txt.startsWith("[") || !txt.endsWith("]")) return [];
+      const vals = txt.slice(1, -1).split(",").map(s => Number(s.trim())).filter(Number.isFinite);
+      return vals;
+    }
+
+    function updatePhysicalScale(meta) {
+      const aFm = parseAFm(meta);
+      const L = inferLFromUIOrMeta(meta);
+      if (!aFm || L.length === 0) {
+        document.getElementById("paramAFm").textContent = "-";
+        document.getElementById("paramAinvGeV").textContent = "-";
+        document.getElementById("paramBoxFm").textContent = "-";
+        return;
+      }
+
+      const aInvGeV = 0.1973269804 / aFm;
+      document.getElementById("paramAFm").textContent = `${aFm.toFixed(6)}`;
+      document.getElementById("paramAinvGeV").textContent = `${aInvGeV.toFixed(3)}`;
+
+      if (L.length >= 4) {
+        const lx = L[0] * aFm;
+        const ly = L[1] * aFm;
+        const lz = L[2] * aFm;
+        const lt = L[3] * aFm;
+        document.getElementById("paramBoxFm").textContent =
+          `${lx.toFixed(2)} x ${ly.toFixed(2)} x ${lz.toFixed(2)} x ${lt.toFixed(2)} fm`;
+      } else {
+        const sizes = L.map(x => (x * aFm).toFixed(2));
+        document.getElementById("paramBoxFm").textContent = `${sizes.join(" x ")} fm`;
+      }
+    }
+
+    function clamp01(x) {
+      if (!Number.isFinite(x)) return 0.5;
+      return Math.max(0, Math.min(1, x));
+    }
+
+    function configStageSnapshot(p, meta) {
+      const phase = String(p?.phase || "").toLowerCase();
+      if (phase !== "production" || p?.done) return null;
+      const measDone = toFiniteNumber(p?.meas_done, NaN);
+      const nmeas = toFiniteNumber(p?.nmeas, NaN);
+      if (!(Number.isFinite(measDone) && Number.isFinite(nmeas) && nmeas > 0)) return null;
+
+      const measCfgIdx = toFiniteNumber(p?.meas_cfg_index, NaN);
+      let cfgIdx = Number.isFinite(measCfgIdx)
+        ? Math.max(1, Math.min(Math.round(measCfgIdx), Math.round(nmeas)))
+        : Math.max(1, Math.min(Math.round(measDone) + 1, Math.round(nmeas)));
+
+      const measSubDone = toFiniteNumber(p?.meas_cfg_substep_done, NaN);
+      const measSubTotal = toFiniteNumber(p?.meas_cfg_substep_total, NaN);
+      const measSubProgressRaw = toFiniteNumber(p?.meas_cfg_substep_progress, NaN);
+      let measSubProgress = Number.isFinite(measSubProgressRaw)
+        ? clamp01(measSubProgressRaw)
+        : NaN;
+      if (!Number.isFinite(measSubProgress) && Number.isFinite(measSubDone) && Number.isFinite(measSubTotal) && measSubTotal > 0) {
+        measSubProgress = clamp01(measSubDone / measSubTotal);
+      }
+
+      const measStageRaw = typeof p?.meas_cfg_stage === "string" ? p.meas_cfg_stage : "";
+      const measStage = measStageRaw ? measStageRaw.replace(/_/g, " ") : "starting";
+      let stageProgress = Number.isFinite(measSubProgress) ? measSubProgress : 0;
+      let measSubCount =
+        Number.isFinite(measSubDone) && Number.isFinite(measSubTotal) && measSubTotal > 0
+          ? `${Math.round(measSubDone)}/${Math.round(measSubTotal)}`
+          : "-";
+
+      // Worker emits a terminal sample for cfg N ("complete") before cfg N+1 begins.
+      // For UI coherence, treat that as start of the next cfg unless this was final cfg.
+      if (
+        measStageRaw === "complete" &&
+        Number.isFinite(measDone) &&
+        Number.isFinite(nmeas) &&
+        measDone < nmeas
+      ) {
+        cfgIdx = Math.max(1, Math.min(Math.round(measDone) + 1, Math.round(nmeas)));
+        stageProgress = 0;
+        measSubCount = "0/1";
+      }
+
+      if (measStageRaw === "skip_sweeps") {
+        const shift = Array.isArray(p?.meas_cursor_shift)
+          ? p.meas_cursor_shift.map((v) => toFiniteNumber(v, NaN))
+          : [];
+        const skipDoneByShift = shift.reduce((acc, v) => acc + (Number.isFinite(v) ? Math.max(0, v) : 0), 0);
+        const skipSweepCount = toFiniteNumber(p?.meas_cursor_t, NaN);
+        const ndGuess = Math.max(1, shift.length || inferLFromUIOrMeta(meta).length || 4);
+        const skipTotal = Number.isFinite(skipSweepCount) && skipSweepCount > 0
+          ? skipSweepCount * 2 * ndGuess
+          : NaN;
+        if (Number.isFinite(skipDoneByShift) && Number.isFinite(skipTotal) && skipTotal > 0) {
+          // Keep progress tied to full-config substep progress when available.
+          // The skip-specific ratio is only a fallback when global substep progress is missing.
+          if (!Number.isFinite(measSubProgress)) {
+            stageProgress = clamp01(skipDoneByShift / skipTotal);
+          }
+          measSubCount = `${Math.round(skipDoneByShift)}/${Math.round(skipTotal)}`;
+        }
+      }
+
+      return {
+        cfgIdx,
+        stage: measStage,
+        stageRaw: measStageRaw,
+        progress: stageProgress,
+        count: measSubCount,
+      };
+    }
+
+    function renderCurrentConfigProgress(p, phase) {
+      const pctEl = document.getElementById("cfgSubPct");
+      if (!pctEl) return;
+      const rootSeed = resolveThreadBaseSeed();
+      const threads = threadSlots.map((slot) => {
+        const seed = `${rootSeed}${slot.suffix}`;
+        const tp = threadProgressBySeed[seed] || (p?.seed === seed ? p : null);
+        const snapRaw = tp ? configStageSnapshot(tp, currentMeta) : null;
+        const tsMs = Date.parse(tp?.timestamp_utc || "");
+        const inProd = String(tp?.phase || "").toLowerCase() === "production" && !tp?.done;
+        const liveProgress = snapRaw
+          ? estimateLiveCfgProgress(seed, snapRaw.cfgIdx, snapRaw.progress, tsMs, inProd)
+          : NaN;
+        const snap = snapRaw
+          ? {
+              ...snapRaw,
+              progress: stabilizeDisplayedCfgProgress(
+                seed,
+                snapRaw.cfgIdx,
+                Number.isFinite(liveProgress) ? liveProgress : snapRaw.progress,
+                inProd
+              ),
+            }
+          : null;
+        return snap ? { label: slot.label, snap } : null;
+      }).filter(Boolean);
+
+      if (threads.length > 0) {
+        const avgProgress = clamp01(
+          threads.reduce((acc, t) => acc + clamp01(toFiniteNumber(t?.snap?.progress, 0)), 0) / threads.length
+        );
+        const cfgIndices = threads
+          .map((t) => Math.max(1, Math.round(toFiniteNumber(t?.snap?.cfgIdx, 1))))
+          .filter(Number.isFinite);
+        const minCfg = cfgIndices.length > 0 ? Math.min(...cfgIndices) : NaN;
+        const maxCfg = cfgIndices.length > 0 ? Math.max(...cfgIndices) : NaN;
+        const cfgSpan = Number.isFinite(minCfg) && Number.isFinite(maxCfg)
+          ? (minCfg === maxCfg ? `cfg ${minCfg}` : `cfg ${minCfg}-${maxCfg}`)
+          : "cfg -";
+        const parts = threads.map((t) => {
+          const pct = (100 * t.snap.progress).toFixed(1);
+          const idx = Math.max(1, Math.round(toFiniteNumber(t?.snap?.cfgIdx, 1)));
+          return `${t.label} cfg${idx} ${pct}%`;
+        });
+        pctEl.textContent = `${(100 * avgProgress).toFixed(1)}% (${cfgSpan} thread avg) | ${parts.join(" | ")}`;
+        setPct("cfgSubFill", 100 * avgProgress);
+        return;
+      }
+
+      const singleRaw = configStageSnapshot(p, currentMeta);
+      const singleLive = singleRaw
+        ? estimateLiveCfgProgress(
+            String(p?.seed || ""),
+            singleRaw.cfgIdx,
+            singleRaw.progress,
+            Date.parse(p?.timestamp_utc || ""),
+            String(p?.phase || "").toLowerCase() === "production" && !p?.done
+          )
+        : NaN;
+      const single = singleRaw
+        ? {
+            ...singleRaw,
+            progress: stabilizeDisplayedCfgProgress(
+              String(p?.seed || ""),
+              singleRaw.cfgIdx,
+              Number.isFinite(singleLive) ? singleLive : singleRaw.progress,
+              String(p?.phase || "").toLowerCase() === "production" && !p?.done
+            ),
+          }
+        : null;
+      if (single) {
+        pctEl.textContent = `${(100 * single.progress).toFixed(1)}%`;
+        setPct("cfgSubFill", 100 * single.progress);
+        return;
+      }
+
+      pctEl.textContent = phase === "production" ? "0.0%" : "-";
+      setPct("cfgSubFill", 0);
+    }
+
+    function normalizeLatticeCoord(v, l) {
+      if (!Number.isFinite(v)) return NaN;
+      if (!Number.isFinite(l) || l <= 0) return v;
+      const span = Math.max(1, Math.round(l));
+      const x = Math.round(v);
+      return ((x % span) + span) % span;
+    }
+
+    function meanFinite(values) {
+      const finite = (values || []).filter(Number.isFinite);
+      if (finite.length === 0) return NaN;
+      return finite.reduce((a, b) => a + b, 0) / finite.length;
+    }
+
+    function muProgressVector(coords, dims, cfgProgress, muCount = 4) {
+      if (Number.isFinite(cfgProgress)) {
+        // Keep per-mu cursors tightly coupled to true cfg progress.
+        // This avoids large visual jumps when raw lattice shift telemetry changes axes.
+        const base = clamp01(cfgProgress);
+        const center = (muCount - 1) / 2;
+        const spread = 0.06;
+        const vals = Array.from({ length: muCount }, (_, mu) => {
+          const offset = center > 0 ? ((mu - center) / center) : 0;
+          return clamp01(base + spread * offset);
+        });
+        return rebalanceMuMean(vals, base);
+      }
+
+      const raw = Array.from({ length: muCount }, (_, mu) => {
+        const c = toFiniteNumber(coords?.[mu], NaN);
+        const l = toFiniteNumber(dims?.[mu], NaN);
+        if (!Number.isFinite(c)) return NaN;
+        const denom = Number.isFinite(l) && l > 1 ? (l - 1) : 1;
+        return clamp01(c / denom);
+      });
+      const fallback = meanFinite(raw);
+      const base = Number.isFinite(fallback) ? fallback : 0;
+      return raw.map((v) => (Number.isFinite(v) ? v : base));
+    }
+
+    function rebalanceMuMean(values, targetMean) {
+      const out = (values || []).map((v) => clamp01(toFiniteNumber(v, 0)));
+      if (!Number.isFinite(targetMean) || out.length === 0) return out;
+      const n = out.length;
+      const target = clamp01(targetMean);
+      for (let iter = 0; iter < 8; iter += 1) {
+        const avg = meanFinite(out);
+        if (!Number.isFinite(avg)) break;
+        const err = target - avg;
+        if (Math.abs(err) < 1e-6) break;
+        const adjustable = [];
+        for (let i = 0; i < n; i += 1) {
+          if (err > 0 && out[i] < 1 - 1e-6) adjustable.push(i);
+          if (err < 0 && out[i] > 1e-6) adjustable.push(i);
+        }
+        if (adjustable.length === 0) break;
+        const step = (err * n) / adjustable.length;
+        for (const i of adjustable) {
+          out[i] = clamp01(out[i] + step);
+        }
+      }
+      return out;
+    }
+
+    function stabilizeThreadMuProgress(key, targetMu, cfgIdx, cfgProgress, tsMs, inProduction, hasFreshData = true) {
+      const cleanedTarget = (targetMu || []).map((v) => clamp01(toFiniteNumber(v, 0)));
+      const prev = cursorMuStateByThread[key];
+      const targetMean = Number.isFinite(cfgProgress) ? clamp01(cfgProgress) : meanFinite(cleanedTarget);
+      const snapped = Number.isFinite(targetMean) ? rebalanceMuMean(cleanedTarget, targetMean) : cleanedTarget;
+      // Hold last rendered point between telemetry samples; move only on fresh data.
+      const out = (hasFreshData || !prev || !inProduction)
+        ? snapped
+        : (Array.isArray(prev.mu) && prev.mu.length > 0 ? prev.mu : snapped);
+      const outMean = meanFinite(out);
+      cursorMuStateByThread[key] = {
+        cfgIdx,
+        cfgProgress: Number.isFinite(cfgProgress) ? cfgProgress : toFiniteNumber(prev?.cfgProgress, NaN),
+        tsMs: Number.isFinite(tsMs) ? tsMs : toFiniteNumber(prev?.tsMs, NaN),
+        renderTsMs: Date.now(),
+        meanProgress: Number.isFinite(outMean) ? outMean : toFiniteNumber(prev?.meanProgress, NaN),
+        mu: out,
+      };
+      return out;
+    }
+
+    function cursorElementIds(label) {
+      const suffix = String(label || "").trim().toUpperCase();
+      return {
+        key: suffix || "DEFAULT",
+        canvasId: `cursorCanvas${suffix}`,
+        infoId: `cursorInfo${suffix}`,
+        kindId: `cursorKind${suffix}`,
+        speedCanvasId: `speedCanvas${suffix}`,
+        speedInfoId: `speedInfo${suffix}`,
+      };
+    }
+
+    function renderThreadCursors(fallbackProgress = null) {
+      const entries = threadCursorEntries(fallbackProgress);
+      // Always accumulate per-thread speed history so graph mode is pre-populated.
+      for (const entry of entries) {
+        estimateThreadCfgSeconds(entry.seed, entry.progress, currentMeta);
+      }
+      applyThreadVizMode();
+      const mode = getThreadVizMode();
+      const speedYMax = mode === "speed" ? computeSpeedYAxisMax(entries) : NaN;
+      if (mode === "speed") {
+        drawAllThreadSpeedPanel(entries, speedYMax);
+        return;
+      }
+      for (const entry of entries) {
+        const ids = cursorElementIds(entry.slot.label);
+        const target = {
+          ...ids,
+          label: entry.slot.label,
+          seedHint: entry.seed,
+          speedYMax,
+        };
+        drawMeasurementCursorPanel(entry.progress, currentMeta, target);
+      }
+    }
+
+    function drawAllThreadSpeedPanel(entries, speedYMax) {
+      const canvas = document.getElementById("speedCanvasAll");
+      const infoEl = document.getElementById("speedInfoAll");
+      if (!canvas || !infoEl) return;
+      const colors = {
+        A: "#52adff",
+        B: "#2fd08a",
+        C: "#f2c14b",
+        D: "#f87171",
+      };
+      const lines = [];
+      for (const entry of entries) {
+        const label = String(entry?.slot?.label || "?");
+        const seed = String(entry?.seed || "");
+        const p = entry?.progress || null;
+        const secPerCfg = estimateThreadCfgSeconds(seed, p, currentMeta);
+        const series = getThreadCurrentCfgSpeedSeries(seed);
+        const points = Array.isArray(series.points)
+          ? series.points.map((x) => ({ xSec: Number(x?.xSec), sec: Number(x?.sec) }))
+            .filter((x) => Number.isFinite(x.xSec) && Number.isFinite(x.sec) && x.sec > 0)
+          : [];
+        const currentSec = Number.isFinite(series.currentSec) ? series.currentSec : secPerCfg;
+        if (points.length === 0 && Number.isFinite(currentSec)) {
+          points.push({ xSec: 0, sec: currentSec });
+        }
+        lines.push({
+          label,
+          seed,
+          color: colors[label] || "#9fb0cc",
+          points,
+          current: Number.isFinite(currentSec) ? currentSec : NaN,
+          cfgIdx: Number.isFinite(series.cfgIdx) ? series.cfgIdx : NaN,
+        });
+      }
+
+      const axisMax = Math.max(2, toFiniteNumber(speedYMax, 10));
+      const lastBits = lines.map((line) => {
+        const last = line.points.length > 0 ? line.points[line.points.length - 1] : null;
+        return `${line.label}:cfg${Number.isFinite(line.cfgIdx) ? line.cfgIdx : "na"}:${line.points.length}:${last ? `${last.xSec.toFixed(1)}:${last.sec.toFixed(4)}` : "na"}:${Number.isFinite(line.current) ? line.current.toFixed(4) : "na"}`;
+      }).join("|");
+      const renderStateKey = "ALL";
+      if (!speedRenderStateByThread[renderStateKey]) {
+        speedRenderStateByThread[renderStateKey] = { lastSig: "", hasPainted: false };
+      }
+      const st = speedRenderStateByThread[renderStateKey];
+      const sig = `${axisMax.toFixed(3)}|${lastBits}`;
+      if (st.hasPainted && st.lastSig === sig) return;
+      st.hasPainted = true;
+      st.lastSig = sig;
+
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      const allPoints = lines.flatMap((line) => line.points);
+      if (allPoints.length < 1) {
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("Waiting for cursor-progress speed samples...", 14, 24);
+        infoEl.textContent = lines.map((line) => `${line.label}: ${fmtCfgSeconds(line.current)}`).join(" | ");
+        return;
+      }
+
+      const maxXSec = Math.max(1, ...allPoints.map((p) => Number(p?.xSec)));
+      const padL = 44;
+      const padR = 12;
+      const padT = 28; // Reserve space for on-graph color legend.
+      const padB = 18;
+      const iw = Math.max(1, w - padL - padR);
+      const ih = Math.max(1, h - padT - padB);
+      const yFromV = (v) => {
+        const clamped = Math.max(0, Math.min(axisMax, Number(v)));
+        return padT + (1 - clamped / axisMax) * ih;
+      };
+      const xFromSec = (xSec) => {
+        const clamped = Math.max(0, Math.min(maxXSec, Number(xSec)));
+        return padL + (clamped / maxXSec) * iw;
+      };
+
+      ctx.strokeStyle = "#33405a";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, padT + ih);
+      ctx.lineTo(w - padR, padT + ih);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + ih);
+      ctx.stroke();
+
+      for (const line of lines) {
+        if (line.points.length === 0) continue;
+        ctx.strokeStyle = line.color;
+        ctx.fillStyle = line.color;
+        ctx.lineWidth = 1.8;
+        if (line.points.length > 1) {
+          ctx.beginPath();
+          line.points.forEach((p, i) => {
+            const x = xFromSec(p.xSec);
+            const y = yFromV(p.sec);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        }
+        const lp = line.points[line.points.length - 1];
+        const lx = xFromSec(lp.xSec);
+        const ly = yFromV(lp.sec);
+        ctx.beginPath();
+        ctx.arc(lx, ly, 3, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+
+      // Draw explicit color legend so each line is identifiable at a glance.
+      ctx.font = "11px sans-serif";
+      ctx.textBaseline = "middle";
+      let legendX = padL + 2;
+      const legendY = 12;
+      for (const line of lines) {
+        const legendLabel = `Thread ${line.label}`;
+        ctx.strokeStyle = line.color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(legendX, legendY);
+        ctx.lineTo(legendX + 14, legendY);
+        ctx.stroke();
+        ctx.fillStyle = line.color;
+        ctx.beginPath();
+        ctx.arc(legendX + 7, legendY, 2.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = "#cbd7ea";
+        ctx.fillText(legendLabel, legendX + 20, legendY);
+        legendX += 20 + ctx.measureText(legendLabel).width + 18;
+      }
+
+      ctx.fillStyle = "#9fb0cc";
+      ctx.font = "10px sans-serif";
+      ctx.fillText(fmtCfgSeconds(axisMax), 4, padT + 8);
+      ctx.fillText("0 s/cfg", 4, padT + ih);
+      ctx.fillText("0s", padL, h - 4);
+      ctx.fillText(`${Math.round(maxXSec)}s`, Math.max(padL, w - padR - 30), h - 4);
+
+      const legendParts = lines.map((line) => {
+        const cfg = Number.isFinite(line.cfgIdx) ? `cfg ${Math.round(line.cfgIdx)}` : "cfg -";
+        return `${line.label} ${cfg} ${fmtCfgSeconds(line.current)}`;
+      });
+      infoEl.textContent = `${legendParts.join(" | ")} | x=[0, ${Math.round(maxXSec)}] s from config start | y=[0, ${Math.round(axisMax)}] s/cfg`;
+    }
+
+    function drawThreadSpeedPanel(p, target = {}) {
+      const canvas = document.getElementById(target.speedCanvasId || "");
+      const infoEl = document.getElementById(target.speedInfoId || "");
+      if (!canvas || !infoEl) return;
+      const label = String(target.label || "").trim();
+      const renderStateKey = String(target.key || target.speedCanvasId || label || "DEFAULT");
+      if (!speedRenderStateByThread[renderStateKey]) {
+        speedRenderStateByThread[renderStateKey] = { lastSig: "", hasPainted: false };
+      }
+      const st = speedRenderStateByThread[renderStateKey];
+      const seed = String(p?.seed || target.seedHint || "");
+      const secPerCfg = estimateThreadCfgSeconds(seed, p || null, currentMeta);
+      const series = getThreadCurrentCfgSpeedSeries(seed);
+      const points = Array.isArray(series.points)
+        ? series.points.map((x) => ({ xSec: Number(x?.xSec), sec: Number(x?.sec) }))
+          .filter((x) => Number.isFinite(x.xSec) && Number.isFinite(x.sec) && x.sec > 0)
+        : [];
+      const currentSec = Number.isFinite(series.currentSec) ? series.currentSec : secPerCfg;
+      if (points.length === 0 && Number.isFinite(currentSec)) points.push({ xSec: 0, sec: currentSec });
+      const sig = `${seed}|cfg${Number.isFinite(series.cfgIdx) ? Math.round(series.cfgIdx) : "na"}|${points.length}|${points.length > 0 ? `${points[points.length - 1].xSec.toFixed(1)}:${points[points.length - 1].sec.toFixed(6)}` : "na"}`;
+      if (st.hasPainted && st.lastSig === sig) return;
+      st.hasPainted = true;
+      st.lastSig = sig;
+
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      if (points.length < 1) {
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "12px sans-serif";
+        ctx.fillText("Waiting for cursor-progress speed samples...", 14, 24);
+        infoEl.textContent = `speed: ${fmtCfgSeconds(currentSec)} | samples=0`;
+        return;
+      }
+
+      const axisMax = Math.max(2, toFiniteNumber(target.speedYMax, 10));
+      const maxXSec = Math.max(1, ...points.map((x) => x.xSec));
+      const padL = 40;
+      const padR = 12;
+      const padT = 10;
+      const padB = 16;
+      const iw = Math.max(1, w - padL - padR);
+      const ih = Math.max(1, h - padT - padB);
+      const yFromV = (v) => {
+        const clamped = Math.max(0, Math.min(axisMax, Number(v)));
+        return padT + (1 - clamped / axisMax) * ih;
+      };
+      const xFromSec = (xSec) => {
+        const clamped = Math.max(0, Math.min(maxXSec, Number(xSec)));
+        return padL + (clamped / maxXSec) * iw;
+      };
+
+      ctx.strokeStyle = "#33405a";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, padT + ih);
+      ctx.lineTo(w - padR, padT + ih);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(padL, padT);
+      ctx.lineTo(padL, padT + ih);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#52adff";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      points.forEach((point, i) => {
+        const x = xFromSec(point.xSec);
+        const y = yFromV(point.sec);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      const last = points[points.length - 1];
+      const lastX = xFromSec(last.xSec);
+      const lastY = yFromV(last.sec);
+      ctx.fillStyle = "#52adff";
+      ctx.beginPath();
+      ctx.arc(lastX, lastY, 3, 0, 2 * Math.PI);
+      ctx.fill();
+
+      ctx.fillStyle = "#9fb0cc";
+      ctx.font = "10px sans-serif";
+      ctx.fillText(fmtCfgSeconds(axisMax), 4, padT + 8);
+      ctx.fillText("0 s/cfg", 4, padT + ih);
+      infoEl.textContent = `speed: ${fmtCfgSeconds(last.sec)} | x=[0, ${Math.round(maxXSec)}] s from config start | y=[0, ${Math.round(axisMax)}] s/cfg | samples=${points.length}`;
+    }
+
+    function drawMeasurementCursorPanel(p, meta, target = {}) {
+      const canvas = document.getElementById(target.canvasId || "");
+      const infoEl = document.getElementById(target.infoId || "");
+      const kindEl = document.getElementById(target.kindId || "");
+      if (!canvas || !infoEl || !kindEl) return;
+      const label = String(target.label || "").trim();
+      const labelPrefix = label ? `${label}: ` : "";
+      const renderStateKey = String(target.key || target.canvasId || label || "DEFAULT");
+      if (!cursorRenderStateByThread[renderStateKey]) {
+        cursorRenderStateByThread[renderStateKey] = { lastFreshKey: "", lastRenderSig: "", hasPainted: false };
+      }
+      const renderState = cursorRenderStateByThread[renderStateKey];
+      const stageRaw = typeof p?.meas_cfg_stage === "string" ? p.meas_cfg_stage : "";
+      const stageTxt = stageRaw ? stageRaw.replace(/_/g, " ") : "waiting";
+      const phase = String(p?.phase || "").toLowerCase();
+      const inProduction = phase === "production" && !p?.done;
+      const kindRaw = typeof p?.meas_cursor_kind === "string" ? p.meas_cursor_kind : "";
+      const kind = kindRaw.trim();
+      const tdir = toFiniteNumber(p?.meas_cursor_tdir, NaN);
+      const sdir = toFiniteNumber(p?.meas_cursor_sdir, NaN);
+      const rVal = toFiniteNumber(p?.meas_cursor_r, NaN);
+      const tVal = toFiniteNumber(p?.meas_cursor_t, NaN);
+      const rPerp = toFiniteNumber(p?.meas_cursor_r_perp, NaN);
+      const shiftRaw = Array.isArray(p?.meas_cursor_shift) ? p.meas_cursor_shift : [];
+      const shift = shiftRaw.map((v) => toFiniteNumber(v, NaN));
+      const cfgSnap = configStageSnapshot(p, meta);
+      const cfgProgress = cfgSnap && Number.isFinite(cfgSnap.progress) ? clamp01(cfgSnap.progress) : NaN;
+      const cfgIdx = cfgSnap && Number.isFinite(cfgSnap.cfgIdx) ? Math.round(cfgSnap.cfgIdx) : NaN;
+      const tsMs = Date.parse(p?.timestamp_utc || "");
+      const seedForThread = String(target.seedHint || p?.seed || "");
+      const cfgProgressLive = estimateLiveCfgProgress(seedForThread, cfgIdx, cfgProgress, tsMs, inProduction);
+      const cfgProgressEffRaw = Number.isFinite(cfgProgressLive) ? cfgProgressLive : cfgProgress;
+      const cfgProgressEff = stabilizeDisplayedCfgProgress(seedForThread, cfgIdx, cfgProgressEffRaw, inProduction);
+
+      const dimsFromMeta = inferLFromUIOrMeta(meta);
+      const inferredNd = Math.max(
+        4,
+        dimsFromMeta.length,
+        shift.length,
+        Number.isFinite(tdir) ? (Math.round(tdir) + 1) : 0,
+        Number.isFinite(sdir) ? (Math.round(sdir) + 1) : 0
+      );
+      const dims = Array.from({ length: inferredNd }, (_, mu) => {
+        const l = toFiniteNumber(dimsFromMeta[mu], NaN);
+        return Number.isFinite(l) && l > 0 ? Math.round(l) : NaN;
+      });
+      const coords = Array(inferredNd).fill(NaN);
+
+      for (let mu = 0; mu < Math.min(inferredNd, shift.length); mu += 1) {
+        coords[mu] = normalizeLatticeCoord(shift[mu], dims[mu]);
+      }
+      if (kind === "loop") {
+        // Use R/T only if shift data for those dirs is missing.
+        if (Number.isFinite(tdir) && Number.isFinite(tVal) && tdir >= 0 && tdir < inferredNd) {
+          const tmu = Math.round(tdir);
+          if (!Number.isFinite(coords[tmu])) {
+            coords[tmu] = normalizeLatticeCoord(tVal, dims[tmu]);
+          }
+        }
+        if (Number.isFinite(sdir) && Number.isFinite(rVal) && sdir >= 0 && sdir < inferredNd) {
+          const smu = Math.round(sdir);
+          if (!Number.isFinite(coords[smu])) {
+            coords[smu] = normalizeLatticeCoord(rVal, dims[smu]);
+          }
+        }
+      }
+      if (kind === "skip") {
+        const hasShiftCoord = shift.some(Number.isFinite);
+        if (!hasShiftCoord) {
+          const skipDone = toFiniteNumber(rVal, NaN);
+          const skipTotal = toFiniteNumber(tVal, NaN);
+          if (Number.isFinite(skipDone) && Number.isFinite(skipTotal) && skipTotal > 0) {
+            coords[0] = normalizeLatticeCoord(skipDone - 1, dims[0]);
+          }
+        }
+      }
+      const freshKey = [
+        String(p?.timestamp_utc || ""),
+        Number.isFinite(cfgIdx) ? Math.round(cfgIdx) : "na",
+        Number.isFinite(cfgProgressEff) ? cfgProgressEff.toFixed(5) : "na",
+        stageRaw || "-",
+        kind || "-",
+        Number.isFinite(toFiniteNumber(p?.meas_cfg_substep_done, NaN))
+          ? Math.round(toFiniteNumber(p?.meas_cfg_substep_done, NaN))
+          : "na",
+        Number.isFinite(toFiniteNumber(p?.meas_cfg_substep_total, NaN))
+          ? Math.round(toFiniteNumber(p?.meas_cfg_substep_total, NaN))
+          : "na",
+        shift.length > 0
+          ? shift.map((v) => (Number.isFinite(v) ? Math.round(v) : "na")).join(",")
+          : "-",
+      ].join("|");
+      const hasFreshData = freshKey !== renderState.lastFreshKey;
+      if (hasFreshData) renderState.lastFreshKey = freshKey;
+      const muCount = 4;
+      const targetMuProgress = muProgressVector(coords, dims, cfgProgressEff, muCount);
+      const muProgress = stabilizeThreadMuProgress(
+        renderStateKey,
+        targetMuProgress,
+        cfgIdx,
+        cfgProgressEff,
+        tsMs,
+        inProduction,
+        hasFreshData
+      );
+      const muAvgProgress = meanFinite(muProgress);
+      const renderSig = [
+        phase,
+        p?.done ? "1" : "0",
+        stageRaw,
+        kind || "-",
+        Number.isFinite(cfgIdx) ? cfgIdx : "na",
+        Number.isFinite(cfgProgressEff) ? cfgProgressEff.toFixed(4) : "na",
+        muProgress.map((v) => (Number.isFinite(v) ? v.toFixed(4) : "na")).join(","),
+      ].join("|");
+      if (renderState.hasPainted && renderState.lastRenderSig === renderSig) return;
+      renderState.hasPainted = true;
+      renderState.lastRenderSig = renderSig;
+
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      const padL = 90;
+      const padR = 24;
+      const padT = 18;
+      const padB = 24;
+      const rows = muCount;
+      const iw = Math.max(1, w - padL - padR);
+      const ih = Math.max(1, h - padT - padB);
+      const rowH = ih / Math.max(1, rows);
+
+      if (!inProduction) {
+        kindEl.textContent = `${labelPrefix}idle`;
+        infoEl.textContent = "Cursor becomes active during production measurements.";
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("Idle (not in production phase)", 18, 28);
+      } else {
+        for (let mu = 0; mu < rows; mu += 1) {
+          const y = padT + rowH * (mu + 0.5);
+          const isT = Number.isFinite(tdir) && Math.round(tdir) === mu;
+          const isS = Number.isFinite(sdir) && Math.round(sdir) === mu;
+          const role = isT && isS ? "t/s" : (isT ? "t" : (isS ? "s" : ""));
+
+          ctx.strokeStyle = "#33405a";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.moveTo(padL, y);
+          ctx.lineTo(w - padR, y);
+          ctx.stroke();
+
+          const l = dims[mu];
+          ctx.fillStyle = "#9fb0cc";
+          ctx.font = "11px sans-serif";
+          const baseLabel = Number.isFinite(l) ? `mu${mu} (L=${l})` : `mu${mu}`;
+          ctx.fillText(role ? `${baseLabel} [${role}]` : baseLabel, 8, y + 4);
+
+          const frac = muProgress[mu];
+          if (Number.isFinite(frac)) {
+            const x = padL + frac * iw;
+            const markerColor = isT
+              ? "#52adff"
+              : (isS ? "#f2c14b" : "#2fd08a");
+            ctx.strokeStyle = markerColor;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x, y - 8);
+            ctx.lineTo(x, y + 8);
+            ctx.stroke();
+            ctx.fillStyle = markerColor;
+            ctx.beginPath();
+            ctx.arc(x, y, 4, 0, 2 * Math.PI);
+            ctx.fill();
+          }
+        }
+      }
+
+      const trackY = h - 10;
+      ctx.strokeStyle = "#33405a";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(padL, trackY);
+      ctx.lineTo(w - padR, trackY);
+      ctx.stroke();
+      const cfgDisplayProgress = Number.isFinite(cfgProgressEff) ? cfgProgressEff : muAvgProgress;
+      if (Number.isFinite(cfgDisplayProgress)) {
+        const px = padL + cfgDisplayProgress * iw;
+        ctx.strokeStyle = "#f4ca62";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(px, trackY - 7);
+        ctx.lineTo(px, trackY + 7);
+        ctx.stroke();
+        ctx.fillStyle = "#f4ca62";
+        ctx.beginPath();
+        ctx.arc(px, trackY, 3.5, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.fillStyle = "#cbd7ea";
+        ctx.font = "11px sans-serif";
+        ctx.fillText(`cfg ${(100 * cfgDisplayProgress).toFixed(1)}%`, padL, trackY - 7);
+      } else {
+        ctx.fillStyle = "#758aa6";
+        ctx.font = "11px sans-serif";
+        ctx.fillText("cfg -", padL, trackY - 7);
+      }
+
+      const details = [];
+      if (Number.isFinite(cfgDisplayProgress)) details.push(`cfg=${(100 * cfgDisplayProgress).toFixed(1)}%`);
+      details.push(`stage=${stageTxt}`);
+      if (!inProduction) {
+        details.push("idle");
+      } else if (!kind) {
+        details.push("cursor unavailable");
+      } else if (kind === "loop") {
+        details.push(`loop tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"} R=${Number.isFinite(rVal) ? Math.round(rVal) : "-"} T=${Number.isFinite(tVal) ? Math.round(tVal) : "-"}`);
+      } else if (kind === "flux") {
+        details.push(`flux tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"} R=${Number.isFinite(rVal) ? Math.round(rVal) : "-"} T=${Number.isFinite(tVal) ? Math.round(tVal) : "-"} r_perp=${Number.isFinite(rPerp) ? Math.round(rPerp) : "-"}`);
+      } else if (kind === "skip") {
+        details.push(`skip ${Number.isFinite(rVal) ? Math.round(rVal) : "-"} / ${Number.isFinite(tVal) ? Math.round(tVal) : "-"}`);
+      } else if (kind) {
+        details.push(kind);
+      }
+      if (shift.length > 0 && shift.every(Number.isFinite)) {
+        details.push(`shift=[${shift.map((v) => Math.round(v)).join(", ")}]`);
+      }
+      kindEl.textContent = `${labelPrefix}${kind || stageTxt}`;
+      infoEl.textContent = details.join(" | ");
+    }
+
+    function mixRgb(a, b, t) {
+      const x = clamp01(t);
+      return [
+        Math.round(a[0] + (b[0] - a[0]) * x),
+        Math.round(a[1] + (b[1] - a[1]) * x),
+        Math.round(a[2] + (b[2] - a[2]) * x),
+      ];
     }
 
     function runningMeanSem(values) {
@@ -493,11 +2276,349 @@
       return { mean, low, high };
     }
 
+    function meanSem(values) {
+      const vals = values.filter(v => typeof v === "number" && Number.isFinite(v));
+      if (vals.length === 0) return null;
+      const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+      let varSample = 0.0;
+      if (vals.length > 1) {
+        for (const v of vals) varSample += (v - mean) * (v - mean);
+        varSample /= (vals.length - 1);
+      }
+      const sem = vals.length > 1 ? Math.sqrt(varSample / vals.length) : 0.0;
+      return { mean, sem, n: vals.length };
+    }
+
+    function isLegacyFilterEnabled() {
+      return !!document.getElementById("legacyFilter").checked;
+    }
+
+    function drawXYError(canvasId, xs, ys, es, color = "#f38ba8") {
+      const c = document.getElementById(canvasId);
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      const pts = [];
+      for (let i = 0; i < xs.length; i += 1) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        const e = Number(es[i] ?? 0);
+        if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(e)) pts.push({ x, y, e });
+      }
+      if (pts.length < 2) {
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("Not enough V(R) points yet", 18, 28);
+        return;
+      }
+
+      const minX0 = Math.min(...pts.map(p => p.x));
+      const maxX0 = Math.max(...pts.map(p => p.x));
+      let minX = minX0, maxX = maxX0;
+      if (minX === maxX) { minX -= 1; maxX += 1; }
+
+      let minY = Math.min(...pts.map(p => p.y - p.e));
+      let maxY = Math.max(...pts.map(p => p.y + p.e));
+      if (minY === maxY) { minY -= 1e-9; maxY += 1e-9; }
+
+      const padL = 40, padR = 24, padT = 20, padB = 34;
+      const iw = w - padL - padR;
+      const ih = h - padT - padB;
+
+      const mapX = x => padL + ((x - minX) / (maxX - minX)) * iw;
+      const mapY = y => padT + (1 - (y - minY) / (maxY - minY)) * ih;
+
+      ctx.strokeStyle = "#34435f";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padL, padT, iw, ih);
+
+      if (minY <= 0 && maxY >= 0) {
+        const y0 = mapY(0);
+        ctx.strokeStyle = "rgba(255, 208, 120, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padL, y0);
+        ctx.lineTo(padL + iw, y0);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255, 208, 120, 0.95)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText("0", padL + 4, y0 - 4);
+      }
+
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      pts.forEach((p, i) => {
+        const x = mapX(p.x), y = mapY(p.y);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(243,139,168,0.85)";
+      ctx.fillStyle = "#ffd6e4";
+      pts.forEach(p => {
+        const x = mapX(p.x), y = mapY(p.y);
+        const y0 = mapY(p.y - p.e), y1 = mapY(p.y + p.e);
+        ctx.beginPath();
+        ctx.moveTo(x, y0);
+        ctx.lineTo(x, y1);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
+        ctx.fill();
+      });
+
+      ctx.fillStyle = "#9fb0cc";
+      ctx.font = "11px sans-serif";
+      pts.forEach(p => {
+        const x = mapX(p.x);
+        ctx.fillText(String(p.x), x - 6, padT + ih + 14);
+      });
+      ctx.fillText(minY.toExponential(3), 6, h - 8);
+      ctx.fillText(maxY.toExponential(3), 6, 16);
+    }
+
+    function drawXYLine(canvasId, xs, ys, opts = {}) {
+      const c = document.getElementById(canvasId);
+      const ctx = c.getContext("2d");
+      const w = c.width, h = c.height;
+      ctx.clearRect(0, 0, w, h);
+      ctx.fillStyle = "#0d1526";
+      ctx.fillRect(0, 0, w, h);
+
+      const pts = [];
+      for (let i = 0; i < Math.min(xs.length, ys.length); i += 1) {
+        const x = Number(xs[i]);
+        const y = Number(ys[i]);
+        if (Number.isFinite(x) && Number.isFinite(y)) pts.push({ x, y });
+      }
+
+      const emptyText = opts.emptyText || "Waiting for data";
+      if (pts.length < 2) {
+        ctx.fillStyle = "#93a4be";
+        ctx.font = "13px sans-serif";
+        ctx.fillText(emptyText, 18, 28);
+        return;
+      }
+
+      let minX = Number.isFinite(opts.minX) ? Number(opts.minX) : Math.min(...pts.map(p => p.x));
+      let maxX = Number.isFinite(opts.maxX) ? Number(opts.maxX) : Math.max(...pts.map(p => p.x));
+      let minY = Number.isFinite(opts.minY) ? Number(opts.minY) : Math.min(...pts.map(p => p.y));
+      let maxY = Number.isFinite(opts.maxY) ? Number(opts.maxY) : Math.max(...pts.map(p => p.y));
+
+      if (minX === maxX) { minX -= 1; maxX += 1; }
+      if (minY === maxY) { minY -= 1e-9; maxY += 1e-9; }
+
+      const padL = 54, padR = 24, padT = 20, padB = 34;
+      const iw = w - padL - padR;
+      const ih = h - padT - padB;
+
+      const mapX = x => padL + ((x - minX) / (maxX - minX)) * iw;
+      const mapY = y => padT + (1 - (y - minY) / (maxY - minY)) * ih;
+
+      ctx.strokeStyle = "#34435f";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padL, padT, iw, ih);
+
+      if (minY <= 0 && maxY >= 0) {
+        const y0 = mapY(0);
+        ctx.strokeStyle = "rgba(255, 208, 120, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(padL, y0);
+        ctx.lineTo(padL + iw, y0);
+        ctx.stroke();
+      }
+
+      const baseColor = opts.color || "#f2c14b";
+      const lineWidth = Number.isFinite(Number(opts.lineWidth)) ? Number(opts.lineWidth) : 2;
+      const segColorFn = typeof opts.segmentColorFn === "function" ? opts.segmentColorFn : null;
+      if (segColorFn && pts.length >= 2) {
+        for (let i = 0; i < pts.length - 1; i += 1) {
+          const p0 = pts[i];
+          const p1 = pts[i + 1];
+          const segColor = segColorFn(p0, p1, i, pts.length) || baseColor;
+          ctx.strokeStyle = segColor;
+          ctx.lineWidth = lineWidth;
+          ctx.beginPath();
+          ctx.moveTo(mapX(p0.x), mapY(p0.y));
+          ctx.lineTo(mapX(p1.x), mapY(p1.y));
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = lineWidth;
+        ctx.beginPath();
+        pts.forEach((p, i) => {
+          const x = mapX(p.x), y = mapY(p.y);
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = "#9fb0cc";
+      ctx.font = "11px sans-serif";
+      ctx.fillText(`${Math.round(minX)} s`, padL, h - 8);
+      ctx.fillText(`${Math.round(maxX)} s`, Math.max(padL + 8, padL + iw - 36), h - 8);
+      ctx.fillText(minY.toFixed(1), 6, h - 8);
+      ctx.fillText(maxY.toFixed(1), 6, 16);
+    }
+
+    function legacyPairStats(ms, k0, k1) {
+      const vals = [];
+      for (const m of ms) {
+        const a = m?.loops?.[k0]?.re;
+        const b = m?.loops?.[k1]?.re;
+        if (typeof a === "number" && typeof b === "number" && a > 0 && b > 0) {
+          const v = -Math.log(b / a);
+          if (Number.isFinite(v)) vals.push(v);
+        }
+      }
+      return meanSem(vals);
+    }
+
+    function allSampleJackknifePairStats(ms, k0, k1) {
+      const pairs = [];
+      for (const m of ms) {
+        const a = m?.loops?.[k0]?.re;
+        const b = m?.loops?.[k1]?.re;
+        if (typeof a === "number" && Number.isFinite(a) && typeof b === "number" && Number.isFinite(b)) {
+          pairs.push([a, b]);
+        }
+      }
+      const n = pairs.length;
+      if (n < 2) return null;
+
+      let sumA = 0;
+      let sumB = 0;
+      for (const [a, b] of pairs) {
+        sumA += a;
+        sumB += b;
+      }
+      const meanA = sumA / n;
+      const meanB = sumB / n;
+      if (!(meanA > 0 && meanB > 0)) return null;
+
+      const central = -Math.log(meanB / meanA);
+      if (!Number.isFinite(central)) return null;
+
+      const jk = [];
+      for (let i = 0; i < n; i += 1) {
+        const a = (sumA - pairs[i][0]) / (n - 1);
+        const b = (sumB - pairs[i][1]) / (n - 1);
+        if (!(a > 0 && b > 0)) return null;
+        const v = -Math.log(b / a);
+        if (!Number.isFinite(v)) return null;
+        jk.push(v);
+      }
+      const jkMean = jk.reduce((x, y) => x + y, 0) / jk.length;
+      let varJk = 0.0;
+      for (const v of jk) varJk += (v - jkMean) * (v - jkMean);
+      const sem = Math.sqrt(((n - 1) / n) * varJk);
+      return { mean: central, sem, n };
+    }
+
+    function computePotentialStats(ms, meta) {
+      const Rs = Array.isArray(meta?.R) ? meta.R.map(Number).filter(Number.isFinite) : [];
+      const Ts = Array.isArray(meta?.T) ? meta.T.map(Number).filter(Number.isFinite).sort((a, b) => a - b) : [];
+      if (Rs.length === 0 || Ts.length < 2 || ms.length === 0) return null;
+      const useLegacyFilter = isLegacyFilterEnabled();
+
+      const pairs = [];
+      for (let i = 0; i + 1 < Ts.length; i += 1) pairs.push([Ts[i], Ts[i + 1]]);
+
+      let best = null;
+      for (const [t0, t1] of pairs) {
+        const perR = [];
+        let validCount = 0;
+        let totalN = 0;
+        for (const R of Rs) {
+          const k0 = `R${R}_T${t0}`;
+          const k1 = `R${R}_T${t1}`;
+          const stats = useLegacyFilter
+            ? legacyPairStats(ms, k0, k1)
+            : allSampleJackknifePairStats(ms, k0, k1);
+          perR.push(stats);
+          if (stats) {
+            validCount += 1;
+            totalN += stats.n;
+          }
+        }
+        if (
+          !best ||
+          validCount > best.validCount ||
+          (validCount === best.validCount && totalN > best.totalN) ||
+          (validCount === best.validCount && totalN === best.totalN && t1 > best.t1)
+        ) {
+          best = { t0, t1, perR, validCount, totalN };
+        }
+      }
+      if (!best || best.validCount === 0) return null;
+
+      const means = [];
+      const sems = [];
+      const counts = [];
+      for (let i = 0; i < Rs.length; i += 1) {
+        const stats = best.perR[i];
+        means.push(stats ? stats.mean : NaN);
+        sems.push(stats ? stats.sem : NaN);
+        counts.push(stats ? stats.n : 0);
+      }
+      return {
+        t0: best.t0,
+        t1: best.t1,
+        Rs,
+        means,
+        sems,
+        counts,
+        ncfg: ms.length,
+        mode: useLegacyFilter ? "legacy_filter" : "all_samples",
+      };
+    }
+
+    function renderPotential(ms, meta) {
+      const pot = computePotentialStats(ms, meta);
+      if (!pot) {
+        document.getElementById("vLabel").textContent = "V(R) unavailable (all-sample estimator needs positive ensemble means)";
+        document.getElementById("vAxes").textContent = "x: R (lattice units), y: V(R)";
+        document.getElementById("vTable").textContent = "No valid V(R) points yet.";
+        drawXYError("vCanvas", [], [], []);
+        return;
+      }
+
+      drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8");
+      const modeText = pot.mode === "legacy_filter"
+        ? "legacy filtered per-sample log ratio"
+        : "all-sample ratio with jackknife";
+      document.getElementById("vLabel").textContent =
+        `V(R) from -ln[W(R,${pot.t1})/W(R,${pot.t0})], N=${pot.ncfg}, mode=${modeText}`;
+      document.getElementById("vAxes").textContent =
+        `x: R (lattice units), y: V(R) = -ln[W(R,${pot.t1})/W(R,${pot.t0})]`;
+
+      const rows = [];
+      for (let i = 0; i < pot.Rs.length; i += 1) {
+        const R = pot.Rs[i];
+        const m = pot.means[i];
+        const e = pot.sems[i];
+        const n = pot.counts[i];
+        if (Number.isFinite(m) && Number.isFinite(e) && n > 0) {
+          rows.push(`R=${R}: V=${m.toFixed(6)} +/- ${e.toFixed(6)} (n=${n})`);
+        } else {
+          rows.push(`R=${R}: n/a`);
+        }
+      }
+      document.getElementById("vTable").textContent = rows.join("\n");
+    }
+
     function drawSeries(canvasId, values, color, options = {}) {
       const bandLow = options.bandLow || null;
       const bandHigh = options.bandHigh || null;
       const bandColor = options.bandColor || "rgba(47, 208, 138, 0.18)";
       const includeZero = options.includeZero || false;
+      const drawZeroLine = options.drawZeroLine || false;
       const c = document.getElementById(canvasId);
       const ctx = c.getContext("2d");
       const w = c.width, h = c.height;
@@ -526,6 +2647,19 @@
       ctx.strokeStyle = "#34435f";
       ctx.lineWidth = 1;
       ctx.strokeRect(pad, pad, iw, ih);
+
+      if (drawZeroLine && min <= 0 && max >= 0) {
+        const y0 = pad + (1 - (0 - min) / (max - min)) * ih;
+        ctx.strokeStyle = "rgba(255, 208, 120, 0.95)";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(pad, y0);
+        ctx.lineTo(pad + iw, y0);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(255, 208, 120, 0.95)";
+        ctx.font = "11px sans-serif";
+        ctx.fillText("0", pad + 4, y0 - 4);
+      }
 
       if (Array.isArray(bandLow) && Array.isArray(bandHigh) && bandLow.length === values.length && bandHigh.length === values.length) {
         ctx.fillStyle = bandColor;
@@ -573,36 +2707,231 @@
       const Lbump = L.map((x, i) => (i < 3 ? Math.floor(x * 1.5) : x));
       const Ldouble = L.map((x, i) => (i < 3 ? x * 2 : x));
       const beta = Number(meta.beta || 0);
+      const ntherm = toFiniteNumber(p.ntherm, NaN);
+      const nmeas = toFiniteNumber(p.nmeas, NaN);
+      const nthermTxt = Number.isFinite(ntherm) ? String(ntherm) : "-";
+      const nmeasTxt = Number.isFinite(nmeas) ? String(nmeas) : "-";
       const betaVals = [beta - 0.1, beta, beta + 0.1]
         .map(x => Math.round(x * 100) / 100)
         .filter(x => x > 0);
 
-      out.push(`1) Larger volume check: L=${fmtList(Lbump)}, beta=${beta.toFixed(2)}, ntherm=${p.ntherm}, nmeas=${p.nmeas}`);
-      out.push(`2) Large-volume stretch: L=${fmtList(Ldouble)}, beta=${beta.toFixed(2)}, ntherm=${Math.max(300, p.ntherm)}, nmeas=${Math.max(300, p.nmeas)}`);
+      out.push(`1) Larger volume check: L=${fmtList(Lbump)}, beta=${beta.toFixed(2)}, ntherm=${nthermTxt}, nmeas=${nmeasTxt}`);
+      out.push(`2) Large-volume stretch: L=${fmtList(Ldouble)}, beta=${beta.toFixed(2)}, ntherm=${Number.isFinite(ntherm) ? Math.max(300, ntherm) : 300}, nmeas=${Number.isFinite(nmeas) ? Math.max(300, nmeas) : 300}`);
       out.push(`3) Beta scan at current L=${fmtList(L)}: beta in {${betaVals.join(", ")}}`);
       out.push(`4) Combined step: L=${fmtList(Lbump)} with beta=${(beta + 0.1).toFixed(2)} for finer spacing test`);
       document.getElementById("nextJobsList").innerHTML = out.map(x => `<div>${x}</div>`).join("");
     }
 
-    function renderProgress(p) {
+    function renderThermalizationTrace(p, elapsedSec) {
+      const countEl = document.getElementById("thermSweepCount");
+      const metaEl = document.getElementById("thermSweepMeta");
+      const hintEl = document.getElementById("thermSweepHint");
+      const stepPctEl = document.getElementById("thermStepPct");
+      if (!countEl || !metaEl || !hintEl) return;
+
+      const sweepsDone = toFiniteNumber(p.sweeps_done, NaN);
+      const totalSweeps = toFiniteNumber(p.total_sweeps, NaN);
+      const therm = estimateThermState(p, elapsedSec);
+      const phase = therm.phase;
+      const ntherm = therm.ntherm;
+      const thermDone = therm.thermDone;
+      const thermLive = therm.thermLive;
+      const inSweepFrac = therm.inSweepFrac;
+      const elapsedVal = therm.elapsedVal;
+
+      let frac = 0.0;
+      if (Number.isFinite(ntherm) && ntherm > 0 && Number.isFinite(thermLive)) {
+        frac = clamp01(thermLive / ntherm);
+      } else if (Number.isFinite(totalSweeps) && totalSweeps > 0 && Number.isFinite(sweepsDone)) {
+        frac = clamp01(sweepsDone / totalSweeps);
+      }
+
+      const cold = [82, 173, 255];
+      const hot = [255, 122, 64];
+      const rgb = mixRgb(cold, hot, frac);
+      countEl.style.color = `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+
+      if (Number.isFinite(ntherm) && ntherm > 0 && Number.isFinite(thermLive)) {
+        countEl.textContent = `${Math.round(thermDone)} / ${Math.round(ntherm)} sweeps`;
+        metaEl.textContent = `phase=${phase}, thermalization ${(100 * frac).toFixed(1)}%`;
+      } else if (Number.isFinite(sweepsDone) && sweepsDone >= 0) {
+        countEl.textContent = Number.isFinite(totalSweeps) && totalSweeps > 0
+          ? `${Math.round(sweepsDone)} / ${Math.round(totalSweeps)} sweeps`
+          : `${Math.round(sweepsDone)} sweeps`;
+        metaEl.textContent = `phase=${phase}`;
+      } else {
+        countEl.textContent = "- / - sweeps";
+        metaEl.textContent = "waiting for thermalization counters";
+      }
+
+      if (stepPctEl) {
+        if (phase === "thermalization" && Number.isFinite(inSweepFrac)) {
+          stepPctEl.textContent = `${Math.round(100 * inSweepFrac)}%`;
+          setPct("thermStepFill", 100 * inSweepFrac);
+        } else if (phase !== "thermalization" && Number.isFinite(ntherm) && Number.isFinite(thermDone) && thermDone >= ntherm) {
+          stepPctEl.textContent = "done";
+          setPct("thermStepFill", 100);
+        } else {
+          stepPctEl.textContent = "-";
+          setPct("thermStepFill", 0);
+        }
+      }
+
+      const elapsedTxt = Number.isFinite(elapsedVal) ? fmtSec(elapsedVal) : "-";
+      hintEl.textContent = `color: cold->hot by overall thermalization progress, elapsed=${elapsedTxt}`;
+    }
+
+    function renderProgress(p, source = "unknown") {
       if (!p) return;
+      if (!shouldApplyProgressUpdate(p, source)) return;
       currentProgress = p;
+      if (p?.seed) {
+        threadProgressBySeed[String(p.seed)] = p;
+      }
+      const seed = progressSeed(p);
+      const tsMs = Date.parse(p.timestamp_utc || "");
+      const phase = String(p.phase || "").toLowerCase();
+      const terminalPhase = terminalPhaseSet.has(phase);
+      const liveElapsedFromProgress = () => {
+        const elapsedLive = toFiniteNumber(p.elapsed_sec_live, NaN);
+        if (Number.isFinite(elapsedLive)) return elapsedLive;
+        const elapsedBase = toFiniteNumber(p.elapsed_sec, NaN);
+        if (!Number.isFinite(elapsedBase)) return NaN;
+        if (p.done || terminalPhase || !Number.isFinite(tsMs)) return elapsedBase;
+        return elapsedBase + Math.max(0, (Date.now() - tsMs) / 1000.0);
+      };
       document.getElementById("phaseBadge").textContent = `phase: ${p.phase}${p.done ? " (done)" : ""}`;
       document.getElementById("lastUpdate").textContent = `Last update: ${new Date().toLocaleTimeString()}`;
       document.getElementById("overallPct").textContent = `${(100 * p.progress).toFixed(1)}%`;
-      document.getElementById("thermPct").textContent = `${p.therm_done} / ${p.ntherm}`;
-      document.getElementById("measPct").textContent = `${p.meas_done} / ${p.nmeas}`;
-      document.getElementById("cfgDoneMeasured").textContent = `${p.meas_done} / ${p.nmeas}`;
       document.getElementById("paramSeed").textContent = p.seed || "-";
-      document.getElementById("paramTherm").textContent = `${p.therm_done}/${p.ntherm}`;
-      document.getElementById("paramMeas").textContent = `${p.meas_done}/${p.nmeas}`;
       setPct("overallFill", 100 * p.progress);
-      setPct("thermFill", p.ntherm > 0 ? 100 * p.therm_done / p.ntherm : 0);
-      setPct("measFill", p.nmeas > 0 ? 100 * p.meas_done / p.nmeas : 0);
-      document.getElementById("elapsedVal").textContent = fmtSec(p.elapsed_sec);
-      document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(p.eta_sec);
-      document.getElementById("plaqVal").textContent = (p.last_plaquette ?? 0).toFixed(8);
+
+      const hasCfgProgress = Number.isFinite(toFiniteNumber(p.cfg_total, NaN)) && toFiniteNumber(p.cfg_total, 0) > 0;
+      const overallLabel = document.getElementById("overallLabel");
+      if (overallLabel) {
+        overallLabel.textContent = hasCfgProgress ? "Overall config progress" : "Overall sweep progress";
+      }
+      if (hasCfgProgress) {
+        const cfgDone = toFiniteNumber(p.cfg_done, 0);
+        const cfgTotal = toFiniteNumber(p.cfg_total, 0);
+        const ntherm = toFiniteNumber(p.ntherm, NaN);
+        const thermDone = toFiniteNumber(p.therm_done, NaN);
+        const nmeas = toFiniteNumber(p.nmeas, NaN);
+        const measDone = toFiniteNumber(p.meas_done, NaN);
+        const hasTherm = Number.isFinite(ntherm) && Number.isFinite(thermDone) && ntherm > 0;
+        const hasMeas = Number.isFinite(nmeas) && Number.isFinite(measDone) && nmeas > 0;
+
+        // Do not map thermalization counters to cfg progress; keep those separate.
+        const thermLive = hasTherm
+          ? Math.min(
+              ntherm,
+              thermDone + (
+                phase === "thermalization" &&
+                !p.done &&
+                thermDone > 0 &&
+                thermDone < ntherm &&
+                Number.isFinite(tsMs)
+                  ? Math.min(
+                      0.999,
+                      Math.max(0, (Date.now() - tsMs) / 1000.0) /
+                        Math.max(1e-9, liveElapsedFromProgress() / thermDone)
+                    )
+                  : 0
+              )
+            )
+          : NaN;
+        const thermOverallPct = hasTherm ? (100 * thermLive / ntherm) : NaN;
+        document.getElementById("thermPct").textContent = hasTherm ? `${thermOverallPct.toFixed(1)}%` : "-";
+        document.getElementById("measPct").textContent = hasMeas ? `${measDone} / ${nmeas}` : "- / -";
+        document.getElementById("cfgDoneMeasured").textContent = `${cfgDone} / ${cfgTotal}`;
+        document.getElementById("paramTherm").textContent = hasTherm ? `${Math.round(thermDone)}/${Math.round(ntherm)} completed` : "-";
+        document.getElementById("paramMeas").textContent = hasMeas ? `${measDone}/${nmeas}` : `${cfgDone}/${cfgTotal}`;
+        setPct("thermFill", hasTherm ? thermOverallPct : 0);
+        setPct("measFill", hasMeas ? (100 * measDone / nmeas) : 0);
+
+        let elapsedSec = liveElapsedFromProgress();
+        let etaSec = toFiniteNumber(p.eta_sec, NaN);
+        if (!Number.isFinite(elapsedSec) && Number.isFinite(tsMs)) {
+          if (!progressStateBySeed[seed]) {
+            progressStateBySeed[seed] = { startTsMs: tsMs, startDone: cfgDone };
+          }
+          const st = progressStateBySeed[seed];
+          elapsedSec = Math.max(0, (tsMs - st.startTsMs) / 1000.0);
+          const deltaDone = Math.max(0, cfgDone - st.startDone);
+          if (!Number.isFinite(etaSec) && deltaDone > 0 && cfgTotal > cfgDone && elapsedSec > 0) {
+            const rate = deltaDone / elapsedSec;
+            if (rate > 0) etaSec = (cfgTotal - cfgDone) / rate;
+          }
+        }
+        document.getElementById("elapsedVal").textContent = fmtSec(elapsedSec);
+        document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(etaSec);
+      } else {
+        const therm = estimateThermState(p, liveElapsedFromProgress());
+        const thermOverallPct =
+          Number.isFinite(therm.ntherm) && therm.ntherm > 0 && Number.isFinite(therm.thermLive)
+            ? 100 * therm.thermLive / therm.ntherm
+            : NaN;
+        const measDoneSingle = toFiniteNumber(p.meas_done, NaN);
+        const nmeasSingle = toFiniteNumber(p.nmeas, NaN);
+        const measAgg = aggregateThreadMeasurementCounters(p);
+        const measDone = measAgg ? measAgg.done : measDoneSingle;
+        const nmeas = measAgg ? measAgg.total : nmeasSingle;
+        const measCfgIdx = toFiniteNumber(p.meas_cfg_index, NaN);
+        const measSubDone = toFiniteNumber(p.meas_cfg_substep_done, NaN);
+        const measSubTotal = toFiniteNumber(p.meas_cfg_substep_total, NaN);
+        const measSubProgressRaw = toFiniteNumber(p.meas_cfg_substep_progress, NaN);
+        let measSubProgress = Number.isFinite(measSubProgressRaw)
+          ? Math.min(1, Math.max(0, measSubProgressRaw))
+          : NaN;
+        if (!Number.isFinite(measSubProgress) && Number.isFinite(measSubDone) && Number.isFinite(measSubTotal) && measSubTotal > 0) {
+          measSubProgress = Math.min(1, Math.max(0, measSubDone / measSubTotal));
+        }
+        const hasMeasProgress = Number.isFinite(measDone) && Number.isFinite(nmeas) && nmeas > 0;
+        const showMeasSub =
+          !measAgg &&
+          hasMeasProgress &&
+          phase === "production" &&
+          !p.done &&
+          Number.isFinite(measCfgIdx) &&
+          measCfgIdx >= 1 &&
+          measCfgIdx <= nmeas &&
+          Number.isFinite(measSubProgress);
+
+        document.getElementById("thermPct").textContent = Number.isFinite(thermOverallPct) ? `${thermOverallPct.toFixed(1)}%` : "-";
+        if (showMeasSub) {
+          document.getElementById("measPct").textContent = `${Math.round(measDone)} / ${Math.round(nmeas)}`;
+        } else if (hasMeasProgress) {
+          document.getElementById("measPct").textContent = `${Math.round(measDone)} / ${Math.round(nmeas)}`;
+        } else {
+          document.getElementById("measPct").textContent = `${p.meas_done} / ${p.nmeas}`;
+        }
+        document.getElementById("cfgDoneMeasured").textContent = hasMeasProgress
+          ? `${Math.round(measDone)} / ${Math.round(nmeas)}`
+          : `${p.meas_done} / ${p.nmeas}`;
+        document.getElementById("paramTherm").textContent =
+          Number.isFinite(therm.ntherm) && therm.ntherm > 0 && Number.isFinite(therm.thermDone)
+            ? `${Math.round(therm.thermDone)}/${Math.round(therm.ntherm)} completed`
+            : "-";
+        document.getElementById("paramMeas").textContent = hasMeasProgress
+          ? `${Math.round(measDone)}/${Math.round(nmeas)}`
+          : `${p.meas_done}/${p.nmeas}`;
+        setPct("thermFill", Number.isFinite(thermOverallPct) ? thermOverallPct : 0);
+        const measFillPct = hasMeasProgress
+          ? 100 * (Math.min(nmeas, measDone + (showMeasSub ? measSubProgress : 0)) / nmeas)
+          : (p.nmeas > 0 ? 100 * p.meas_done / p.nmeas : 0);
+        setPct("measFill", measFillPct);
+        document.getElementById("elapsedVal").textContent = fmtSec(liveElapsedFromProgress());
+        document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(p.eta_sec);
+      }
+
+      const plaq = toFiniteNumber(p.last_plaquette, NaN);
+      document.getElementById("plaqVal").textContent = Number.isFinite(plaq) ? plaq.toFixed(8) : "-";
+      renderCurrentConfigProgress(p, phase);
+      renderThreadCursors(p);
+      renderThermalizationTrace(p, liveElapsedFromProgress());
+      updatePhysicalScale(currentMeta);
       updateNextJobs();
+      refreshThreadStatusTable(false);
     }
 
     function renderLive(live) {
@@ -614,8 +2943,22 @@
         document.getElementById("paramT").textContent = fmtList(currentMeta.T);
         document.getElementById("paramFlux").textContent =
           `R=${currentMeta.flux_r}, T=${currentMeta.flux_t}, r_perp<=${currentMeta.flux_r_perp_max}`;
+        const smode = currentMeta.sampling_mode || "full";
+        const ssites = Number(currentMeta.sample_sites || 0);
+        document.getElementById("paramSampling").textContent =
+          smode === "random" ? `random (${ssites} sites/obs)` : "full-volume";
+        updatePhysicalScale(currentMeta);
+      }
+      if (currentProgress) {
+        renderThreadCursors(currentProgress);
       }
       const ms = (live && live.measurements) || [];
+      const last = ms.length > 0 ? ms[ms.length - 1] : null;
+      const dataSig = `${ms.length}:${last?.idx ?? -1}:${last?.cfg_idx ?? -1}:${last?.plaquette ?? "na"}:${currentMeta?.timestamp_utc ?? ""}`;
+      const renderSig = `${dataSig}:${document.getElementById("fluxDisplayMode").value}:${document.getElementById("fluxTailN").value}:${isLegacyFilterEnabled() ? 1 : 0}:${loopKey || ""}`;
+      if (renderSig === lastRenderSignature) return;
+      lastRenderSignature = renderSig;
+
       document.getElementById("historyCount").textContent = `${ms.length} points (mean ± SEM)`;
       const plaq = ms.map(x => x.plaquette);
       const plaqStats = runningMeanSem(plaq);
@@ -633,25 +2976,36 @@
         loopKey = keys.length > 0 ? keys[0] : null;
       }
       document.getElementById("loopKeyLabel").textContent = `key: ${loopKey || "-"}`;
+      document.getElementById("loopAxes").textContent =
+        `x: measurement index, y: running mean of Re ${loopKey || "W(R,T)"}`;
       const loopVals = loopKey ? ms.map(x => (x.loops?.[loopKey]?.re ?? 0)) : [];
       const loopStats = runningMeanSem(loopVals);
       drawSeries("loopCanvas", loopStats.mean, "#52adff", {
         bandLow: loopStats.low,
         bandHigh: loopStats.high,
-        bandColor: "rgba(82, 173, 255, 0.22)"
+        bandColor: "rgba(82, 173, 255, 0.22)",
+        includeZero: true,
+        drawZeroLine: true
       });
 
-      const fluxSeries = ms.map(x => x.flux_profile_r_perp || []);
-      const fluxStats = pointwiseMeanSem(fluxSeries);
+      const fluxView = buildFluxDisplaySeries(ms, currentMeta);
+      const fluxStats = pointwiseMeanSem(fluxView.series);
       drawSeries("fluxCanvas", fluxStats.mean, "#f2c14b", {
         bandLow: fluxStats.low,
         bandHigh: fluxStats.high,
         bandColor: "rgba(242, 193, 75, 0.26)",
-        includeZero: true
+        includeZero: true,
+        drawZeroLine: true
       });
+      const vacMode = fluxView.mode === "tail_subtracted" ? "tail_subtracted" : (fluxView.mode === "raw" ? "raw" : "stored");
+      const vacTail = fluxView.mode === "tail_subtracted" ? String(fluxView.tailN) : "-";
+      document.getElementById("fluxAxes").textContent =
+        `x: r⊥ (lattice units), y: connected flux ΔP(r⊥), vacuum mode=${vacMode} (tail=${vacTail})`;
+      document.getElementById("fluxModeNote").textContent = fluxView.note;
       document.getElementById("fluxLabel").textContent = `N=${ms.length} configs, connected flux mean ± SEM`;
       document.getElementById("measureWhat").textContent =
-        `Plaquette, Wilson loop ${loopKey || "W(R,T)"} (real part), and connected flux profile ΔP(r⊥).`;
+        `Plaquette, Wilson loop ${loopKey || "W(R,T)"} (real part), V(R), and connected flux profile ΔP(r⊥).`;
+      renderPotential(ms, currentMeta);
       updateNextJobs();
     }
 
@@ -678,11 +3032,13 @@
 
       try {
         const p = await fetchJson(progressPath);
-        renderProgress(p);
+        renderProgress(p, "poll");
       } catch (e) {
         document.getElementById("phaseBadge").textContent = "phase: unavailable";
         document.getElementById("lastUpdate").textContent = `Progress read error: ${e.message}`;
         document.getElementById("cfgDoneMeasured").textContent = "- / -";
+        document.getElementById("cfgSubPct").textContent = "-";
+        setPct("cfgSubFill", 0);
       }
 
       try {
@@ -693,7 +3049,11 @@
         drawSeries("plaqCanvas", [], "#2fd08a");
         drawSeries("loopCanvas", [], "#52adff");
         drawSeries("fluxCanvas", [], "#f2c14b");
+        drawXYError("vCanvas", [], [], []);
+        document.getElementById("vLabel").textContent = "V(R) unavailable";
+        document.getElementById("vTable").textContent = "No valid V(R) points yet.";
       }
+      refreshThreadStatusTable(true);
     }
 
     function stopStream() {
@@ -732,15 +3092,24 @@
         if (paused) return;
         try {
           const payload = JSON.parse(ev.data);
-          if (payload.progress) renderProgress(payload.progress);
+          lastStreamAt = Date.now();
+          if (payload.thread_progress && typeof payload.thread_progress === "object") {
+            for (const [seed, tp] of Object.entries(payload.thread_progress)) {
+              if (!tp || typeof tp !== "object") continue;
+              if (shouldAcceptThreadProgress(seed, tp)) {
+                threadProgressBySeed[seed] = tp;
+              }
+            }
+          }
+          if (payload.progress) renderProgress(payload.progress, "stream");
           if (payload.live) renderLive(payload.live);
+          refreshThreadStatusTable(false);
           if (payload.errors && payload.errors.progress) {
             document.getElementById("lastUpdate").textContent = `Progress read error: ${payload.errors.progress}`;
           }
           if (payload.errors && payload.errors.live) {
             document.getElementById("historyCount").textContent = `Live read error: ${payload.errors.live}`;
           }
-          lastStreamAt = Date.now();
         } catch (_) {
           // Ignore malformed stream payload and keep running.
         }
@@ -787,14 +3156,37 @@
         startStream();
       }
     });
+    document.getElementById("aFmInput").addEventListener("change", () => updatePhysicalScale(currentMeta));
+    document.getElementById("aFmInput").addEventListener("input", () => updatePhysicalScale(currentMeta));
+    document.getElementById("fluxDisplayMode").addEventListener("change", () => {
+      refresh();
+    });
+    document.getElementById("fluxTailN").addEventListener("change", () => {
+      refresh();
+    });
+    document.getElementById("legacyFilter").addEventListener("change", () => {
+      refresh();
+    });
+    document.getElementById("threadVizMode").addEventListener("change", () => {
+      applyThreadVizMode();
+      renderThreadCursors(currentProgress);
+    });
 
     applyUrlDefaults();
+    applyThreadVizMode();
     addChat("system", "Admin chat ready.");
     refresh();
     startStream();
     setInterval(() => {
       if (paused) return;
-      if (!usingStream || Date.now() - lastStreamAt > 5000) {
+      if (!currentProgress) return;
+      const phase = String(currentProgress?.phase || "").toLowerCase();
+      renderCurrentConfigProgress(currentProgress, phase);
+      renderThreadCursors(currentProgress);
+    }, 1000);
+    setInterval(() => {
+      if (paused) return;
+      if (!usingStream || Date.now() - lastStreamAt > streamStaleMs) {
         refresh();
       }
     }, pollMs);
