@@ -263,15 +263,17 @@
             // "Inside the flux tube" = between the two quarks (0 <= x <= R)
             const inTube = (x) => (x >= 0 && x <= R);
 
-            // Scan the full volume (for step 0) or reduced based on symStepVal
-            const xMin = symStepVal >= 4 ? 0 : -margin;
-            const xMax = symStepVal >= 4 ? xHalf + margin : R + margin;
-            const yMin = symStepVal >= 1 ? 0 : -RPERP_MAX;
-            const zMin = symStepVal >= 2 ? 0 : -RPERP_MAX;
+            // Scan range uses (symStepVal - 1) so that points eliminated at the
+            // current step are still generated and shown in blue.
+            const rangeStep = Math.max(0, symStepVal - 1);
+            const xMin = rangeStep >= 4 ? 0 : -margin;
+            const xMax = rangeStep >= 4 ? xHalf + margin : R + margin;
+            const yMin = rangeStep >= 1 ? 0 : -RPERP_MAX;
+            const zMin = rangeStep >= 2 ? 0 : -RPERP_MAX;
 
             for (let x = xMin; x <= xMax; x++) {
                 for (let y = yMin; y <= RPERP_MAX; y++) {
-                    const zMax = symStepVal >= 3 ? y : RPERP_MAX;
+                    const zMax = rangeStep >= 3 ? y : RPERP_MAX;
                     for (let z = zMin; z <= zMax; z++) {
                         const level = q2SymLevel(x, y, z);
 
