@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Lattice QCD Measurement Geometry Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #0a0a1a;
+            color: #e0e0e0;
+            font-family: 'Inter', system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        #controls {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 10;
+            background: rgba(10, 10, 26, 0.92);
+            backdrop-filter: blur(12px);
+            padding: 12px 20px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        #controls button {
+            padding: 8px 18px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.06);
+            color: #e0e0e0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        #controls button:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        #controls button.active {
+            background: rgba(46, 204, 113, 0.25);
+            border-color: #2ecc71;
+            color: #2ecc71;
+        }
+
+        #info {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            z-index: 10;
+            background: rgba(10, 10, 26, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 14px 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 13px;
+            line-height: 1.6;
+            max-width: 420px;
+        }
+
+        #info h3 {
+            color: #2ecc71;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+
+        #info .stat {
+            color: #888;
+        }
+
+        #legend {
+            position: fixed;
+            top: 60px;
+            right: 16px;
+            z-index: 10;
+            background: rgba(10, 10, 26, 0.9);
+            backdrop-filter: blur(8px);
+            padding: 12px 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .legend-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+
+        #symmetry-slider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        #symmetry-slider input {
+            width: 120px;
+            accent-color: #2ecc71;
+        }
+
+        #symmetry-slider label {
+            font-size: 12px;
+            color: #999;
+        }
+
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="controls">
+        <button class="active" onclick="showScene('2q')">2q Flux Tube</button>
+        <button onclick="showScene('4q_square')">4q Square</button>
+        <button onclick="showScene('4q_tet')">4q Tetrahedron</button>
+        <div id="symmetry-slider-2q" style="display:flex;">
+            <label>Symmetry step:</label>
+            <input type="range" id="sym-step-2q" min="0" max="4" value="4" oninput="updateSymStep(this.value)">
+            <span id="sym-label-2q">1/16</span>
+        </div>
+        <div id="symmetry-slider" style="display:none;">
+            <label>Symmetry step:</label>
+            <input type="range" id="sym-step" min="0" max="4" value="3" oninput="updateSymStep(this.value)">
+            <span id="sym-label">1/8</span>
+        </div>
+        <div id="symmetry-slider-sq" style="display:none;">
+            <label>Symmetry step:</label>
+            <input type="range" id="sym-step-sq" min="0" max="4" value="4" oninput="updateSymStep(this.value)">
+            <span id="sym-label-sq">1/16</span>
+        </div>
+    </div>
+
+    <div id="legend"></div>
+    <div id="info"></div>
+
+    <script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        const D = 6;  // lattice spacing parameter
+        const R = 6;  // 2q separation
+        const RPERP_MAX = 6;
+
+        // ============ SCENE SETUP ============
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setClearColor(0x0a0a1a);
+        document.body.appendChild(renderer.domElement);
+
+        const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+        camera.position.set(18, 12, 18);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.08;
+        controls.target.set(3, 3, 3);
+        controls.update();
+
+        // ============ HELPERS ============
+        function makePoint(x, y, z, color, size = 0.18) {
+            const geo = new THREE.SphereGeometry(size, 12, 12);
+            const mat = new THREE.MeshPhongMaterial({ color, transparent: true, opacity: 0.85 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            return mesh;
+        }
+
+        function makeLine(a, b, color, width = 1) {
+            const mat = new THREE.LineBasicMaterial({ color, linewidth: width, transparent: true, opacity: 0.5 });
+            const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]);
+            return new THREE.Line(geo, mat);
+        }
+
+        function makeQuark(x, y, z, label) {
+            const group = new THREE.Group();
+            const geo = new THREE.SphereGeometry(0.35, 16, 16);
+            const mat = new THREE.MeshPhongMaterial({ color: 0xff3333, emissive: 0x440000 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            group.add(mesh);
+            return group;
+        }
+
+        function makeGrid(size, divisions, color = 0x333344) {
+            const grid = new THREE.GridHelper(size, divisions, color, color);
+            grid.position.set(size / 2, 0, size / 2);
+            grid.material.transparent = true;
+            grid.material.opacity = 0.3;
+            return grid;
+        }
+
+        function addLights(scene) {
+            scene.add(new THREE.AmbientLight(0x404060, 1.0));
+            const d1 = new THREE.DirectionalLight(0xffffff, 0.8);
+            d1.position.set(10, 15, 10);
+            scene.add(d1);
+            const d2 = new THREE.DirectionalLight(0x6688ff, 0.3);
+            d2.position.set(-10, 5, -10);
+            scene.add(d2);
+        }
+
+        // ============ 2Q SCENE ============
+        // Symmetry steps for 2q flux tube:
+        // Step 0: all points (full 3D around quark axis)
+        // Step 1: y >= 0 (mirror, 1/2)
+        // Step 2: z >= 0 (mirror, 1/4)
+        // Step 3: y >= z (90° rotation = diagonal mirror, 1/8)
+        // Step 4: x <= R/2 (midpoint mirror, 1/16)
+        function build2qScene(symStepVal = 4) {
+            const scene = new THREE.Scene();
+            addLights(scene);
+            scene.add(makeGrid(R + 2 * RPERP_MAX, R + 2 * RPERP_MAX));
+
+            // Quarks on the spatial plane (y=0)
+            scene.add(makeQuark(0, 0, 0, 'Q1'));
+            scene.add(makeQuark(R, 0, 0, 'Q2'));
+
+            // Quark axis line
+            scene.add(makeLine([-1, 0, 0], [R + 1, 0, 0], 0x666666, 2));
+
+            const xHalf = Math.floor(R / 2);
+            const margin = RPERP_MAX;
+            const stepLabels = ['all', '1/2', '1/4', '1/8', '1/16'];
+            let keptCount = 0, outsideKept = 0, elimThisStep = 0;
+
+            // Returns the highest step the point passes
+            function q2SymLevel(x, y, z) {
+                if (!(y >= 0)) return 0;          // step 1: y mirror
+                if (!(z >= 0)) return 1;          // step 2: z mirror
+                if (!(y >= z)) return 2;           // step 3: diagonal (90° rot)
+                if (!(x <= xHalf)) return 3;       // step 4: midpoint mirror
+                return 4;  // passes all
+            }
+
+            // "Inside the flux tube" = between the two quarks (0 <= x <= R)
+            const inTube = (x) => (x >= 0 && x <= R);
+
+            // Scan the full volume (for step 0) or reduced based on symStepVal
+            const xMin = symStepVal >= 4 ? 0 : -margin;
+            const xMax = symStepVal >= 4 ? xHalf + margin : R + margin;
+            const yMin = symStepVal >= 1 ? 0 : -RPERP_MAX;
+            const zMin = symStepVal >= 2 ? 0 : -RPERP_MAX;
+
+            for (let x = xMin; x <= xMax; x++) {
+                for (let y = yMin; y <= RPERP_MAX; y++) {
+                    const zMax = symStepVal >= 3 ? y : RPERP_MAX;
+                    for (let z = zMin; z <= zMax; z++) {
+                        const level = q2SymLevel(x, y, z);
+
+                        if (symStepVal === 0) {
+                            // Show all: green inside tube, orange outside
+                            const color = inTube(x) ? 0x2ecc71 : 0xf39c12;
+                            scene.add(makePoint(x, y, z, color, 0.10));
+                            keptCount++;
+                            if (!inTube(x)) outsideKept++;
+                        } else if (level >= symStepVal) {
+                            // Kept at current symmetry level
+                            const color = inTube(x) ? 0x2ecc71 : 0xf39c12;
+                            scene.add(makePoint(x, y, z, color, 0.12));
+                            keptCount++;
+                            if (!inTube(x)) outsideKept++;
+                        } else if (level === symStepVal - 1) {
+                            // Eliminated at THIS step: light blue
+                            scene.add(makePoint(x, y, z, 0x5dade2, 0.08));
+                            elimThisStep++;
+                        } else {
+                            // Earlier eliminated: dim gray (only show near axis for perf)
+                            const dist = Math.sqrt(y * y + z * z);
+                            if (dist <= 2) {
+                                scene.add(makePoint(x, y, z, 0x333344, 0.05));
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Midpoint marker at x=R/2
+            scene.add(makeLine([xHalf, -1, -1], [xHalf, RPERP_MAX, RPERP_MAX], 0xffffff));
+            // Wedge boundary (y=z diagonal)
+            if (symStepVal >= 3) {
+                scene.add(makeLine([0, 0, 0], [0, RPERP_MAX, RPERP_MAX], 0xaaaaaa));
+            }
+
+            return {
+                scene, count: keptCount, outsideKept, elimThisStep,
+                target: new THREE.Vector3(R / 4, RPERP_MAX / 4, RPERP_MAX / 6),
+                stepLabel: stepLabels[symStepVal]
+            };
+        }
+
+        // ============ 4Q SQUARE SCENE ============
+        // Symmetry steps for D4h (D4 × height mirror):
+        // Step 0: all points
+        // Step 1: x1 >= 0 from center (1/2)
+        // Step 2: x2 >= 0 from center (1/4)
+        // Step 3: x1 >= x2 (diagonal mirror, 1/8)
+        // Step 4: h >= 0 (height mirror, 1/16)
+        function sqSymStep(dx1, dx2, h, step) {
+            if (step >= 1 && !(dx1 >= 0)) return false;
+            if (step >= 2 && !(dx2 >= 0)) return false;
+            if (step >= 3 && !(dx1 >= dx2)) return false;
+            if (step >= 4 && !(h >= 0)) return false;
+            return true;
+        }
+
+        function build4qSquareScene(symStepVal = 4) {
+            const scene = new THREE.Scene();
+            addLights(scene);
+
+            // Quarks in the y=0 plane
+            scene.add(makeQuark(0, 0, 0, 'Q1'));
+            scene.add(makeQuark(D, 0, 0, 'Q2'));
+            scene.add(makeQuark(0, 0, D, 'Q3'));
+            scene.add(makeQuark(D, 0, D, 'Q4'));
+
+            // Square outline
+            const sqColor = 0x888888;
+            scene.add(makeLine([0, 0, 0], [D, 0, 0], sqColor));
+            scene.add(makeLine([D, 0, 0], [D, 0, D], sqColor));
+            scene.add(makeLine([D, 0, D], [0, 0, D], sqColor));
+            scene.add(makeLine([0, 0, D], [0, 0, 0], sqColor));
+
+            // Wilson loops pairing A (horizontal)
+            scene.add(makeLine([0, 0, 0], [D, 0, 0], 0xe74c3c, 2));
+            scene.add(makeLine([0, 0, D], [D, 0, D], 0xe74c3c, 2));
+            // Pairing B (vertical)
+            scene.add(makeLine([0, 0, 0], [0, 0, D], 0x3498db, 2));
+            scene.add(makeLine([D, 0, 0], [D, 0, D], 0x3498db, 2));
+
+            // Center marker
+            const dHalf = Math.floor(D / 2);
+            scene.add(makePoint(dHalf, 0, dHalf, 0xf1c40f, 0.3));
+
+            const margin = 3;
+            const hMax = 5;
+            const stepLabels = ['all', '1/2', '1/4', '1/8', '1/16'];
+            let keptCount = 0, outsideKept = 0, totalInside = 0;
+            let elimThisStep = 0;
+
+            // Progressive symmetry: determine which step eliminated each point
+            function sqSymLevel(dx1, dx2, h) {
+                // Returns the highest step the point passes (0=passes none extra, 4=passes all)
+                if (!(dx1 >= 0)) return 0;
+                if (!(dx2 >= 0)) return 1;
+                if (!(dx1 >= dx2)) return 2;
+                if (!(h >= 0)) return 3;
+                return 4;  // passes all
+            }
+
+            for (let x1 = -(dHalf + margin); x1 <= dHalf + margin; x1++) {
+                for (let x2 = -(dHalf + margin); x2 <= dHalf + margin; x2++) {
+                    for (let h = -hMax; h <= hMax; h++) {
+                        const ax = dHalf + x1, az = dHalf + x2, ay = h;
+                        const inside = (ax >= 0 && ax <= D && az >= 0 && az <= D);
+                        const dist2d = Math.max(Math.abs(x1), Math.abs(x2));
+                        if (dist2d > dHalf + margin) continue;
+
+                        if (inside && h === 0) totalInside++;
+
+                        const level = sqSymLevel(x1, x2, h);
+                        const kept = level >= symStepVal || symStepVal === 0;
+
+                        if (symStepVal === 0) {
+                            // Show all: green inside, orange outside
+                            if (inside || dist2d <= dHalf + 2) {
+                                const color = inside ? 0x2ecc71 : 0xf39c12;
+                                scene.add(makePoint(ax, ay, az, color, inside ? 0.14 : 0.10));
+                                keptCount++;
+                                if (!inside) outsideKept++;
+                            }
+                        } else if (level >= symStepVal) {
+                            // Passes current step: green inside, orange outside
+                            const color = inside ? 0x2ecc71 : 0xf39c12;
+                            scene.add(makePoint(ax, ay, az, color, inside ? 0.14 : 0.10));
+                            keptCount++;
+                            if (!inside) outsideKept++;
+                        } else if (level === symStepVal - 1 && inside) {
+                            // Eliminated at THIS step: light blue
+                            scene.add(makePoint(ax, ay, az, 0x5dade2, 0.10));
+                            elimThisStep++;
+                        } else if (inside && Math.abs(h) <= 1) {
+                            // Eliminated at earlier step: dim gray (only near plane for perf)
+                            scene.add(makePoint(ax, ay, az, 0x333344, 0.06));
+                        }
+                    }
+                }
+            }
+
+            // Grid at y=0
+            const grid = new THREE.GridHelper(D + 2 * margin, D + 2 * margin, 0x333344, 0x333344);
+            grid.position.set(dHalf, 0, dHalf);
+            grid.material.transparent = true;
+            grid.material.opacity = 0.2;
+            scene.add(grid);
+
+            return {
+                scene, count: keptCount, outsideKept, totalInside,
+                target: new THREE.Vector3(D / 2, 0, D / 2),
+                stepLabel: stepLabels[symStepVal]
+            };
+        }
+
+        // ============ 4Q TETRAHEDRAL SCENE ============
+        const tetVerts = [[0, 0, 0], [D, D, 0], [D, 0, D], [0, D, D]];
+        const tetCenter = [D / 2, D / 2, D / 2];
+        const tetEdges = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3]];
+
+        function isInsideTet(x, y, z) {
+            const p = [x, y, z];
+            function side(pt, a, b, c) {
+                const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+                const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+                const n = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
+                return n[0] * (pt[0] - a[0]) + n[1] * (pt[1] - a[1]) + n[2] * (pt[2] - a[2]);
+            }
+            const faces = [[1, 2, 3], [0, 3, 2], [0, 1, 3], [0, 2, 1]];
+            const refs = [0, 1, 2, 3];
+            for (let i = 0; i < 4; i++) {
+                const [a, b, c] = faces[i];
+                const s = side(p, tetVerts[a], tetVerts[b], tetVerts[c]);
+                const r = side(tetVerts[refs[i]], tetVerts[a], tetVerts[b], tetVerts[c]);
+                if (s * r < -0.01) return false;
+            }
+            return true;
+        }
+
+        function symStep(dx, dy, dz, step) {
+            if (step >= 1 && !(dx >= dy)) return false;      // σ1: Δx ≥ Δy
+            if (step >= 2 && !(dy >= dz)) return false;      // σ2: Δy ≥ Δz
+            if (step >= 3 && !(dx + dy >= 0)) return false;  // C2z: Δx+Δy ≥ 0
+            if (step >= 4 && !(dy + dz >= 0)) return false;  // C2x: Δy+Δz ≥ 0
+            return true;
+        }
+
+        function build4qTetScene(symStepVal = 3) {
+            const scene = new THREE.Scene();
+            addLights(scene);
+
+            // Cube wireframe
+            const cubeGeo = new THREE.BoxGeometry(D, D, D);
+            const cubeEdges = new THREE.EdgesGeometry(cubeGeo);
+            const cubeLine = new THREE.LineSegments(cubeEdges, new THREE.LineBasicMaterial({ color: 0x444466, transparent: true, opacity: 0.3 }));
+            cubeLine.position.set(D / 2, D / 2, D / 2);
+            scene.add(cubeLine);
+
+            // Tetrahedron edges
+            for (const [i, j] of tetEdges) {
+                scene.add(makeLine(tetVerts[i], tetVerts[j], 0x888888, 2));
+            }
+
+            // Quark vertices
+            const qLabels = ['Q1(0,0,0)', 'Q2(d,d,0)', 'Q3(d,0,d)', 'Q4(0,d,d)'];
+            for (let i = 0; i < 4; i++) {
+                scene.add(makeQuark(...tetVerts[i], qLabels[i]));
+            }
+
+            // Center
+            scene.add(makePoint(...tetCenter, 0xf1c40f, 0.3));
+
+            // Lattice points with progressive symmetry visualization
+            const stepLabels = ['all', '1/2', '1/4', '1/8', '1/24'];
+            const tetMargin = 4;
+            let keptCount = 0;
+            let outsideKept = 0;
+            let totalCount = 0;
+            let elimThisStep = 0;
+
+            // Returns the highest step the point passes
+            // Step 4 handles the remaining C2 axis: Δy+Δz ≥ 0 — exact on lattice
+            function symLevel(dx, dy, dz) {
+                if (!(dx >= dy)) return 0;           // step 1: sort σ1
+                if (!(dy >= dz)) return 1;           // step 2: sort σ2
+                if (!(dx + dy >= 0)) return 2;       // step 3: C2z
+                if (!(dy + dz >= 0)) return 3;       // step 4: C2x
+                return 4;  // passes all (1/24)
+            }
+
+            for (let x = -tetMargin; x <= D + tetMargin; x++) {
+                for (let y = -tetMargin; y <= D + tetMargin; y++) {
+                    for (let z = -tetMargin; z <= D + tetMargin; z++) {
+                        const inside = isInsideTet(x, y, z);
+                        const dx = x - tetCenter[0], dy = y - tetCenter[1], dz = z - tetCenter[2];
+                        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        if (dist > D * 1.1) continue;
+
+                        if (inside) totalCount++;
+                        const level = symLevel(dx, dy, dz);
+
+                        if (symStepVal === 0) {
+                            // Show all points: green inside, orange outside
+                            if (inside) {
+                                scene.add(makePoint(x, y, z, 0x2ecc71, 0.22));
+                                keptCount++;
+                            } else {
+                                scene.add(makePoint(x, y, z, 0xf39c12, 0.14));
+                                keptCount++;
+                                outsideKept++;
+                            }
+                        } else if (level >= symStepVal) {
+                            // Passes current step: green inside, orange outside
+                            const color = inside ? 0x2ecc71 : 0xf39c12;
+                            scene.add(makePoint(x, y, z, color, inside ? 0.22 : 0.16));
+                            keptCount++;
+                            if (!inside) outsideKept++;
+                        } else if (level === symStepVal - 1 && inside) {
+                            // Eliminated at THIS step: light blue
+                            scene.add(makePoint(x, y, z, 0x5dade2, 0.14));
+                            elimThisStep++;
+                        } else if (inside) {
+                            // Eliminated at earlier step: dim gray
+                            scene.add(makePoint(x, y, z, 0x333344, 0.08));
+                        }
+                    }
+                }
+            }
+
+            // Probe direction arrows from center
+            if (symStepVal >= 3) {
+                // Vertex direction: (-1,-1,-1)
+                const arrowLen = D / 2;
+                scene.add(makeLine(tetCenter, [tetCenter[0] - arrowLen, tetCenter[1] - arrowLen, tetCenter[2] - arrowLen], 0xff4444, 2));
+                // Edge midpoint: (0,0,-1)
+                scene.add(makeLine(tetCenter, [tetCenter[0], tetCenter[1], tetCenter[2] - arrowLen], 0x44ff44, 2));
+                // Face center: (1,-1,-1)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] - arrowLen, tetCenter[2] - arrowLen], 0x4444ff, 2));
+            }
+
+            return { scene, count: keptCount, outsideKept, total: totalCount, target: new THREE.Vector3(D / 2, D / 2, D / 2), stepLabel: stepLabels[symStepVal] };
+        }
+
+        // ============ SCENE MANAGEMENT ============
+        let currentScene = null;
+        let currentMode = '2q';
+
+        const scenes = {};
+
+        function showScene(mode) {
+            currentMode = mode;
+            document.querySelectorAll('#controls button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('symmetry-slider-2q').style.display = mode === '2q' ? 'flex' : 'none';
+            document.getElementById('symmetry-slider').style.display = mode === '4q_tet' ? 'flex' : 'none';
+            document.getElementById('symmetry-slider-sq').style.display = mode === '4q_square' ? 'flex' : 'none';
+
+            rebuildScene();
+        }
+        window.showScene = showScene;
+
+        function rebuildScene() {
+            if (currentMode === '2q') {
+                const step = parseInt(document.getElementById('sym-step-2q').value);
+                const { scene, count, outsideKept, target, stepLabel } = build2qScene(step);
+                currentScene = scene;
+                controls.target.copy(target);
+                document.getElementById('sym-label-2q').textContent = stepLabel;
+                document.getElementById('info').innerHTML = `
+      <h3>2-Quark Flux Tube (3D)</h3>
+      <p>R=${R}, r⊥_max=${RPERP_MAX}</p>
+      <p><span class="stat">${count} probe points in ${stepLabel} wedge (${outsideKept} outside)</span></p>
+      <p>Symmetries: y-mirror, z-mirror, y↔z swap, midpoint mirror</p>
+      <p>All operations are exact lattice-to-lattice</p>
+    `;
+                document.getElementById('legend').innerHTML = `
+      <span class="legend-dot" style="background:#ff3333"></span>Quarks<br>
+      <span class="legend-dot" style="background:#2ecc71"></span>Inside tube (kept, ${stepLabel})<br>
+      <span class="legend-dot" style="background:#f39c12"></span>Beyond quark (extension)<br>
+      <span class="legend-dot" style="background:#5dade2"></span>Eliminated at this step<br>
+      <span class="legend-dot" style="background:#333344"></span>Earlier eliminated
+    `;
+            } else if (currentMode === '4q_square') {
+                const step = parseInt(document.getElementById('sym-step-sq').value);
+                const { scene, count, outsideKept, target, stepLabel } = build4qSquareScene(step);
+                currentScene = scene;
+                controls.target.copy(target);
+                document.getElementById('sym-label-sq').textContent = stepLabel;
+                document.getElementById('info').innerHTML = `
+      <h3>4-Quark Square</h3>
+      <p>d=${D}, D₄h symmetry (1/8 plane × 1/2 height = 1/16)</p>
+      <p><span class="stat">${count} points in ${stepLabel} wedge (${outsideKept} outside)</span></p>
+      <p>Height: up from quark plane (y≥0)</p>
+      <p>Slide → to see symmetry reduction</p>
+    `;
+                document.getElementById('legend').innerHTML = `
+      <span class="legend-dot" style="background:#ff3333"></span>Quarks<br>
+      <span class="legend-dot" style="background:#f1c40f"></span>Center<br>
+      <span class="legend-dot" style="background:#2ecc71"></span>Inside kept (${stepLabel})<br>
+      <span class="legend-dot" style="background:#f39c12"></span>Outside extension<br>
+      <span class="legend-dot" style="background:#5dade2"></span>Eliminated at this step<br>
+      <span class="legend-dot" style="background:#333344"></span>Earlier eliminated<br>
+      <span class="legend-dot" style="background:#e74c3c"></span>Pairing A<br>
+      <span class="legend-dot" style="background:#3498db"></span>Pairing B
+    `;
+            } else if (currentMode === '4q_tet') {
+                const step = parseInt(document.getElementById('sym-step').value);
+                const { scene, count, outsideKept: tetOutside, total, target, stepLabel } = build4qTetScene(step);
+                currentScene = scene;
+                controls.target.copy(target);
+                document.getElementById('sym-label').textContent = stepLabel;
+                document.getElementById('info').innerHTML = `
+      <h3>4-Quark Tetrahedron</h3>
+      <p>d=${D}, R=d√2=√${D*D*2}≈${(D * Math.sqrt(2)).toFixed(1)}, T_d symmetry</p>
+      <p><span class="stat">${count} points in ${stepLabel} wedge (${tetOutside} outside tet)</span></p>
+      <p>Inscribed in cube: alternating vertices</p>
+      <p>Green=inside, Orange=beyond tetrahedron</p>
+      <p>Slide → to see progressive symmetry reduction</p>
+    `;
+                document.getElementById('legend').innerHTML = `
+      <span class="legend-dot" style="background:#ff3333"></span>Quarks<br>
+      <span class="legend-dot" style="background:#f1c40f"></span>Center<br>
+      <span class="legend-dot" style="background:#2ecc71"></span>Inside tet (kept)<br>
+      <span class="legend-dot" style="background:#f39c12"></span>Beyond tet (kept)<br>
+      <span class="legend-dot" style="background:#5dade2"></span>Eliminated at this step<br>
+      <span class="legend-dot" style="background:#333344"></span>Earlier eliminated<br>
+      <span class="legend-dot" style="background:#ff4444"></span>→ vertex<br>
+      <span class="legend-dot" style="background:#44ff44"></span>→ edge mid<br>
+      <span class="legend-dot" style="background:#4444ff"></span>→ face center
+    `;
+            }
+        }
+
+        function updateSymStep(val) {
+            rebuildScene();
+        }
+        window.updateSymStep = updateSymStep;
+
+        // Initial scene
+        rebuildScene();
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            if (currentScene) renderer.render(currentScene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+
+</html>
