@@ -2,17 +2,25 @@
 
 This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, and live observability through a streaming dashboard.
 
+## Contents
+
+- [Scientific Program](#scientific-program)
+- [Methods and Physics Outputs](#methods-and-physics-outputs)
+- [Live Run Dashboard](#live-run-dashboard)
+- [Measurement Geometry Viewer](#measurement-geometry-viewer)
+- [Selected Earlier SU(2) Papers](#selected-earlier-su2-papers)
+- [Scientific Background](#scientific-background)
+- [Understanding Multiquark Flux Arrangement for Nuclear Fusion Dynamics](#understanding-multiquark-flux-arrangement-for-nuclear-fusion-dynamics)
+- [Repository Guide](#repository-guide)
+- [Contributing and Discussion](#contributing-and-discussion)
+- [License](#license)
+- [Platform and Runtime](#platform-and-runtime)
+- [Quickstart](#quickstart)
+- [Validation and Baseline](#validation-and-baseline)
+
 ## Scientific Program
 
 The immediate target is to reproduce and extend earlier SU(2) flux-tube studies with better statistics, larger lattices, and tighter uncertainty control. The next stage is to move to multi-quark systems in SU(3), including 6-quark physics on collaboration gauge ensembles. A central long-term goal is to resolve flux-tube structure between two nucleons and quantify how confinement-scale dynamics may connect to nuclear-fusion-relevant effective interactions.
-
-## Measurement Geometry Viewer
-
-An interactive 3D viewer shows the exact lattice points measured in each quark geometry, with a symmetry slider that demonstrates how each reduction step generates equivalent points from the calculated set.
-
-**[Launch Geometry Viewer](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)**
-
-Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation.
 
 ## Methods and Physics Outputs
 
@@ -55,6 +63,14 @@ Beyond tracking progress, the dashboard provides automated physics interpretatio
 - **Admin Chat + Next Jobs**: run interpretation and suggested follow-up runs.
 
 See [SU2_DASHBOARD.md](tools/SU2_DASHBOARD.md) for detailed setup and usage instructions.
+
+## Measurement Geometry Viewer
+
+An interactive 3D viewer shows the exact lattice points measured in each quark geometry, with a symmetry slider that demonstrates how each reduction step generates equivalent points from the calculated set.
+
+**[Launch Geometry Viewer](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)**
+
+Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation.
 
 ## Selected Earlier SU(2) Papers
 
