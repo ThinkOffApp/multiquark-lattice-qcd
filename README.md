@@ -6,6 +6,14 @@ This repository contains the active Grid+GPT workflow used for high-statistics l
 
 The immediate target is to reproduce and extend earlier SU(2) flux-tube studies with better statistics, larger lattices, and tighter uncertainty control. The next stage is to move to multi-quark systems in SU(3), including 6-quark physics on collaboration gauge ensembles. A central long-term goal is to resolve flux-tube structure between two nucleons and quantify how confinement-scale dynamics may connect to nuclear-fusion-relevant effective interactions.
 
+## Measurement Geometry Viewer
+
+An interactive 3D viewer shows the exact lattice points measured in each quark geometry, with a symmetry slider that demonstrates how each reduction step generates equivalent points from the calculated set.
+
+**[Launch Geometry Viewer](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)**
+
+Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation.
+
 ## Methods and Physics Outputs
 
 The measurement engine separates thermalization from production, then samples observables from Wilson-loop and connected-correlator operators across multiple geometries. Smearing, operator averaging, and jackknife-based uncertainty estimation are integrated in the default pipeline, with covariance-aware fitting in post-processing. The dashboard and postprocessor report potential and flux observables in forms directly comparable across runs and volumes, while autocorrelation diagnostics are used to monitor effective sample independence.
