@@ -459,7 +459,7 @@
             scene.add(grid);
 
             return {
-                scene, count: keptCount, outsideKept, totalInside,
+                scene, count: keptCount, outsideKept,
                 target: new THREE.Vector3(D / 2, 0, D / 2),
                 stepLabel: stepLabels[symStepVal]
             };
@@ -656,13 +656,7 @@
             document.getElementById('symmetry-slider').style.display = mode === '4q_tet' ? 'flex' : 'none';
             document.getElementById('symmetry-slider-sq').style.display = mode === '4q_square' ? 'flex' : 'none';
 
-            // Per-scene camera: tetra at (18,5,18) gives all 4 splitting planes
-            // equal ~60° visibility (optimal for T_d wedge visualization)
-            if (mode === '4q_tet') {
-                camera.position.set(18, 5, 18);
-            } else {
-                camera.position.set(18, 12, 18);
-            }
+            camera.position.set(18, 12, 18);
 
             rebuildScene();
         }
