@@ -131,6 +131,7 @@
         <button class="active" onclick="showScene('2q')">2q Flux Tube</button>
         <button onclick="showScene('4q_square')">4q Square</button>
         <button onclick="showScene('4q_tet')">4q Tetrahedron</button>
+        <button id="screenshot-btn" onclick="saveScreenshot()" style="margin-left:8px;border-color:#5dade2;color:#5dade2;">Save Screenshot</button>
         <div id="symmetry-slider-2q" style="display:flex;">
             <label>Symmetry step:</label>
             <input type="range" id="sym-step-2q" min="0" max="4" value="4" oninput="updateSymStep(this.value)">
@@ -169,7 +170,7 @@
         const RPERP_MAX = 6;
 
         // ============ SCENE SETUP ============
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
         renderer.setClearColor(0x0a0a1a);
@@ -691,6 +692,160 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // Screenshot export: composites WebGL canvas + HTML overlays
+        window.saveScreenshot = async function() {
+            // Force a render so the buffer is fresh
+            if (currentScene) renderer.render(currentScene, camera);
+
+            const w = renderer.domElement.width;
+            const h = renderer.domElement.height;
+            const comp = document.createElement('canvas');
+            comp.width = w;
+            comp.height = h;
+            const ctx = comp.getContext('2d');
+
+            // Draw the WebGL canvas
+            ctx.drawImage(renderer.domElement, 0, 0);
+
+            // Draw HTML overlays manually (controls, legend, info)
+            // Background bar
+            ctx.fillStyle = 'rgba(10, 10, 26, 0.92)';
+            ctx.fillRect(0, 0, w, 56 * devicePixelRatio);
+
+            // Controls buttons text
+            ctx.font = `${13 * devicePixelRatio}px Inter, system-ui, sans-serif`;
+            const btns = document.querySelectorAll('#controls button:not(#screenshot-btn)');
+            btns.forEach(btn => {
+                const r = btn.getBoundingClientRect();
+                const sx = r.left * devicePixelRatio, sy = r.top * devicePixelRatio;
+                const sw = r.width * devicePixelRatio, sh = r.height * devicePixelRatio;
+                if (btn.classList.contains('active')) {
+                    ctx.fillStyle = 'rgba(46, 204, 113, 0.25)';
+                    ctx.strokeStyle = '#2ecc71';
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                }
+                ctx.lineWidth = devicePixelRatio;
+                const rad = 8 * devicePixelRatio;
+                ctx.beginPath();
+                ctx.roundRect(sx, sy, sw, sh, rad);
+                ctx.fill();
+                ctx.stroke();
+                ctx.fillStyle = btn.classList.contains('active') ? '#2ecc71' : '#e0e0e0';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(btn.textContent, sx + sw / 2, sy + sh / 2);
+            });
+
+            // Slider label
+            const activeSlider = document.querySelector('[id^="symmetry-slider"]:not([style*="display:none"]):not([style*="display: none"])') ||
+                                 document.querySelector('[id^="symmetry-slider"]');
+            if (activeSlider && activeSlider.style.display !== 'none') {
+                const lbl = activeSlider.querySelector('label');
+                const span = activeSlider.querySelector('span');
+                if (lbl && span) {
+                    ctx.fillStyle = '#999';
+                    ctx.font = `${12 * devicePixelRatio}px Inter, system-ui, sans-serif`;
+                    ctx.textAlign = 'left';
+                    const lr = lbl.getBoundingClientRect();
+                    ctx.fillText(lbl.textContent, lr.left * devicePixelRatio, lr.top * devicePixelRatio + lr.height * devicePixelRatio / 2);
+                    // Slider track
+                    const input = activeSlider.querySelector('input');
+                    const ir = input.getBoundingClientRect();
+                    const trackY = ir.top * devicePixelRatio + ir.height * devicePixelRatio / 2;
+                    ctx.strokeStyle = '#2ecc71';
+                    ctx.lineWidth = 3 * devicePixelRatio;
+                    ctx.beginPath();
+                    ctx.moveTo(ir.left * devicePixelRatio, trackY);
+                    ctx.lineTo(ir.right * devicePixelRatio, trackY);
+                    ctx.stroke();
+                    // Slider thumb
+                    const pct = (input.value - input.min) / (input.max - input.min);
+                    const thumbX = ir.left * devicePixelRatio + pct * ir.width * devicePixelRatio;
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.beginPath();
+                    ctx.arc(thumbX, trackY, 6 * devicePixelRatio, 0, Math.PI * 2);
+                    ctx.fill();
+                    // Value label
+                    ctx.fillStyle = '#e0e0e0';
+                    const sr = span.getBoundingClientRect();
+                    ctx.fillText(span.textContent, sr.left * devicePixelRatio, sr.top * devicePixelRatio + sr.height * devicePixelRatio / 2);
+                }
+            }
+
+            // Legend box
+            const leg = document.getElementById('legend');
+            if (leg) {
+                const lr = leg.getBoundingClientRect();
+                const lx = lr.left * devicePixelRatio, ly = lr.top * devicePixelRatio;
+                const lw = lr.width * devicePixelRatio, lh = lr.height * devicePixelRatio;
+                ctx.fillStyle = 'rgba(10, 10, 26, 0.9)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.lineWidth = devicePixelRatio;
+                ctx.beginPath();
+                ctx.roundRect(lx, ly, lw, lh, 10 * devicePixelRatio);
+                ctx.fill();
+                ctx.stroke();
+                // Legend items
+                const items = leg.querySelectorAll('div');
+                items.forEach(item => {
+                    const dot = item.querySelector('.legend-dot');
+                    const ir2 = item.getBoundingClientRect();
+                    if (dot) {
+                        const dr = dot.getBoundingClientRect();
+                        ctx.fillStyle = dot.style.background;
+                        ctx.beginPath();
+                        ctx.arc(dr.left * devicePixelRatio + 5 * devicePixelRatio, dr.top * devicePixelRatio + 5 * devicePixelRatio, 5 * devicePixelRatio, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.fillStyle = '#e0e0e0';
+                    ctx.font = `${12 * devicePixelRatio}px Inter, system-ui, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'middle';
+                    const textX = (item.querySelector('.legend-dot') ? item.querySelector('.legend-dot').getBoundingClientRect().right + 4 : ir2.left) * devicePixelRatio;
+                    ctx.fillText(item.textContent.trim(), textX, ir2.top * devicePixelRatio + ir2.height * devicePixelRatio / 2);
+                });
+            }
+
+            // Info box
+            const info = document.getElementById('info');
+            if (info) {
+                const ir3 = info.getBoundingClientRect();
+                const ix = ir3.left * devicePixelRatio, iy = ir3.top * devicePixelRatio;
+                const iw = ir3.width * devicePixelRatio, ih = ir3.height * devicePixelRatio;
+                ctx.fillStyle = 'rgba(10, 10, 26, 0.9)';
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+                ctx.lineWidth = devicePixelRatio;
+                ctx.beginPath();
+                ctx.roundRect(ix, iy, iw, ih, 10 * devicePixelRatio);
+                ctx.fill();
+                ctx.stroke();
+                // Info text lines
+                const h3 = info.querySelector('h3');
+                if (h3) {
+                    const h3r = h3.getBoundingClientRect();
+                    ctx.fillStyle = '#2ecc71';
+                    ctx.font = `bold ${15 * devicePixelRatio}px Inter, system-ui, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(h3.textContent, h3r.left * devicePixelRatio, h3r.top * devicePixelRatio + h3r.height * devicePixelRatio / 2);
+                }
+                const lines = info.querySelectorAll('div');
+                ctx.font = `${13 * devicePixelRatio}px Inter, system-ui, sans-serif`;
+                lines.forEach(line => {
+                    const lr2 = line.getBoundingClientRect();
+                    ctx.fillStyle = line.classList.contains('stat') ? '#888' : '#e0e0e0';
+                    ctx.fillText(line.textContent, lr2.left * devicePixelRatio, lr2.top * devicePixelRatio + lr2.height * devicePixelRatio / 2);
+                });
+            }
+
+            // Download
+            const a = document.createElement('a');
+            a.href = comp.toDataURL('image/png');
+            a.download = 'geometry_viewer_screenshot.png';
+            a.click();
+        };
     </script>
 </body>
 
