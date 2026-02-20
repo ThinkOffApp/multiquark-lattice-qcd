@@ -72,7 +72,7 @@ An interactive 3D viewer shows the exact lattice points measured in each quark g
 
 **[Launch Geometry Viewer](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)**
 
-Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation.
+Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation. The viewer also serves as a framework for visualising the interquark chromofield flux structure once sufficient signal emerges from production measurements.
 
 ## Selected Earlier SU(2) Papers
 
