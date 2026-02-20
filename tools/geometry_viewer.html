@@ -532,18 +532,6 @@
                 return 4;  // passes all (1/24)
             }
 
-            // Symmetry operation for each step (in original coords).
-            // Steps 1–3 are factor-2 (one operation). Step 4 is factor-3
-            // (two operations: σ₂ and cyclic σ₂∘σ₁).
-            function applyTetSymOp(step, x, y, z) {
-                switch (step) {
-                    case 1: return [[D - x, D - y, z]];          // C₂z: negate dx,dy
-                    case 2: return [[y, x, z]];                   // σ₁:  swap x↔y
-                    case 3: return [[x, D - y, D - z]];           // C₂x: negate dy,dz
-                    case 4: return [[x, z, y], [y, z, x]];        // σ₂ + cyclic σ₂∘σ₁
-                    default: return [];
-                }
-            }
 
             if (symStepVal === 0) {
                 // Show all points in full volume
@@ -560,9 +548,7 @@
                             if (!inside) outsideKept++;
                         }
             } else {
-                // Scan full volume, collect kept set
-                const keptPoints = [];
-                const keptSet = new Set();
+                // Scan-and-level: kept (green/orange) + just-removed (blue)
                 for (let x = -tetMargin; x <= D + tetMargin; x++) {
                     for (let y = -tetMargin; y <= D + tetMargin; y++) {
                         for (let z = -tetMargin; z <= D + tetMargin; z++) {
@@ -572,59 +558,20 @@
                             if (inside) totalCount++;
                             const level = tetSymLevel(dx, dy, dz);
                             if (level >= symStepVal) {
+                                // Kept: passes all conditions up to this step
                                 const color = inside ? 0x2ecc71 : 0xf39c12;
                                 scene.add(makePoint(x, y, z, color, inside ? 0.22 : 0.16));
                                 keptCount++;
                                 if (!inside) outsideKept++;
-                                keptPoints.push([x, y, z]);
-                                keptSet.add(`${x},${y},${z}`);
+                            } else if (level === symStepVal - 1) {
+                                // Just removed by this step's condition → blue
+                                scene.add(makePoint(x, y, z, 0x5dade2, inside ? 0.14 : 0.10));
+                                generatedBySymTet++;
                             }
                         }
                     }
                 }
 
-                // Generate symmetry copies from kept set using current step's operation
-                const genSet = new Set();
-                for (const [x, y, z] of keptPoints) {
-                    const images = applyTetSymOp(symStepVal, x, y, z);
-                    for (let i = 0; i < images.length; i++) {
-                        const [gx, gy, gz] = images[i];
-                        const key = `${gx},${gy},${gz}`;
-                        if (!keptSet.has(key) && !genSet.has(key)) {
-                            genSet.add(key);
-                            const inside = isInsideTet(gx, gy, gz);
-                            // At factor-3 step (1/24), color 2nd copy differently
-                            const color = (symStepVal === 4 && i === 1) ? 0x9b59b6 : 0x5dade2;
-                            scene.add(makePoint(gx, gy, gz, color, inside ? 0.14 : 0.10));
-                            generatedBySymTet++;
-                        }
-                    }
-                }
-
-                // Add semi-transparent splitting plane
-                const planeSize = D * 2.2;
-                const planeMat = new THREE.MeshBasicMaterial({
-                    color: 0x5dade2, transparent: true, opacity: 0.08,
-                    side: THREE.DoubleSide, depthWrite: false
-                });
-                const planeGeo = new THREE.PlaneGeometry(planeSize, planeSize);
-                const splitPlane = new THREE.Mesh(planeGeo, planeMat);
-                splitPlane.position.set(D/2, D/2, D/2);
-                // Orient plane normal to match the splitting condition
-                if (symStepVal === 1) {
-                    // dx+dy=0 → plane x+y=D, normal (1,1,0)
-                    splitPlane.lookAt(D/2 + 1, D/2 + 1, D/2);
-                } else if (symStepVal === 2) {
-                    // dx=dy → plane x=y, normal (1,-1,0)
-                    splitPlane.lookAt(D/2 + 1, D/2 - 1, D/2);
-                } else if (symStepVal === 3) {
-                    // dy+dz=0 → plane y+z=D, normal (0,1,1)
-                    splitPlane.lookAt(D/2, D/2 + 1, D/2 + 1);
-                } else if (symStepVal === 4) {
-                    // dy=dz → plane y=z, normal (0,1,-1)
-                    splitPlane.lookAt(D/2, D/2 + 1, D/2 - 1);
-                }
-                scene.add(splitPlane);
             }
 
             // Probe direction arrows from center
@@ -718,19 +665,18 @@
       <p><span class="stat">${count} points in ${stepLabel} wedge (${tetOutside} outside tet)</span></p>
       <p>Inscribed in cube: alternating vertices</p>
       <p>${step === 0 ? 'Full volume' :
-         step === 1 ? 'Split: C₂z rotation (x+y=d plane)' :
-         step === 2 ? 'Split: σ₁ reflection (x=y plane)' :
-         step === 3 ? 'Split: C₂x rotation (y+z=d plane)' :
-         'Split: σ₂ reflection (y=z plane) — factor 3, two copies'}</p>
-      <p>Translucent plane shows the split. Slide → for next step</p>
+         step === 1 ? 'Split: C₂z rotation (x+y=d plane) — factor 2' :
+         step === 2 ? 'Split: σ₁ reflection (x=y plane) — factor 2' :
+         step === 3 ? 'Split: C₂x rotation (y+z=d plane) — factor 2' :
+         'Split: σ₂ reflection (y=z plane) — factor 3'}</p>
+      <p>Green=kept, Blue=removed at this step. Slide → for next step</p>
     `;
                 document.getElementById('legend').innerHTML = `
       <span class="legend-dot" style="background:#ff3333"></span>Quarks<br>
       <span class="legend-dot" style="background:#f1c40f"></span>Center<br>
       <span class="legend-dot" style="background:#2ecc71"></span>Inside tet (kept)<br>
       <span class="legend-dot" style="background:#f39c12"></span>Beyond tet (kept)<br>
-      <span class="legend-dot" style="background:#5dade2"></span>Generated by symmetry<br>
-      ${step === 4 ? '<span class="legend-dot" style="background:#9b59b6"></span>2nd copy (cyclic)<br>' : ''}
+      <span class="legend-dot" style="background:#5dade2"></span>Removed at this step<br>
       <span class="legend-dot" style="background:#ff4444"></span>→ vertex<br>
       <span class="legend-dot" style="background:#44ff44"></span>→ edge mid<br>
       <span class="legend-dot" style="background:#4444ff"></span>→ face center
