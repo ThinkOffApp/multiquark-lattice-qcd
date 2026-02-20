@@ -66,8 +66,7 @@ See [SU2_DASHBOARD.md](tools/SU2_DASHBOARD.md) for detailed setup and usage inst
 
 ## Measurement Geometry Viewer
 
-<!-- Screenshot placeholder: add tools/geometry_viewer_screenshot.png to enable the image below -->
-<!-- [![Geometry Viewer](tools/geometry_viewer_screenshot.png)](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html) -->
+[![Geometry Viewer](images/dashboard/Screenshot%202026-02-20%20at%2001.28.56.png)](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)
 
 An interactive 3D viewer shows the exact lattice points measured in each quark geometry, with a symmetry slider that demonstrates how each reduction step generates equivalent points from the calculated set.
 
