@@ -523,14 +523,14 @@
             let generatedBySymTet = 0;
 
             // Returns the highest step the point passes.
-            // Order: Klein-4 sign changes first, then S₃ sorting.
-            // This gives clean factor-2 reductions at steps 1–3 and
-            // factor-3 at step 4, matching the labels 1/2, 1/4, 1/8, 1/24.
+            // Interleaved order: C₂z, σ₁, C₂x, σ₂.
+            // Steps 1–3 are factor-2 (blue ≈ kept), step 4 is factor-3.
+            // Subgroup chain: {e}⊂⟨C₂z⟩(2)⊂⟨C₂z,σ₁⟩(4)⊂D₄(8)⊂T_d(24).
             function symLevel(dx, dy, dz) {
-                if (!(dx + dy >= 0)) return 0;       // step 1: C2z → 1/2
-                if (!(dy + dz >= 0)) return 1;       // step 2: C2x → 1/4
-                if (!(dx >= dy)) return 2;            // step 3: σ1  → 1/8
-                if (!(dy >= dz)) return 3;            // step 4: σ2  → 1/24
+                if (!(dx + dy >= 0)) return 0;       // step 1: C₂z → 1/2
+                if (!(dx >= dy)) return 1;            // step 2: σ₁  → 1/4
+                if (!(dy + dz >= 0)) return 2;        // step 3: C₂x → 1/8
+                if (!(dy >= dz)) return 3;            // step 4: σ₂  → 1/24
                 return 4;  // passes all (1/24)
             }
 
