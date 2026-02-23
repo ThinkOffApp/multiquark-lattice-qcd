@@ -173,6 +173,12 @@ This project is licensed under GPL-2.0. See [LICENSE](LICENSE) for the full text
 
 ## Platform and Runtime
 
+<div align="center">
+  <img src="docs/images/cray_c94.png" width="48%" />
+  <img src="docs/images/macbook_m4_pro.png" width="48%" />
+  <p><em>how much more powerful is a modern laptop compared to the supercomputer I used 30 years ago?</em></p>
+</div>
+
 This codebase is actively maintained for both Linux and macOS, including Apple Silicon systems. Production runs are regularly executed on modern M-series MacBook, Mac mini, and Mac Studio machines as well as Linux workstations and servers. The orchestration scripts are POSIX shell plus `tmux`, and path handling is now environment-aware through variables such as `SU2_OUT_DIR` and `SU2_GPT_DIR`, so the same run definitions can move between hosts without hardcoded machine paths.
 
 ### Apple Metal GPU Implementation
