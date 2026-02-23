@@ -5,7 +5,7 @@ CXX=mpicxx ../../configure \
 	   --enable-comms=mpi-auto \
 	   --enable-Sp=yes \
 	   --enable-unified=yes \
-	   --prefix /Users/peterboyle/QCD/vtk/Grid/install \
+	   --prefix /usr/local/Grid/install \
 	   --with-lime=$CLIME \
 	   --with-openssl=$OPENSSL \
 	   --with-gmp=$GMP \
