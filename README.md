@@ -1,6 +1,6 @@
 # Petrus Pennanen - Lattice QCD Flux-Tube Program
 
-This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, and live observability through a streaming dashboard.
+This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, live observability through a streaming dashboard, and native Apple Metal GPU acceleration for high-performance physics computation on M-series chips.
 
 ## Contents
 
@@ -174,6 +174,15 @@ This project is licensed under GPL-2.0. See [LICENSE](LICENSE) for the full text
 ## Platform and Runtime
 
 This codebase is actively maintained for both Linux and macOS, including Apple Silicon systems. Production runs are regularly executed on modern M-series MacBook, Mac mini, and Mac Studio machines as well as Linux workstations and servers. The orchestration scripts are POSIX shell plus `tmux`, and path handling is now environment-aware through variables such as `SU2_OUT_DIR` and `SU2_GPT_DIR`, so the same run definitions can move between hosts without hardcoded machine paths.
+
+### Apple Metal GPU Implementation
+
+The Grid Lattice QCD codebase has been extended with a custom native Apple Metal backend, bringing substantial hardware acceleration to local Apple Silicon environments. This implementation bridges Grid's deeply templated C++ memory managers directly to Metal Shading Language (`.metal`) device kernels using Objective-C++ (`.mm`), completely bypassing third-party wrappers. 
+
+Key architectural highlights include:
+- **Unified Memory Management**: Leveraging `MTLResourceStorageModeShared` alongside Grand Central Dispatch (GCD) fallbacks to allow zero-copy memory operations between the CPU and GPU.
+- **Precompiled Shader Pipelines**: Using native Xcode SDK tools during the GNU Autotools build phase to statically compile `.metallib` archives, which are loaded efficiently at runtime.
+- **Exact Memory Alignment**: Utilizing rigorous `static_assert` logic to explicitly tie the byte alignments of C++ arrays (e.g. `SiteSpinor` and `SU3Matrix`) to device MSL arrays, and algorithmically scaling threadgroups to maximize the active SIMD lane occupancy of the M-series processors.
 
 ## Quickstart
 
