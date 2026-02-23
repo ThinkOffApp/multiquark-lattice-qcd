@@ -22,7 +22,12 @@ if BUILD_HDF5
 endif
 
 
-all: version-cache Version.h
+all: version-cache Version.h WilsonKernels.metallib
+
+WilsonKernels.metallib: $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal
+	@echo "Compiling Metal shaders..."
+	xcrun -sdk macosx metal -c $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal -o WilsonKernels.air
+	xcrun -sdk macosx metallib WilsonKernels.air -o default.metallib
 
 version-cache:
 	@if [ `git status --porcelain | grep -v '??' | wc -l` -gt 0 ]; then\

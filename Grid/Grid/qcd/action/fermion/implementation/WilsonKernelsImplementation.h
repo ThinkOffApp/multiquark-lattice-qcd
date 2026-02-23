@@ -455,20 +455,23 @@ extern "C" {
 #ifdef GRID_METAL
 
 inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
+    // Metal Structs assume single precision matching Grid's `ComplexF`.
+    // SU(3) Matrix     : 9 complex numbers  => 18 floats 
+    // SiteHalfSpinor   : 6 complex numbers  => 12 floats
+    // SiteSpinor       : 12 complex numbers => 24 floats
+    using TargetPrecision = float;
+    const int Nsimd = SiteSpinor::Nsimd();
+    static_assert(sizeof(SiteHalfSpinor) == 12 * sizeof(TargetPrecision) * Nsimd, "Grid SiteHalfSpinor memory packing does not match Metal SiteHalfSpinor assumption!");
+    static_assert(sizeof(SiteSpinor) == 24 * sizeof(TargetPrecision) * Nsimd, "Grid SiteSpinor memory packing does not match Metal SiteSpinor assumption!");
+    static_assert(sizeof(SU3Matrix) == 18 * sizeof(TargetPrecision) * Nsimd, "Grid SU3Matrix memory packing does not match Metal SU3Matrix assumption!");
+
     static id<MTLComputePipelineState> pipeline = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSError *error = nil;
-        NSString *headerPath = [NSString stringWithUTF8String:__FILE__];
-        NSString *metalPath = [[headerPath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"../WilsonKernels.metal"];
-        NSString *source = [NSString stringWithContentsOfFile:metalPath encoding:NSUTF8StringEncoding error:&error];
-        if (!source) {
-            NSLog(@"Failed to load Metal source: %@", error);
-            exit(1);
-        }
-        id<MTLLibrary> library = [theGridAcceleratorDevice newLibraryWithSource:source options:nil error:&error];
+        id<MTLLibrary> library = [theGridAcceleratorDevice newDefaultLibrary];
         if (!library) {
-            NSLog(@"Failed to compile Metal library: %@", error);
+            NSLog(@"Failed to load default.metallib library bundle");
             exit(1);
         }
         id<MTLFunction> function = [library newFunctionWithName:@"GenericDhopSite"];
@@ -507,7 +510,9 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
       [encoder setBytes:&cNsite length:sizeof(uint32_t) atIndex:5]; \
       \
       MTLSize gridSize = MTLSizeMake(Nsite*Ls, 1, 1); \
-      NSUInteger threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
+      // M-series optimal threadgroup occupancy for mathematical operators is roughly 256. \
+      NSUInteger threadGroupSize = 256; \
+      if (threadGroupSize > pipeline.maxTotalThreadsPerThreadgroup) threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
       if (threadGroupSize > Nsite*Ls) threadGroupSize = Nsite*Ls; \
       MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
       [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize]; \
