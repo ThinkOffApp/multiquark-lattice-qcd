@@ -296,9 +296,9 @@ case ${ac_LOG_VIEWS} in
     *);;
 esac
 
-############### SYCL/CUDA/HIP/none
+############### SYCL/CUDA/HIP/Metal/none
 AC_ARG_ENABLE([accelerator],
-    [AS_HELP_STRING([--enable-accelerator=cuda|sycl|hip|none],[enable none,cuda,sycl,hip acceleration])],
+    [AS_HELP_STRING([--enable-accelerator=cuda|sycl|hip|metal|none],[enable none,cuda,sycl,hip,metal acceleration])],
     [ac_ACCELERATOR=${enable_accelerator}], [ac_ACCELERATOR=none])
 case ${ac_ACCELERATOR} in
     cuda)
@@ -311,6 +311,13 @@ case ${ac_ACCELERATOR} in
     hip)
       echo HIP acceleration
       AC_DEFINE([GRID_HIP],[1],[Use HIP offload]);;
+    metal)
+      echo Metal acceleration
+      AC_DEFINE([GRID_METAL],[1],[Use Apple Metal offload])
+      CXXFLAGS="$CXXFLAGS -x objective-c++ -fobjc-arc"
+      LDFLAGS="$LDFLAGS -x none"
+      LIBS="${LIBS} -framework Metal -framework Foundation"
+      ;;
     none)
       echo NO acceleration    ;;
     no)

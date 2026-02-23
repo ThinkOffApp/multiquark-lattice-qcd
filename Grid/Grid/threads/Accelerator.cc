@@ -283,7 +283,38 @@ void acceleratorInit(void)
 }
 #endif
 
-#if (!defined(GRID_CUDA)) && (!defined(GRID_SYCL))&& (!defined(GRID_HIP))
+#ifdef GRID_METAL
+NAMESPACE_END(Grid);
+#include <map>
+#include <Metal/Metal.h>
+#include <Foundation/Foundation.h>
+NAMESPACE_BEGIN(Grid);
+
+std::map<void*, void*> acceleratorMetalBufferMap;
+id<MTLDevice> theGridAcceleratorDevice = nil;
+id<MTLCommandQueue> theGridAcceleratorCommandQueue = nil;
+
+void acceleratorInit(void)
+{
+  theGridAcceleratorDevice = MTLCreateSystemDefaultDevice();
+  if (!theGridAcceleratorDevice) {
+    if (world_rank == 0) printf("AcceleratorMetalInit: Failed to get Metal device. Are you on Apple Silicon?\n");
+    exit(1);
+  }
+  theGridAcceleratorCommandQueue = [theGridAcceleratorDevice newCommandQueue];
+
+  if (world_rank == 0) {
+    auto nameObj = [theGridAcceleratorDevice name];
+    const char* nameStr = nameObj ? [nameObj UTF8String] : "Unknown";
+    printf("AcceleratorMetalInit: ================================================\n");
+    printf("AcceleratorMetalInit: Selected device is %s\n", nameStr);
+    printf("AcceleratorMetalInit: Unified Memory is %s\n", [theGridAcceleratorDevice hasUnifiedMemory] ? "Active" : "Inactive");
+    printf("AcceleratorMetalInit: ================================================\n");
+  }
+}
+#endif
+
+#if (!defined(GRID_CUDA)) && (!defined(GRID_SYCL))&& (!defined(GRID_HIP)) && (!defined(GRID_METAL))
 void acceleratorInit(void){}
 #endif
 

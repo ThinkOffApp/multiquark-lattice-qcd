@@ -569,9 +569,83 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 }
 
 //////////////////////////////////////////////
+// Apple Metal acceleration
+//////////////////////////////////////////////
+#ifdef GRID_METAL
+NAMESPACE_END(Grid);
+#include <map>
+#include <Metal/Metal.h>
+#include <Foundation/Foundation.h>
+#include <dispatch/dispatch.h>
+NAMESPACE_BEGIN(Grid);
+
+#define accelerator
+#define accelerator_inline strong_inline
+
+extern id<MTLDevice> theGridAcceleratorDevice;
+extern id<MTLCommandQueue> theGridAcceleratorCommandQueue;
+extern std::map<void*, void*> acceleratorMetalBufferMap;
+
+inline void acceleratorMem(void) {
+  std::cout << "Metal MemoryManager info not currently implemented" << std::endl;
+}
+
+accelerator_inline int acceleratorSIMTlane(int Nsimd) { return 0; }
+
+#define accelerator_for2dNB( iter1, num1, iter2, num2, nsimd, ... ) \
+  { \
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0); \
+    dispatch_apply(num1*num2, queue, ^(size_t _grid_metal_idx_) { \
+      uint64_t iter1 = _grid_metal_idx_ / num2; \
+      uint64_t iter2 = _grid_metal_idx_ % num2; \
+      { __VA_ARGS__; } \
+    }); \
+  }
+
+#define accelerator_barrier(dummy)
+
+typedef int acceleratorEvent_t;
+
+inline void *acceleratorAllocShared(size_t bytes) {
+  if (bytes == 0) return NULL;
+  id<MTLBuffer> buffer = [theGridAcceleratorDevice newBufferWithLength:bytes options:MTLResourceStorageModeShared];
+  void *ptr = [buffer contents];
+  acceleratorMetalBufferMap[ptr] = (void *)CFBridgingRetain(buffer);
+  return ptr;
+}
+inline void *acceleratorAllocHost(size_t bytes) { return acceleratorAllocShared(bytes); }
+inline void *acceleratorAllocDevice(size_t bytes) { return acceleratorAllocShared(bytes); }
+
+inline void acceleratorFreeShared(void *ptr) {
+  if (ptr == NULL) return;
+  auto it = acceleratorMetalBufferMap.find(ptr);
+  if (it != acceleratorMetalBufferMap.end()) {
+    id<MTLBuffer> buffer = (id<MTLBuffer>)CFBridgingRelease(it->second);
+    buffer = nil; // ARC releases it
+    acceleratorMetalBufferMap.erase(it);
+  }
+}
+inline void acceleratorFreeHost(void *ptr) { acceleratorFreeShared(ptr); }
+inline void acceleratorFreeDevice(void *ptr) { acceleratorFreeShared(ptr); }
+
+inline void acceleratorCopyToDevice(const void *from, void *to, size_t bytes) { memcpy(to, from, bytes); }
+inline void acceleratorCopyFromDevice(const void *from, void *to, size_t bytes) { memcpy(to, from, bytes); }
+inline void acceleratorMemSet(void *base, int value, size_t bytes) { memset(base, value, bytes); }
+
+inline acceleratorEvent_t acceleratorCopyDeviceToDeviceAsynch(void *from, void *to, size_t bytes) { memcpy(to, from, bytes); return 0; }
+inline acceleratorEvent_t acceleratorCopyToDeviceAsynch(void *from, void *to, size_t bytes) { memcpy(to, from, bytes); return 0; }
+inline acceleratorEvent_t acceleratorCopyFromDeviceAsynch(void *from, void *to, size_t bytes) { memcpy(to, from, bytes); return 0; }
+inline void acceleratorCopySynchronise(void) {}
+inline void acceleratorEventWait(acceleratorEvent_t ev) {}
+inline int acceleratorEventIsComplete(acceleratorEvent_t ev) { return 1; }
+inline int acceleratorIsCommunicable(void *ptr) { return 1; }
+
+#endif
+
+//////////////////////////////////////////////
 // Common on all GPU targets
 //////////////////////////////////////////////
-#if defined(GRID_SYCL) || defined(GRID_CUDA) || defined(GRID_HIP)
+#if defined(GRID_SYCL) || defined(GRID_CUDA) || defined(GRID_HIP) || defined(GRID_METAL)
 // FIXME -- the non-blocking nature got broken March 30 2023 by PAB
 #define accelerator_forNB( iter1, num1, nsimd, ... ) accelerator_for2dNB( iter1, num1, iter2, 1, nsimd, {__VA_ARGS__} );  
 
@@ -591,7 +665,7 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 // CPU Target - No accelerator just thread instead
 //////////////////////////////////////////////
 
-#if ( (!defined(GRID_SYCL)) && (!defined(GRID_CUDA)) && (!defined(GRID_HIP)) )
+#if ( (!defined(GRID_SYCL)) && (!defined(GRID_CUDA)) && (!defined(GRID_HIP)) && (!defined(GRID_METAL)) )
 
 #undef GRID_SIMT
 
