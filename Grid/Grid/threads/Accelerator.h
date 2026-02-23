@@ -573,7 +573,7 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 //////////////////////////////////////////////
 #ifdef GRID_METAL
 NAMESPACE_END(Grid);
-#include <map>
+#include <unordered_map>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
@@ -584,7 +584,8 @@ NAMESPACE_BEGIN(Grid);
 
 extern id<MTLDevice> theGridAcceleratorDevice;
 extern id<MTLCommandQueue> theGridAcceleratorCommandQueue;
-extern std::map<void*, void*> acceleratorMetalBufferMap;
+extern id<MTLCommandBuffer> theGridAcceleratorCommandBuffer;
+extern std::unordered_map<void*, void*> acceleratorMetalBufferMap;
 
 inline void acceleratorMem(void) {
   std::cout << "Metal MemoryManager info not currently implemented" << std::endl;
@@ -602,7 +603,14 @@ accelerator_inline int acceleratorSIMTlane(int Nsimd) { return 0; }
     }); \
   }
 
-#define accelerator_barrier(dummy)
+inline void acceleratorMetalBarrier(void) {
+  if (theGridAcceleratorCommandBuffer != nil) {
+    [theGridAcceleratorCommandBuffer commit];
+    [theGridAcceleratorCommandBuffer waitUntilCompleted];
+    theGridAcceleratorCommandBuffer = nil;
+  }
+}
+#define accelerator_barrier(dummy) acceleratorMetalBarrier()
 
 typedef int acceleratorEvent_t;
 

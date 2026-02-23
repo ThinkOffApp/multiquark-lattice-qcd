@@ -452,6 +452,77 @@ extern "C" {
     });									\
   accelerator_barrier();
 
+#ifdef GRID_METAL
+
+inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
+    static id<MTLComputePipelineState> pipeline = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSError *error = nil;
+        NSString *headerPath = [NSString stringWithUTF8String:__FILE__];
+        NSString *metalPath = [[headerPath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"../WilsonKernels.metal"];
+        NSString *source = [NSString stringWithContentsOfFile:metalPath encoding:NSUTF8StringEncoding error:&error];
+        if (!source) {
+            NSLog(@"Failed to load Metal source: %@", error);
+            exit(1);
+        }
+        id<MTLLibrary> library = [theGridAcceleratorDevice newLibraryWithSource:source options:nil error:&error];
+        if (!library) {
+            NSLog(@"Failed to compile Metal library: %@", error);
+            exit(1);
+        }
+        id<MTLFunction> function = [library newFunctionWithName:@"GenericDhopSite"];
+        pipeline = [theGridAcceleratorDevice newComputePipelineStateWithFunction:function error:&error];
+        if (!pipeline) {
+            NSLog(@"Failed to create pipeline state: %@", error);
+            exit(1);
+        }
+    });
+    return pipeline;
+}
+
+#define KERNEL_CALLNB(A) \
+  if (std::string(#A) == "GenericDhopSite") { \
+      id<MTLComputePipelineState> pipeline = getGenericDhopSitePipeline(); \
+      if (theGridAcceleratorCommandBuffer == nil) { \
+          theGridAcceleratorCommandBuffer = [theGridAcceleratorCommandQueue commandBuffer]; \
+      } \
+      id<MTLComputeCommandEncoder> encoder = [theGridAcceleratorCommandBuffer computeCommandEncoder]; \
+      [encoder setComputePipelineState:pipeline]; \
+      \
+      id<MTLBuffer> mtl_in  = (id<MTLBuffer>)acceleratorMetalBufferMap[in_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_out = (id<MTLBuffer>)acceleratorMetalBufferMap[out_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_U   = (id<MTLBuffer>)acceleratorMetalBufferMap[U_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_st  = (id<MTLBuffer>)acceleratorMetalBufferMap[st_v._entries_p]; \
+      id<MTLBuffer> mtl_buf = (id<MTLBuffer>)acceleratorMetalBufferMap[buf]; \
+      \
+      [encoder setBuffer:mtl_in offset:0 atIndex:0]; \
+      [encoder setBuffer:mtl_out offset:0 atIndex:1]; \
+      [encoder setBuffer:mtl_U offset:0 atIndex:2]; \
+      [encoder setBuffer:mtl_st offset:0 atIndex:3]; \
+      [encoder setBuffer:mtl_buf offset:0 atIndex:6]; \
+      \
+      uint32_t cLs = Ls; uint32_t cNsite = Nsite; \
+      [encoder setBytes:&cLs length:sizeof(uint32_t) atIndex:4]; \
+      [encoder setBytes:&cNsite length:sizeof(uint32_t) atIndex:5]; \
+      \
+      MTLSize gridSize = MTLSizeMake(Nsite*Ls, 1, 1); \
+      NSUInteger threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
+      if (threadGroupSize > Nsite*Ls) threadGroupSize = Nsite*Ls; \
+      MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
+      [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize]; \
+      [encoder endEncoding]; \
+  } else { \
+      const uint64_t    NN = Nsite*Ls; \
+      accelerator_forNB( ss, NN, Simd::Nsimd(), { \
+          int sF = ss; \
+          int sU = ss/Ls; \
+          WilsonKernels<Impl>::A(st_v,U_v,buf,sF,sU,in_v,out_v); \
+      }); \
+  }
+
+#else
+
 #define KERNEL_CALLNB(A)						\
   const uint64_t    NN = Nsite*Ls;					\
   accelerator_forNB( ss, NN, Simd::Nsimd(), {				\
@@ -459,6 +530,9 @@ extern "C" {
       int sU = ss/Ls;							\
       WilsonKernels<Impl>::A(st_v,U_v,buf,sF,sU,in_v,out_v);		\
     });
+
+#endif
+
 
 #define KERNEL_CALL(A) KERNEL_CALLNB(A); accelerator_barrier();
 
