@@ -4,6 +4,22 @@ import sys
 import numpy as np
 import os
 import shutil
+import hashlib
+
+def hash_file(filepath):
+    h = hashlib.sha256()
+    if os.path.isdir(filepath):
+        for root, dirs, files in os.walk(filepath):
+            for file in sorted(files):
+                full_path = os.path.join(root, file)
+                with open(full_path, 'rb') as f:
+                    while chunk := f.read(8192):
+                        h.update(chunk)
+    else:
+        with open(filepath, 'rb') as f:
+            while chunk := f.read(8192):
+                h.update(chunk)
+    return h.hexdigest()
 
 LATTICE = "8,8,8,8"
 BETA = "2.4"
@@ -77,20 +93,28 @@ def run_measure_only(backend, config_file):
         sys.exit(1)
         
     measurements = []
+    meta = {}
     with open(f"results/su2_signal_scan/live_{SEED}.jsonl", "r") as f:
         for line in f:
             measurements.append(json.loads(line))
             
+    progress_file = f"results/su2_signal_scan/live_{SEED}.json"
+    if os.path.exists(progress_file):
+        with open(progress_file, "r") as f:
+            meta = json.load(f).get("meta", {})
+
     ensure_clean()
-    return measurements
+    return measurements, meta
 
 print("==================================================")
 print(" Deterministic IEEE-754 Metal Parity Validator    ")
 print("==================================================")
 
 base_cfg = run_generate()
-cpu_data = run_measure_only("cpu", base_cfg)
-gpu_data = run_measure_only("metal", base_cfg)
+cfg_hash = hash_file(base_cfg)
+
+cpu_data, cpu_meta = run_measure_only("cpu", base_cfg)
+gpu_data, gpu_meta = run_measure_only("metal", base_cfg)
 
 if not cpu_data or not gpu_data:
     print("FATAL: Failed to parse measurement output from evaluation hooks.")
@@ -98,6 +122,13 @@ if not cpu_data or not gpu_data:
 
 cpu_final = cpu_data[-1]
 gpu_final = gpu_data[-1]
+
+print("\n--- Runtime Environment ---")
+print(f"Shared Gauge Config: {base_cfg}")
+print(f"Config SHA-256 Hash: {cfg_hash}")
+print(f"Backend Reported [CPU]: {cpu_meta.get('compute_backend')}  |  [GPU]: {gpu_meta.get('compute_backend')}")
+print(f"Acceleration     [CPU]: {cpu_meta.get('grid_acceleration')}  |  [GPU]: {gpu_meta.get('grid_acceleration')}")
+print(f"Total Accel Mem  [CPU]: {cpu_meta.get('accelerator_total_bytes')}  |  [GPU]: {gpu_meta.get('accelerator_total_bytes')}")
 
 print("\n--- Final Observables Parity Vector ---")
 print(f"Plaquette      [CPU]: {cpu_final['plaquette']}  |  [GPU]: {gpu_final['plaquette']}")
