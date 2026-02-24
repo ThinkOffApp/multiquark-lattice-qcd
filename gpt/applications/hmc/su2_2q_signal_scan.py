@@ -917,6 +917,8 @@ def main():
     precision = g.default.get("--precision", "double")
     prec = g.single if precision == "single" else g.double
 
+    measure_only_file = (g.default.get("--measure-only", "") or "").strip()
+
     out_dir = g.default.get("--out", "results/su2_signal_scan")
     cli_out_dir = cli_arg_value("--out")
     if cli_out_dir:
@@ -1338,6 +1340,19 @@ def main():
 
         else:
             g.message("Checkpoint found but seed mismatch; starting fresh.")
+
+    if measure_only_file:
+        g.message(f"Measure-only mode: loading {measure_only_file}")
+        loaded = g.load(measure_only_file)
+        for mu in range(min(len(U), len(loaded))):
+            g.copy(U[mu], loaded[mu])
+        ntherm = 0
+        nmeas = 1
+        nskip = 0
+        therm_start = 0
+        meas_start = 0
+        checkpoint_every = 0
+        save_cfg_every = 0
 
     write_live()
 
