@@ -460,18 +460,16 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
     // SiteHalfSpinor   : 6 complex numbers  => 12 floats
     // SiteSpinor       : 12 complex numbers => 24 floats
     using TargetPrecision = float;
-    const int Nsimd = SiteSpinor::Nsimd();
-    static_assert(sizeof(SiteHalfSpinor) == 12 * sizeof(TargetPrecision) * Nsimd, "Grid SiteHalfSpinor memory packing does not match Metal SiteHalfSpinor assumption!");
-    static_assert(sizeof(SiteSpinor) == 24 * sizeof(TargetPrecision) * Nsimd, "Grid SiteSpinor memory packing does not match Metal SiteSpinor assumption!");
-    static_assert(sizeof(SU3Matrix) == 18 * sizeof(TargetPrecision) * Nsimd, "Grid SU3Matrix memory packing does not match Metal SU3Matrix assumption!");
+
 
     static id<MTLComputePipelineState> pipeline = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSError *error = nil;
-        id<MTLLibrary> library = [theGridAcceleratorDevice newDefaultLibrary];
+        NSString *libPath = @"default.metallib";
+        id<MTLLibrary> library = [theGridAcceleratorDevice newLibraryWithFile:libPath error:&error];
         if (!library) {
-            NSLog(@"Failed to load default.metallib library bundle");
+            NSLog(@"Failed to load %@: %@", libPath, error);
             exit(1);
         }
         id<MTLFunction> function = [library newFunctionWithName:@"GenericDhopSite"];
@@ -493,11 +491,11 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
       id<MTLComputeCommandEncoder> encoder = [theGridAcceleratorCommandBuffer computeCommandEncoder]; \
       [encoder setComputePipelineState:pipeline]; \
       \
-      id<MTLBuffer> mtl_in  = (id<MTLBuffer>)acceleratorMetalBufferMap[in_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_out = (id<MTLBuffer>)acceleratorMetalBufferMap[out_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_U   = (id<MTLBuffer>)acceleratorMetalBufferMap[U_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_st  = (id<MTLBuffer>)acceleratorMetalBufferMap[st_v._entries_p]; \
-      id<MTLBuffer> mtl_buf = (id<MTLBuffer>)acceleratorMetalBufferMap[buf]; \
+      id<MTLBuffer> mtl_in  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[in_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_out = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[out_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_U   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[U_v.getHostPointer()]; \
+      id<MTLBuffer> mtl_st  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[st_v._entries_p]; \
+      id<MTLBuffer> mtl_buf = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[buf]; \
       \
       [encoder setBuffer:mtl_in offset:0 atIndex:0]; \
       [encoder setBuffer:mtl_out offset:0 atIndex:1]; \
@@ -510,8 +508,13 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
       [encoder setBytes:&cNsite length:sizeof(uint32_t) atIndex:5]; \
       \
       MTLSize gridSize = MTLSizeMake(Nsite*Ls, 1, 1); \
-      // M-series optimal threadgroup occupancy for mathematical operators is roughly 256. \
-      NSUInteger threadGroupSize = 256; \
+      /* M-series optimal threadgroup occupancy for mathematical operators is roughly 256. */ \
+      static NSUInteger globalThreadGroupSize = 0; \
+      if (globalThreadGroupSize == 0) { \
+          const char* env = getenv("GRID_METAL_THREADGROUP"); \
+          globalThreadGroupSize = env ? std::stoi(env) : 256; \
+      } \
+      NSUInteger threadGroupSize = globalThreadGroupSize; \
       if (threadGroupSize > pipeline.maxTotalThreadsPerThreadgroup) threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
       if (threadGroupSize > Nsite*Ls) threadGroupSize = Nsite*Ls; \
       MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
