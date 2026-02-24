@@ -87,13 +87,13 @@ int main (int argc, char ** argv)
   pRNG.SeedFixedIntegers(seeds);
   //  pRNG.SeedFixedIntegers(std::vector<int>({45,12,81,9});
 
-  LatticeFermion src   (&Grid); random(pRNG,src);
-  LatticeFermion result(&Grid); result=Zero();
-  LatticeFermion    ref(&Grid);    ref=Zero();
-  LatticeFermion    tmp(&Grid);    tmp=Zero();
-  LatticeFermion    err(&Grid);    tmp=Zero();
-  LatticeGaugeField Umu(&Grid); random(pRNG,Umu);
-  std::vector<LatticeColourMatrix> U(4,&Grid);
+  LatticeFermionF src   (&Grid); random(pRNG,src);
+  LatticeFermionF result(&Grid); result=Zero();
+  LatticeFermionF    ref(&Grid);    ref=Zero();
+  LatticeFermionF    tmp(&Grid);    tmp=Zero();
+  LatticeFermionF    err(&Grid);    tmp=Zero();
+  LatticeGaugeFieldF Umu(&Grid); random(pRNG,Umu);
+  std::vector<LatticeColourMatrixF> U(4,&Grid);
 
   double volume=1;
   for(int mu=0;mu<Nd;mu++){
@@ -146,9 +146,14 @@ int main (int argc, char ** argv)
   ref = -0.5*ref;
   RealD mass=0.1;
 
-  typename WilsonFermionD::ImplParams params;
+  std::cout << GridLogMessage << "SIZEOF::StencilEntry = " << sizeof(StencilEntry) << std::endl;
+  std::cout << GridLogMessage << "SIZEOF::SiteSpinorF = " << sizeof(typename WilsonFermionF::SiteSpinor) << std::endl;
+  std::cout << GridLogMessage << "SIZEOF::SiteHalfSpinorF = " << sizeof(typename WilsonFermionF::SiteHalfSpinor) << std::endl;
+  std::cout << GridLogMessage << "SIZEOF::SU3MatrixF = " << sizeof(typename WilsonFermionF::SiteDoubledGaugeField) << std::endl;
 
-  WilsonFermionD Dw(Umu,Grid,RBGrid,mass,params);
+  typename WilsonFermionF::ImplParams params;
+
+  WilsonFermionF Dw(Umu,Grid,RBGrid,mass,params);
 
   std::cout<<GridLogMessage << "Calling Dw"<<std::endl;
   int ncall=1000;

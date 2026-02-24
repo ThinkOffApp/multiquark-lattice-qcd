@@ -2,10 +2,12 @@
 using namespace metal;
 
 struct StencilEntry {
-    uint offset;
-    uint is_local;
-    uint permute;
-    uint around_the_world; // Grid adds a fourth 32-bit int padding
+    uint64_t byte_offset;
+    uint64_t offset;
+    uchar is_local;
+    uchar permute;
+    uchar around_the_world;
+    uchar pad;
 };
 
 // Target OS is macOS (M-series), Grid utilizes NEON SIMD (Nsimd=2 for float complex).
@@ -209,68 +211,109 @@ kernel void GenericDhopSite(
     SiteSpinor result;
     for(int i=0; i<12; i++) result.data[i] = float4(0.0f);
     
-    // 8-Way Stencil Execution (Xp, Yp, Zp, Tp, Xm, Ym, Zm, Tm)
-    // Dir = 0 (Xp)
+    // 8-Way Stencil Execution for FORWARD operator (GenericDhopSite)
+    // Dir = 4 (Xm), Projector = spProjXp, Recon = spReconXp
     {
-        StencilEntry SE = stencil[0 * Nsite + sU];
-        SiteHalfSpinor hs = spProjXp(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 0]; // +0 for Xp (Grid layout: U[Xp, Yp, Zp, Tp, Xm, Ym, Zm, Tm])
+        StencilEntry SE = stencil[4 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjXp(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 4]; 
         SiteHalfSpinor chi = multLink(U, hs);
         spReconXp(result, chi);
     }
-    // Dir = 1 (Yp)
+    // Dir = 5 (Ym), Projector = spProjYp, Recon = accumReconYp
     {
-        StencilEntry SE = stencil[1 * Nsite + sU];
-        SiteHalfSpinor hs = spProjYp(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 1];
+        StencilEntry SE = stencil[5 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjYp(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 5];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconYp(result, chi);
     }
-    // Dir = 2 (Zp)
+    // Dir = 6 (Zm), Projector = spProjZp, Recon = accumReconZp
     {
-        StencilEntry SE = stencil[2 * Nsite + sU];
-        SiteHalfSpinor hs = spProjZp(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 2];
+        StencilEntry SE = stencil[6 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjZp(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 6];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconZp(result, chi);
     }
-    // Dir = 3 (Tp)
+    // Dir = 7 (Tm), Projector = spProjTp, Recon = accumReconTp
     {
-        StencilEntry SE = stencil[3 * Nsite + sU];
-        SiteHalfSpinor hs = spProjTp(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 3];
+        StencilEntry SE = stencil[7 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjTp(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 7];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconTp(result, chi);
     }
-    // Dir = 4 (Xm)
+
+    // Dir = 0 (Xp), Projector = spProjXm, Recon = accumReconXm
     {
-        StencilEntry SE = stencil[4 * Nsite + sU];
-        SiteHalfSpinor hs = spProjXm(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 4];
+        StencilEntry SE = stencil[0 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjXm(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 0];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconXm(result, chi);
     }
-    // Dir = 5 (Ym)
+    // Dir = 1 (Yp), Projector = spProjYm, Recon = accumReconYm
     {
-        StencilEntry SE = stencil[5 * Nsite + sU];
-        SiteHalfSpinor hs = spProjYm(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 5];
+        StencilEntry SE = stencil[1 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjYm(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 1];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconYm(result, chi);
     }
-    // Dir = 6 (Zm)
+    // Dir = 2 (Zp), Projector = spProjZm, Recon = accumReconZm
     {
-        StencilEntry SE = stencil[6 * Nsite + sU];
-        SiteHalfSpinor hs = spProjZm(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 6];
+        StencilEntry SE = stencil[2 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjZm(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 2];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconZm(result, chi);
     }
-    // Dir = 7 (Tm)
+    // Dir = 3 (Tp), Projector = spProjTm, Recon = accumReconTm
     {
-        StencilEntry SE = stencil[7 * Nsite + sU];
-        SiteHalfSpinor hs = spProjTm(in_spinor[SE.offset], SE.permute);
-        SU3Matrix U = gauge_field[sU * 8 + 7];
+        StencilEntry SE = stencil[3 + 8 * sU];
+        SiteHalfSpinor hs;
+        if (SE.is_local) {
+            hs = spProjTm(in_spinor[SE.offset], SE.permute);
+        } else {
+            hs = buf[SE.offset];
+        }
+        SU3Matrix U = gauge_field[sU * 8 + 3];
         SiteHalfSpinor chi = multLink(U, hs);
         accumReconTm(result, chi);
     }
