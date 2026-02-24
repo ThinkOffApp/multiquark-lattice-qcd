@@ -72,7 +72,7 @@ An interactive 3D viewer shows the exact lattice points measured in each quark g
 
 **[Launch Geometry Viewer](https://thinkoffapp.github.io/multiquark-lattice-qcd/tools/geometry_viewer.html)**
 
-Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations — pixel-perfect on the integer lattice with no interpolation. The viewer also serves as a framework for visualising the interquark chromofield flux structure once sufficient signal emerges from production measurements.
+Three scenes are available: 2-quark flux tube (1/16 reduction via y-mirror, z-mirror, y↔z swap, midpoint mirror), 4-quark square with D₄h symmetry (1/16), and 4-quark tetrahedron with T_d symmetry (1/24 via S₃ × Klein-4). All symmetry operations are exact coordinate swaps, sign flips, and cyclic permutations - pixel-perfect on the integer lattice with no interpolation. The viewer also serves as a framework for visualising the interquark chromofield flux structure once sufficient signal emerges from production measurements.
 
 ## Selected Earlier SU(2) Papers
 
@@ -106,7 +106,7 @@ The current implementation is directly anchored to earlier SU(2) and SU(3) flux-
 ## Understanding Multiquark Flux Arrangement for Nuclear Fusion Dynamics
 
 The programme's long-range target is to resolve the chromofield flux-tube
-structure of the six-quark system — the quark-level picture of two nucleons at
+structure of the six-quark system - the quark-level picture of two nucleons at
 sub-femtometre separation. This connects directly to nuclear fusion through
 three mechanisms that are inaccessible to meson-exchange or effective-field-theory
 descriptions alone:
@@ -114,7 +114,7 @@ descriptions alone:
 **Short-range nucleon–nucleon interaction.**
 At separations below ~0.5 fm the nucleon quark wave functions overlap and the
 system must be treated as a six-quark state. The repulsive core of the nuclear
-force — the barrier that fusion must overcome — originates from quark Pauli
+force originates from quark Pauli
 blocking and the colour-magnetic interaction in this overlap region. Lattice
 flux-tube measurements can spatially resolve the energy distribution that
 produces the core, providing a first-principles complement to phenomenological
@@ -124,8 +124,8 @@ potentials (Argonne v18, Reid93).
 The key observable is the binding action density
 Δρ(**r**) = ρ_{6q}(**r**) − ρ_{3q+3q}(**r**),
 which isolates the gluon-field energy that exists *only* when two nucleons are
-close enough to interact. This quantity — already demonstrated for four-quark
-systems [(Pennanen et al., 1998)](https://arxiv.org/abs/hep-lat/9804004) —
+close enough to interact. This quantity - already demonstrated for four-quark
+systems [(Pennanen et al., 1998)](https://arxiv.org/abs/hep-lat/9804004) -
 encodes the energy cost of flux-tube reorganisation during fusion and feeds
 directly into the effective short-range potential that sets tunnelling
 probabilities.
@@ -135,8 +135,8 @@ probabilities.
 that quark-level baryon fusion can be strongly exothermic: merging two
 bottom-quark baryons releases ~138 MeV via quark rearrangement. That
 calculation used mass relations; the present programme aims to supply the
-*microscopic mechanism* — the spatial reorganisation of colour flux tubes that
-accounts for the energy release — from lattice QCD.
+*microscopic mechanism* - the spatial reorganisation of colour flux tubes that
+accounts for the energy release - from lattice QCD.
 
 ### Roadmap
 
@@ -154,10 +154,10 @@ binding energies but do not resolve flux-tube geometry.
 
 ### Key references
 
-- P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)* — [Phys. Rev. D **59**, 014504 (1999)](https://doi.org/10.1103/PhysRevD.59.014504)
-- A. M. Green, P. Pennanen, *Interquark potential model for multiquark systems* — [Phys. Rev. C **57**, 3384 (1998)](https://doi.org/10.1103/PhysRevC.57.3384)
-- M. Karliner, J. L. Rosner, *Quark-level analogue of nuclear fusion with doubly-heavy baryons* — [Nature 551, 89 (2017)](https://www.nature.com/articles/nature24289)
-- N. Ishii, S. Aoki, T. Hatsuda, *Nuclear force from lattice QCD* — [Phys. Rev. Lett. **99**, 022001 (2007)](https://doi.org/10.1103/PhysRevLett.99.022001)
+- P. Pennanen, A. M. Green, C. Michael, *Four-quark flux distribution and binding in lattice SU(2)* - [Phys. Rev. D **59**, 014504 (1999)](https://doi.org/10.1103/PhysRevD.59.014504)
+- A. M. Green, P. Pennanen, *Interquark potential model for multiquark systems* - [Phys. Rev. C **57**, 3384 (1998)](https://doi.org/10.1103/PhysRevC.57.3384)
+- M. Karliner, J. L. Rosner, *Quark-level analogue of nuclear fusion with doubly-heavy baryons* - [Nature 551, 89 (2017)](https://www.nature.com/articles/nature24289)
+- N. Ishii, S. Aoki, T. Hatsuda, *Nuclear force from lattice QCD* - [Phys. Rev. Lett. **99**, 022001 (2007)](https://doi.org/10.1103/PhysRevLett.99.022001)
 
 ## Repository Guide
 
