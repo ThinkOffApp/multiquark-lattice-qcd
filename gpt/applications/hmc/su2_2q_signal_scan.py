@@ -17,7 +17,7 @@ import os
 import signal
 import sys
 import time
-from datetime import UTC, datetime
+from datetime import timezone, datetime
 from pathlib import Path
 
 import gpt as g
@@ -330,7 +330,7 @@ def make_progress_payload(
             meas_sub_progress = meas_sub_done / meas_sub_total
 
     payload = {
-        "timestamp_utc": datetime.now(UTC).isoformat(),
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "seed": seed,
         "out_dir": out_dir,
         "phase": phase,
@@ -699,6 +699,12 @@ def mean_measurement_items(items):
                 "phase": float(math.atan2(im, re)),
             }
 
+    if "profiling" in items[0]:
+        out["profiling"] = {
+            "loop_time": mean([max(0.0, x.get("profiling", {}).get("loop_time", 0.0)) for x in items]),
+            "flux_time": mean([max(0.0, x.get("profiling", {}).get("flux_time", 0.0)) for x in items]),
+        }
+
     return out
 
 
@@ -903,6 +909,7 @@ def main():
     progress_substep_min_interval = max(0.05, g.default.get_float("--progress-substep-min-interval-sec", 0.2))
     resume = g.default.get_int("--resume", 1) != 0
     resume_force = g.default.get_int("--resume-force", 0) != 0
+    skip_flux = g.default.get_int("--skip_flux", 0) != 0
     max_lag = max(10, g.default.get_int("--autocorr-max-lag", 200))
     pipeline_label = (g.default.get("--pipeline-label", "auto") or "auto").strip().lower()
     require_accelerator = g.default.get_int("--require-accelerator", 0) != 0
@@ -1144,7 +1151,9 @@ def main():
         else:
             plaq = float(g.qcd.gauge.plaquette(U_field))
 
-        polyakov_loops = measure_polyakov_loops(U_field, all_mu_dirs, L, sampler=sampler)
+        polyakov_loops = {}
+        if not skip_flux:
+            polyakov_loops = measure_polyakov_loops(U_field, all_mu_dirs, L, sampler=sampler)
         if progress_cb is not None:
             for mu in all_mu_dirs:
                 progress_cb(
@@ -1159,6 +1168,9 @@ def main():
         loops_acc = {}  # Key: "R{r}_T{t}", Value: list of (re, im) tuples
         flux_profiles_acc = []  # List of [val_at_r0, val_at_r1, ...]
 
+        loop_time_total = 0.0
+        flux_time_total = 0.0
+
         # Iterate one time-direction at a time to save memory
         for tdir, U_use in iter_measurement_fields(
             U_field, time_dirs, smear_steps, smear_ops, smear_spatial_only
@@ -1166,21 +1178,27 @@ def main():
             # Filter orientations for this tdir
             orientations_for_tdir = [sdir for (td, sdir) in orientations if td == tdir]
             if orientations_for_tdir:
+                t0_loop = time.time()
                 measure_loops_for_tdir(
                     U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc, progress_cb=progress_cb
                 )
-                measure_flux_profile_for_tdir(
-                    U_use,
-                    tdir,
-                    Nd,
-                    flux_r,
-                    flux_t,
-                    flux_r_perp_max,
-                    orientations_for_tdir,
-                    sampler,
-                    flux_profiles_acc,
-                    progress_cb=progress_cb,
-                )
+                loop_time_total += time.time() - t0_loop
+
+                if not skip_flux:
+                    t0_flux = time.time()
+                    measure_flux_profile_for_tdir(
+                        U_use,
+                        tdir,
+                        Nd,
+                        flux_r,
+                        flux_t,
+                        flux_r_perp_max,
+                        orientations_for_tdir,
+                        sampler,
+                        flux_profiles_acc,
+                        progress_cb=progress_cb,
+                    )
+                    flux_time_total += time.time() - t0_flux
             # Free C++ lattice temporaries from smearing/loops/flux for this tdir
             del U_use
             gc.collect()
@@ -1214,7 +1232,12 @@ def main():
             "loops": loops,
             "flux_profile_r_perp": final_flux_profile,
             "polyakov_loops": polyakov_loops,
+            "profiling": {
+                "loop_time": loop_time_total,
+                "flux_time": flux_time_total,
+            },
         }
+
     def measure_with_variance_reduction(U_field, progress_cb=None):
         if multilevel_blocks == 1 and multihit_samples == 1:
             return single_measurement(U_field, progress_cb=progress_cb)
@@ -1583,6 +1606,8 @@ def main():
             "plaquette": measured["plaquette"],
             "loops": measured["loops"],
             "flux_profile_r_perp": measured["flux_profile_r_perp"],
+            "polyakov_loops": measured.get("polyakov_loops", {}),
+            "profiling": measured.get("profiling", {}),
         }
         measurements.append(item)
         meas_done = i + 1
@@ -1697,7 +1722,7 @@ def main():
 
     output = {
         "meta": {
-            "timestamp_utc": datetime.now(UTC).isoformat(),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "seed": seed,
             "beta": beta,
             "L": L,

@@ -13,6 +13,7 @@ source .venv/bin/activate
 pip install -r requirements.txt -q
 
 export SU2_OUT_DIR="./tmp_smoke_test"
+export PYTHONPATH="$(pwd)/gpt/lib/cgpt/build:$(pwd)/gpt/lib:${PYTHONPATH:-}"
 mkdir -p "$SU2_OUT_DIR"
 
 echo "Executing dummy 2^4 lattice run..."

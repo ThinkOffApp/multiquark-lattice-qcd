@@ -139,7 +139,8 @@ if [[ "$HAS_FLOCK" == "0" ]]; then
         fi
     done
 
-    ${CXXLD} --shared $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt.so ${CGPT_EXTRA_LDFLAGS}
+    EXT_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+    ${CXXLD} -bundle -undefined dynamic_lookup $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt${EXT_SUFFIX} ${CGPT_EXTRA_LDFLAGS}
     exit $?
 fi
 
@@ -230,4 +231,5 @@ wait
 clean_files
 
 # Link
-${CXXLD} --shared $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt.so ${CGPT_EXTRA_LDFLAGS}
+EXT_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+${CXXLD} -bundle -undefined dynamic_lookup $(ls -t ${BUILD}/objs/*.o) ${LDFLAGS} ${LIBS} -lGrid -o ${BUILD}/cgpt${EXT_SUFFIX} ${CGPT_EXTRA_LDFLAGS}

@@ -1,0 +1,60 @@
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Summary of configuration for Grid v0.7.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+----- GIT VERSION -------------------------------------
+unknown commit
+----- PLATFORM ----------------------------------------
+architecture (build)        : aarch64
+os (build)                  : darwin25.3.0
+architecture (target)       : aarch64
+os (target)                 : darwin25.3.0
+compiler vendor             : clang
+compiler version            : 17.0.0
+----- BUILD OPTIONS -----------------------------------
+Nc                          : 3
+SIMD                        : GEN (width= 64)
+Threading                   : yes
+Acceleration                : metal
+Unified virtual memory      : yes
+Communications type         : none
+Shared memory allocator     : no
+Shared memory mmap path     : /var/lib/hugetlbfs/global/pagesize-2MB/
+Default precision           : 
+Software FP16 conversion    : yes
+RNG choice                  : sitmo
+GMP                         : yes
+LAPACK                      : no
+FFTW                        : yes
+LIME (ILDG support)         : no
+HDF5                        : no
+build DOXYGEN documentation : no
+Sp2n                        : no
+----- BUILD FLAGS -------------------------------------
+CXXFLAGS:
+    -I/Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt-public/Grid
+    -O3
+    -x
+objective-c++
+    -fobjc-arc
+    -fno-strict-aliasing
+LDFLAGS:
+    -L/Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt-public/Grid/Grid
+    -L/opt/homebrew/lib
+    -L/opt/homebrew/opt/openssl@3/lib
+    -x
+none
+LIBS:
+    -lz
+    -lcrypto
+    -lfftw3f
+    -lfftw3
+    -lmpfr
+    -lgmp
+    -lstdc++
+    -lm
+    -framework
+Metal
+    -framework
+Foundation
+    -lz
+-------------------------------------------------------

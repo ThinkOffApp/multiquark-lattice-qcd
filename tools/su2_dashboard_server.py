@@ -45,13 +45,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         "aborted",
         "stopped",
     }
-    dashboard_alias_path = "/grid-gpt/tools/su2_dashboard.html"
+    dashboard_alias_path = "/tools/su2_dashboard.html"
     dashboard_alias_seed = "petrus-su2-signal"
     dashboard_alias_combine = True
     dashboard_alias_token = ""
-    worker_launcher_auto = "grid-gpt/tools/start_su2_worker.sh"
-    worker_launcher_cpu = "grid-gpt/tools/start_su2_worker_ml84.sh"
-    worker_launcher_gpu = "grid-gpt/tools/start_su2_worker_gpu.sh"
+    worker_launcher_auto = "tools/start_su2_worker.sh"
+    worker_launcher_cpu = "tools/start_su2_worker_ml84.sh"
+    worker_launcher_gpu = "tools/start_su2_worker_gpu.sh"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(self.root), **kwargs)
@@ -70,7 +70,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path in {"/dashboard", "/d"}:
+        if parsed.path in {"/", "/dashboard", "/d"}:
             qs = parse_qs(parsed.query)
             seed = (qs.get("seed", [self.dashboard_alias_seed])[0] or "").strip()
             token = (qs.get("token", [self.dashboard_alias_token])[0] or "").strip()
@@ -203,10 +203,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if p.startswith("http://") or p.startswith("https://"):
             raise ValueError("absolute URLs are not supported for streaming endpoint")
         rel = p[1:] if p.startswith("/") else p
-        full = (self.root / rel).resolve()
-        if not (full == self.root or self.root in full.parents):
+        # Use lexical path containment so symlinked descendants (e.g. /results -> /Volumes/...)
+        # remain valid while still blocking ../ escapes out of the workspace root.
+        joined = (self.root / rel).absolute()
+        root_abs = self.root.absolute()
+        if os.path.commonpath((str(root_abs), str(joined))) != str(root_abs):
             raise ValueError("path escapes workspace root")
-        return full
+        return (self.root / rel).resolve()
 
     @staticmethod
     def file_sig(path: Path):
@@ -672,7 +675,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         """Load live data from all seeds in the group, combining measurements."""
         data, err = DashboardHandler.load_live_with_jsonl(path)
         if data is None:
-            return data, err
+            data = {"meta": {}, "measurements": []}
+        
         seed = ((data.get("meta") or {}).get("seed") or "").strip()
         if not seed:
             seed = DashboardHandler.infer_seed_from_live_path(path)
@@ -1108,7 +1112,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 
 def main():
-    default_root = Path(__file__).resolve().parents[2]
+    default_root = Path(__file__).resolve().parents[1]
     p = argparse.ArgumentParser(description="SU2 dashboard static+SSE server")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8001)

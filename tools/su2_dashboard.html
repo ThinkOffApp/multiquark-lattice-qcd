@@ -1,5 +1,6 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -15,7 +16,11 @@
       --bar-bg: #283349;
       --line: #33405a;
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -23,42 +28,56 @@
       color: var(--text);
       min-height: 100vh;
     }
+
     .wrap {
       max-width: 1200px;
       margin: 0 auto;
       padding: 20px;
     }
+
     h1 {
       margin: 0 0 14px;
       font-size: 24px;
       letter-spacing: 0.2px;
     }
-    .controls, .card, .chart-card {
+
+    .controls,
+    .card,
+    .chart-card {
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 12px;
       padding: 14px;
       margin-bottom: 12px;
     }
+
     .grid-2 {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 12px;
     }
+
     .grid-3 {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 12px;
     }
+
     @media (max-width: 900px) {
-      .grid-2, .grid-3 { grid-template-columns: 1fr; }
+
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
     }
+
     label {
       font-size: 12px;
       color: var(--muted);
       display: block;
       margin-bottom: 6px;
     }
+
     input {
       width: 100%;
       padding: 9px 10px;
@@ -68,11 +87,13 @@
       color: var(--text);
       outline: none;
     }
+
     .btn-row {
       display: flex;
       gap: 8px;
       margin-top: 10px;
     }
+
     button {
       border: 1px solid var(--line);
       background: #162138;
@@ -81,7 +102,11 @@
       border-radius: 8px;
       cursor: pointer;
     }
-    button:hover { background: #1b2a47; }
+
+    button:hover {
+      background: #1b2a47;
+    }
+
     .badge {
       display: inline-block;
       font-size: 12px;
@@ -91,8 +116,18 @@
       border: 1px solid var(--line);
       color: var(--muted);
     }
-    .metric-title { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
-    .metric-value { font-size: 22px; font-weight: 700; }
+
+    .metric-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 5px;
+    }
+
+    .metric-value {
+      font-size: 22px;
+      font-weight: 700;
+    }
+
     .bar {
       width: 100%;
       height: 14px;
@@ -101,23 +136,28 @@
       overflow: hidden;
       border: 1px solid var(--line);
     }
+
     .fill {
       height: 100%;
       width: 0%;
       background: linear-gradient(90deg, #1fbf73, #3ad38d);
       transition: width 0.2s linear;
     }
+
     .sub-fill {
       background: linear-gradient(90deg, #2ea6ff, #5fc3ff);
     }
+
     .warn-fill {
       background: linear-gradient(90deg, #e7a92e, #f4ca62);
     }
+
     .cfg-thread-grid {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 6px;
     }
+
     .cfg-thread-segment {
       position: relative;
       height: 18px;
@@ -126,16 +166,30 @@
       background: var(--bar-bg);
       overflow: hidden;
     }
+
     .cfg-thread-fill {
       height: 100%;
       width: 0%;
       transition: width 0.2s linear;
       background: var(--cfg-color);
     }
-    .cfg-thread-segment.thread-a { --cfg-color: #52adff; }
-    .cfg-thread-segment.thread-b { --cfg-color: #2fd08a; }
-    .cfg-thread-segment.thread-c { --cfg-color: #f2c14b; }
-    .cfg-thread-segment.thread-d { --cfg-color: #f87171; }
+
+    .cfg-thread-segment.thread-a {
+      --cfg-color: #52adff;
+    }
+
+    .cfg-thread-segment.thread-b {
+      --cfg-color: #2fd08a;
+    }
+
+    .cfg-thread-segment.thread-c {
+      --cfg-color: #f2c14b;
+    }
+
+    .cfg-thread-segment.thread-d {
+      --cfg-color: #f87171;
+    }
+
     .cfg-thread-label {
       position: absolute;
       inset: 0;
@@ -153,7 +207,12 @@
       text-overflow: ellipsis;
       pointer-events: none;
     }
-    .hint { font-size: 12px; color: var(--muted); }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
     canvas {
       width: 100%;
       height: 220px;
@@ -162,28 +221,34 @@
       background: #0d1526;
       display: block;
     }
+
     .cursor-canvas {
       height: 170px;
     }
+
     .cursor-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 8px;
     }
+
     @media (max-width: 900px) {
       .cursor-grid {
         grid-template-columns: 1fr;
       }
     }
+
     .cursor-thread-card {
       border: 1px solid var(--line);
       border-radius: 10px;
       padding: 7px;
       background: #0d1526;
     }
+
     .cursor-thread-card .row {
       margin-bottom: 4px;
     }
+
     .cursor-thread-meta {
       display: flex;
       align-items: center;
@@ -191,17 +256,20 @@
       gap: 8px;
       margin-bottom: 4px;
     }
+
     .cursor-thread-title {
       font-size: 12px;
       font-weight: 600;
       color: var(--text);
     }
+
     .cursor-thread-cfg {
       color: #cbd7ea;
       font-size: 11px;
       font-weight: 600;
       letter-spacing: 0.2px;
     }
+
     .cursor-thread-top-right {
       display: flex;
       align-items: center;
@@ -209,6 +277,7 @@
       gap: 6px;
       flex-wrap: wrap;
     }
+
     .thread-stat-chip {
       border: 1px solid rgba(117, 138, 170, 0.45);
       border-radius: 999px;
@@ -219,6 +288,7 @@
       white-space: nowrap;
       line-height: 1.45;
     }
+
     .cursor-thread-controls {
       display: flex;
       align-items: center;
@@ -226,6 +296,7 @@
       margin-bottom: 5px;
       flex-wrap: wrap;
     }
+
     .thread-ctl-btn {
       border: 1px solid rgba(117, 138, 170, 0.48);
       background: rgba(117, 138, 170, 0.16);
@@ -236,14 +307,17 @@
       padding: 3px 8px;
       cursor: pointer;
     }
+
     .thread-ctl-btn:hover {
       border-color: rgba(82, 173, 255, 0.85);
       color: #e7f1ff;
     }
+
     .thread-ctl-btn:disabled {
       opacity: 0.45;
       cursor: default;
     }
+
     .thread-all-controls {
       display: flex;
       align-items: center;
@@ -251,9 +325,11 @@
       margin: 2px 0 8px;
       flex-wrap: wrap;
     }
-    .cursor-grid > .thread-all-controls {
+
+    .cursor-grid>.thread-all-controls {
       grid-column: 1 / -1;
     }
+
     .thread-all-btn {
       border: 1px solid rgba(117, 138, 170, 0.55);
       background: rgba(117, 138, 170, 0.18);
@@ -265,24 +341,29 @@
       padding: 6px 12px;
       cursor: pointer;
     }
+
     .thread-all-btn:hover {
       border-color: rgba(82, 173, 255, 0.9);
       color: #ffffff;
     }
+
     .thread-all-btn.danger {
       border-color: rgba(248, 113, 113, 0.65);
       background: rgba(248, 113, 113, 0.18);
     }
+
     .thread-all-btn:disabled {
       opacity: 0.45;
       cursor: default;
     }
+
     .stage-pipeline {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 4px;
       margin-bottom: 5px;
     }
+
     .stage-chip {
       position: relative;
       overflow: hidden;
@@ -296,6 +377,7 @@
       padding: 3px 2px;
       --stage-fill: 0%;
     }
+
     .stage-chip::before {
       content: "";
       position: absolute;
@@ -305,51 +387,65 @@
       z-index: 0;
       pointer-events: none;
     }
-    .stage-chip > span {
+
+    .stage-chip>span {
       position: relative;
       z-index: 1;
     }
+
     .stage-chip.done {
       border-color: rgba(47, 208, 138, 0.55);
       color: #b8f6d4;
     }
+
     .stage-chip.done::before {
       background: rgba(47, 208, 138, 0.30);
     }
+
     .stage-chip.active {
       border-color: rgba(82, 173, 255, 0.60);
       color: #d9ebff;
     }
+
     .stage-chip.pending {
       color: #8fa2bf;
     }
+
     .cursor-canvas-thread {
       height: 108px;
     }
+
     .cursor-thread-info {
       margin-top: 4px;
       min-height: 14px;
       font-size: 11px;
       line-height: 1.2;
     }
+
     .thread-viz-card.cursor-mode-speed .cursor-grid {
       display: none;
     }
+
     .thread-viz-card:not(.cursor-mode-speed) .speed-combined-wrap {
       display: none;
     }
+
     .thread-viz-card.cursor-mode-speed #cursorLegendDirections {
       display: none;
     }
+
     .thread-viz-card:not(.cursor-mode-speed) #cursorLegendThreads {
       display: none;
     }
+
     .speed-canvas-all {
       height: 190px;
     }
+
     .cursor-pane-speed {
       display: none;
     }
+
     .viz-select {
       padding: 4px 8px;
       border-radius: 8px;
@@ -358,6 +454,7 @@
       color: var(--text);
       font-size: 12px;
     }
+
     .cursor-legend {
       display: flex;
       flex-wrap: wrap;
@@ -366,50 +463,61 @@
       font-size: 11px;
       color: var(--muted);
     }
+
     .cursor-legend-item {
       display: inline-flex;
       align-items: center;
       gap: 6px;
       white-space: nowrap;
     }
+
     .cursor-legend-swatch {
       width: 10px;
       height: 10px;
       border-radius: 999px;
       border: 1px solid rgba(203, 215, 234, 0.6);
     }
+
     .cursor-legend-swatch.t {
       background: #52adff;
       border-color: rgba(82, 173, 255, 0.95);
     }
+
     .cursor-legend-swatch.s {
       background: #f2c14b;
       border-color: rgba(242, 193, 75, 0.95);
     }
+
     .cursor-legend-swatch.other {
       background: #2fd08a;
       border-color: rgba(47, 208, 138, 0.95);
     }
+
     .cursor-legend-swatch.cfg {
       background: #ff5da2;
       border-color: rgba(255, 93, 162, 0.95);
     }
+
     .cursor-legend-swatch.thread-a {
       background: #52adff;
       border-color: rgba(82, 173, 255, 0.95);
     }
+
     .cursor-legend-swatch.thread-b {
       background: #2fd08a;
       border-color: rgba(47, 208, 138, 0.95);
     }
+
     .cursor-legend-swatch.thread-c {
       background: #f2c14b;
       border-color: rgba(242, 193, 75, 0.95);
     }
+
     .cursor-legend-swatch.thread-d {
       background: #f87171;
       border-color: rgba(248, 113, 113, 0.95);
     }
+
     .row {
       display: flex;
       align-items: center;
@@ -417,14 +525,22 @@
       gap: 8px;
       margin-bottom: 8px;
     }
+
     .param-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 8px 12px;
       font-size: 13px;
     }
-    .param-k { color: var(--muted); }
-    .param-v { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+
+    .param-k {
+      color: var(--muted);
+    }
+
+    .param-v {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
     .chat-log {
       height: 240px;
       overflow: auto;
@@ -433,20 +549,32 @@
       padding: 10px;
       background: #0d1526;
     }
+
     .chat-row {
       margin-bottom: 8px;
       line-height: 1.35;
       font-size: 13px;
     }
-    .chat-user { color: #9fd4ff; }
-    .chat-assistant { color: #b9f2c8; }
-    .chat-system { color: #9fb0cc; }
+
+    .chat-user {
+      color: #9fd4ff;
+    }
+
+    .chat-assistant {
+      color: #b9f2c8;
+    }
+
+    .chat-system {
+      color: #9fb0cc;
+    }
+
     .chat-input-row {
       display: grid;
       grid-template-columns: 1fr auto;
       gap: 8px;
       margin-top: 8px;
     }
+
     .mono-list {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       font-size: 12px;
@@ -455,14 +583,17 @@
       margin-top: 8px;
       white-space: pre-wrap;
     }
+
     .table-wrap {
       overflow-x: auto;
     }
+
     .status-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
     }
+
     .status-table th,
     .status-table td {
       text-align: left;
@@ -470,16 +601,19 @@
       border-bottom: 1px solid var(--line);
       white-space: nowrap;
     }
+
     .status-table th {
       color: var(--muted);
       font-weight: 600;
     }
+
     .fit-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 12px;
       margin-top: 8px;
     }
+
     .fit-table th,
     .fit-table td {
       text-align: left;
@@ -487,32 +621,39 @@
       border-bottom: 1px solid var(--line);
       vertical-align: top;
     }
+
     .fit-table th {
       color: var(--muted);
       font-weight: 600;
       white-space: nowrap;
     }
+
     .fit-table td.fit-num {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
       color: #cfe0f7;
       white-space: nowrap;
     }
+
     .fit-table td.fit-ref {
       color: var(--muted);
     }
+
     .target-ref {
       margin-left: 2px;
       font-size: 10px;
       vertical-align: super;
       line-height: 0;
     }
+
     .target-ref a {
       color: #9fd0ff;
       text-decoration: none;
     }
+
     .target-ref a:hover {
       text-decoration: underline;
     }
+
     .ref-list {
       margin: 8px 0 0;
       padding-left: 18px;
@@ -520,16 +661,20 @@
       font-size: 11px;
       line-height: 1.45;
     }
+
     .ref-list li {
       margin: 2px 0;
     }
+
     .ref-list a {
       color: #9fd0ff;
       text-decoration: none;
     }
+
     .ref-list a:hover {
       text-decoration: underline;
     }
+
     .signal-note {
       margin-top: 6px;
       display: flex;
@@ -538,11 +683,13 @@
       flex-wrap: wrap;
       min-height: 18px;
     }
+
     .signal-note .signal-text {
       font-size: 12px;
       color: var(--muted);
       line-height: 1.35;
     }
+
     .agreement-pill {
       display: inline-flex;
       align-items: center;
@@ -554,26 +701,31 @@
       line-height: 1.2;
       white-space: nowrap;
     }
+
     .agreement-green {
       color: #b8f6d4;
       background: rgba(47, 208, 138, 0.16);
       border-color: rgba(47, 208, 138, 0.42);
     }
+
     .agreement-yellow {
       color: #ffe2a8;
       background: rgba(245, 158, 11, 0.16);
       border-color: rgba(245, 158, 11, 0.42);
     }
+
     .agreement-red {
       color: #ffc6c6;
       background: rgba(248, 113, 113, 0.16);
       border-color: rgba(248, 113, 113, 0.42);
     }
+
     .agreement-na {
       color: var(--muted);
       background: rgba(117, 138, 170, 0.16);
       border-color: rgba(117, 138, 170, 0.42);
     }
+
     .phase-pill {
       display: inline-flex;
       align-items: center;
@@ -583,31 +735,37 @@
       font-weight: 600;
       line-height: 1.2;
     }
+
     .phase-therm {
       color: #82c7ff;
       background: rgba(82, 173, 255, 0.16);
       border-color: rgba(82, 173, 255, 0.42);
     }
+
     .phase-meas {
       color: #9fe9b8;
       background: rgba(47, 208, 138, 0.16);
       border-color: rgba(47, 208, 138, 0.42);
     }
+
     .phase-init {
       color: #ffd38a;
       background: rgba(245, 158, 11, 0.16);
       border-color: rgba(245, 158, 11, 0.42);
     }
+
     .phase-done {
       color: #b8f6d4;
       background: rgba(34, 197, 94, 0.16);
       border-color: rgba(34, 197, 94, 0.44);
     }
+
     .phase-stop {
       color: #ffc6c6;
       background: rgba(248, 113, 113, 0.16);
       border-color: rgba(248, 113, 113, 0.42);
     }
+
     .phase-unknown {
       color: var(--muted);
       background: rgba(117, 138, 170, 0.16);
@@ -615,6 +773,7 @@
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <h1>SU(2) Measurement Dashboard</h1>
@@ -646,7 +805,8 @@
       <div class="grid-3" style="margin-top: 8px;">
         <div>
           <label>Flux Display</label>
-          <select id="fluxDisplayMode" style="width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:#0f1627; color:var(--text);">
+          <select id="fluxDisplayMode"
+            style="width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:#0f1627; color:var(--text);">
             <option value="stored" selected>Stored</option>
             <option value="raw">Raw</option>
             <option value="tail_subtracted">Tail-subtracted</option>
@@ -679,481 +839,566 @@
       </div>
       <div class="hint" id="streamStatus" style="margin-top: 8px;">stream: polling</div>
       <div class="hint" style="margin-top: 8px;">
-        Stream server: <code>cd .. && python3 grid-gpt/tools/su2_dashboard_server.py --port 8001</code>
+        Stream server: <code>python3 tools/su2_dashboard_server.py --port 8001</code>
       </div>
     </div>
 
-    <div class="grid-2">
-      <div class="card">
-        <div class="metric-title">Run Parameters</div>
-        <div class="param-grid">
-          <div class="param-k">Seed</div><div class="param-v" id="paramSeed">-</div>
-          <div class="param-k">Lattice L</div><div class="param-v" id="paramL">-</div>
-          <div class="param-k">Beta</div><div class="param-v" id="paramBeta">-</div>
-          <div class="param-k">Therm sweeps</div><div class="param-v" id="paramTherm">-</div>
-          <div class="param-k">Measurements</div><div class="param-v" id="paramMeas">-</div>
-          <div class="param-k">R values</div><div class="param-v" id="paramR">-</div>
-          <div class="param-k">T values</div><div class="param-v" id="paramT">-</div>
-          <div class="param-k">Flux probe</div><div class="param-v" id="paramFlux">-</div>
-          <div class="param-k">Sampling</div><div class="param-v" id="paramSampling">full</div>
-          <div class="param-k">Compute backend</div><div class="param-v" id="paramCompute">-</div>
-          <div class="param-k">a (fm)</div><div class="param-v" id="paramAFm">-</div>
-          <div class="param-k">a⁻¹ (GeV)</div><div class="param-v" id="paramAinvGeV">-</div>
-          <div class="param-k">Box size (fm)</div><div class="param-v" id="paramBoxFm">-</div>
+    <div class="tabs-bar" style="display: flex; gap: 8px; margin-bottom: 16px; justify-content: center;">
+      <button id="tabBtnPhysics" class="active"
+        style="background: var(--accent); color: #000; font-weight: bold; border-radius: 4px; padding: 6px 12px; border: none; cursor: pointer;">Physics
+        Measurements</button>
+      <button id="tabBtnProfiling"
+        style="background: #162138; color: var(--text); border-radius: 4px; padding: 6px 12px; border: 1px solid var(--border); cursor: pointer;">Performance
+        Profiling</button>
+    </div>
+
+    <div id="tabPhysics">
+      <div class="grid-2">
+        <div class="card">
+          <div class="metric-title">Run Parameters</div>
+          <div class="param-grid">
+            <div class="param-k">Seed</div>
+            <div class="param-v" id="paramSeed">-</div>
+            <div class="param-k">Lattice L</div>
+            <div class="param-v" id="paramL">-</div>
+            <div class="param-k">Beta</div>
+            <div class="param-v" id="paramBeta">-</div>
+            <div class="param-k">Therm sweeps</div>
+            <div class="param-v" id="paramTherm">-</div>
+            <div class="param-k">Measurements</div>
+            <div class="param-v" id="paramMeas">-</div>
+            <div class="param-k">R values</div>
+            <div class="param-v" id="paramR">-</div>
+            <div class="param-k">T values</div>
+            <div class="param-v" id="paramT">-</div>
+            <div class="param-k">Flux probe</div>
+            <div class="param-v" id="paramFlux">-</div>
+            <div class="param-k">Sampling</div>
+            <div class="param-v" id="paramSampling">full</div>
+            <div class="param-k">Compute backend</div>
+            <div class="param-v" id="paramCompute">-</div>
+            <div class="param-k">a (fm)</div>
+            <div class="param-v" id="paramAFm">-</div>
+            <div class="param-k">a⁻¹ (GeV)</div>
+            <div class="param-v" id="paramAinvGeV">-</div>
+            <div class="param-k">Box size (fm)</div>
+            <div class="param-v" id="paramBoxFm">-</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="metric-title">Measured Observables</div>
+          <div class="hint" id="measureWhat">
+            Plaquette, Wilson loops W(R,T), Polyakov loops, and connected flux profile.
+          </div>
+          <div style="height: 8px;"></div>
+          <div class="hint" id="measureError">
+            Error bands: ±1 standard error of the mean (SEM).
+          </div>
         </div>
       </div>
+
       <div class="card">
-        <div class="metric-title">Measured Observables</div>
-        <div class="hint" id="measureWhat">
-          Plaquette, Wilson loops W(R,T), Polyakov loops, and connected flux profile.
+        <div class="row">
+          <div class="metric-title">Physical Comparison</div>
+          <div class="hint">combined potential + flux diagnostics</div>
         </div>
+        <div class="table-wrap">
+          <table class="fit-table">
+            <thead>
+              <tr>
+                <th>Domain</th>
+                <th>Observable</th>
+                <th>Measured (lattice)</th>
+                <th>Physical / target</th>
+                <th>Agreement</th>
+              </tr>
+            </thead>
+            <tbody id="physicalCompareBody">
+              <tr>
+                <td colspan="5" class="hint">Waiting for measurements...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ol id="physicalRefList" class="ref-list"></ol>
+        <div id="physicalCompareSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+            class="signal-text">Waiting for physical-comparison signal summary...</span></div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="metric-title">Next Jobs To Run</div>
+          <div class="hint">suggested larger L / beta scan</div>
+        </div>
+        <div id="nextJobsList" class="hint">Waiting for run metadata...</div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="metric-title">Admin Chat</div>
+          <div class="hint" id="chatStatus">chat: ready</div>
+        </div>
+        <div id="chatLog" class="chat-log"></div>
+        <div class="chat-input-row">
+          <input id="chatInput" placeholder="Ask about status, interpretation, next runs..." />
+          <button id="chatSendBtn">Send</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="badge" id="phaseBadge">phase: unknown</div>
+          <div class="hint" id="lastUpdate">Last update: -</div>
+        </div>
+
+        <div class="row">
+          <div class="hint" id="overallLabel">Overall progress</div>
+          <div class="hint" id="overallPct">0%</div>
+        </div>
+        <div class="bar">
+          <div class="fill" id="overallFill"></div>
+        </div>
+
+        <div style="height: 10px;"></div>
+        <div class="row">
+          <div class="hint">Thermalization progress</div>
+          <div class="hint" id="thermPct">0.0%</div>
+        </div>
+        <div class="bar">
+          <div class="fill sub-fill" id="thermFill"></div>
+        </div>
+
+        <div style="height: 10px;"></div>
+        <div class="row">
+          <div class="hint">Production measurements</div>
+          <div class="hint" id="measPct">0 / 0</div>
+        </div>
+        <div class="bar">
+          <div class="fill warn-fill" id="measFill"></div>
+        </div>
+        <div class="hint" id="measCounterDetail">N_meas = - / - (A=-, B=-, C=-, D=-)</div>
+
+        <div style="height: 10px;"></div>
+        <div class="row">
+          <div class="hint">Current config progress (all threads)</div>
+          <div class="hint" id="cfgSubPct">-</div>
+        </div>
+        <div class="cfg-thread-grid">
+          <div class="cfg-thread-segment thread-a">
+            <div class="cfg-thread-fill" id="cfgSubFillA"></div>
+            <div class="cfg-thread-label" id="cfgSubLabelA">A cfg- 0.0%</div>
+          </div>
+          <div class="cfg-thread-segment thread-b">
+            <div class="cfg-thread-fill" id="cfgSubFillB"></div>
+            <div class="cfg-thread-label" id="cfgSubLabelB">B cfg- 0.0%</div>
+          </div>
+          <div class="cfg-thread-segment thread-c">
+            <div class="cfg-thread-fill" id="cfgSubFillC"></div>
+            <div class="cfg-thread-label" id="cfgSubLabelC">C cfg- 0.0%</div>
+          </div>
+          <div class="cfg-thread-segment thread-d">
+            <div class="cfg-thread-fill" id="cfgSubFillD"></div>
+            <div class="cfg-thread-label" id="cfgSubLabelD">D cfg- 0.0%</div>
+          </div>
+        </div>
+
+        <div style="height: 10px;"></div>
+        <div class="row">
+          <div class="hint">Configs done / measured</div>
+          <div class="hint" id="cfgDoneMeasured">0 / 0</div>
+        </div>
+      </div>
+
+      <div class="card thread-viz-card" id="threadVizCard">
+        <div class="row">
+          <div class="metric-title">Per-Thread Monitor</div>
+          <label class="hint" style="display:flex; align-items:center; gap:6px; margin:0;">
+            view
+            <select id="threadVizMode" class="viz-select">
+              <option value="cursor" selected>Cursor</option>
+              <option value="speed">Speed graph</option>
+            </select>
+          </label>
+        </div>
+        <div id="cursorLegend">
+          <div class="cursor-legend" id="cursorLegendDirections">
+            <span class="cursor-legend-item"
+              title="Blue marks the active time direction (tdir) used by the current Wilson loop or flux operation."><span
+                class="cursor-legend-swatch t"></span>Blue: time dir (t)</span>
+            <span class="cursor-legend-item"
+              title="Amber marks the active spatial direction (sdir) used with the current time direction for loop/flux operators."><span
+                class="cursor-legend-swatch s"></span>Amber: space dir (s)</span>
+            <span class="cursor-legend-item"
+              title="Green markers are the remaining lattice axes (mu) not currently chosen as time or space direction."><span
+                class="cursor-legend-swatch other"></span>Green: other mu</span>
+            <span class="cursor-legend-item"
+              title="Magenta track is per-thread overall config progress from meas_cfg_substep_progress (0-100% of current config), independent of which mu row is active."><span
+                class="cursor-legend-swatch cfg"></span>Magenta track: cfg progress</span>
+          </div>
+          <div class="cursor-legend" id="cursorLegendThreads">
+            <span class="cursor-legend-item"
+              title="Blue line in speed mode: thread A seconds per config over elapsed wall-time since config start."><span
+                class="cursor-legend-swatch thread-a"></span>Blue: Thread A</span>
+            <span class="cursor-legend-item"
+              title="Green line in speed mode: thread B seconds per config over elapsed wall-time since config start."><span
+                class="cursor-legend-swatch thread-b"></span>Green: Thread B</span>
+            <span class="cursor-legend-item"
+              title="Amber line in speed mode: thread C seconds per config over elapsed wall-time since config start."><span
+                class="cursor-legend-swatch thread-c"></span>Amber: Thread C</span>
+            <span class="cursor-legend-item"
+              title="Red line in speed mode: thread D seconds per config over elapsed wall-time since config start."><span
+                class="cursor-legend-swatch thread-d"></span>Red: Thread D</span>
+          </div>
+        </div>
+        <div class="cursor-grid">
+          <div class="thread-all-controls">
+            <label for="threadPipelineSelect" class="hint" style="margin-right: 2px;">Restart pipeline</label>
+            <select id="threadPipelineSelect" class="thread-ctl-btn" style="padding-right: 22px;"
+              title="Choose pipeline used when restarting workers.">
+              <option value="auto" selected>Auto</option>
+              <option value="cpu">CPU</option>
+              <option value="gpu">GPU</option>
+            </select>
+            <button id="threadPauseAllBtn" class="thread-all-btn"
+              title="Pause all four worker processes (SIGSTOP).">Pause All Threads</button>
+            <button id="threadResumeAllBtn" class="thread-all-btn"
+              title="Resume all paused worker processes (SIGCONT).">Resume All Threads</button>
+            <button id="threadRestartAllBtn" class="thread-all-btn danger"
+              title="Restart all workers from checkpoint.">Restart All Threads</button>
+          </div>
+          <div class="cursor-thread-card">
+            <div class="row">
+              <div class="cursor-thread-title">Thread A</div>
+              <div class="cursor-thread-top-right">
+                <div class="thread-stat-chip" id="cursorBackendA">backend -</div>
+                <div class="thread-stat-chip" id="cursorCpuA">cpu -</div>
+                <div class="thread-stat-chip" id="cursorMemA">mem -</div>
+                <div class="hint" id="cursorKindA">A: waiting</div>
+              </div>
+            </div>
+            <div class="cursor-thread-meta">
+              <div class="cursor-thread-cfg" id="cursorCfgA">cfg -</div>
+            </div>
+            <div class="cursor-thread-controls">
+              <button type="button" class="thread-ctl-btn" id="threadPauseA"
+                title="Pause this worker process (SIGSTOP).">Pause</button>
+              <button type="button" class="thread-ctl-btn" id="threadResumeA"
+                title="Resume this worker process (SIGCONT).">Resume</button>
+              <button type="button" class="thread-ctl-btn" id="threadRestartA"
+                title="Restart this worker from checkpoint.">Restart</button>
+            </div>
+            <div class="stage-pipeline" id="cursorStagesA">
+              <div class="stage-chip pending"><span>skip</span></div>
+              <div class="stage-chip pending"><span>loop</span></div>
+              <div class="stage-chip pending"><span>flux</span></div>
+              <div class="stage-chip pending"><span>final</span></div>
+            </div>
+            <div class="cursor-pane-cursor">
+              <canvas id="cursorCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="cursorInfoA">Waiting for measurement cursor telemetry...</div>
+            </div>
+            <div class="cursor-pane-speed">
+              <canvas id="speedCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="speedInfoA">Waiting for speed samples...</div>
+            </div>
+          </div>
+          <div class="cursor-thread-card">
+            <div class="row">
+              <div class="cursor-thread-title">Thread B</div>
+              <div class="cursor-thread-top-right">
+                <div class="thread-stat-chip" id="cursorBackendB">backend -</div>
+                <div class="thread-stat-chip" id="cursorCpuB">cpu -</div>
+                <div class="thread-stat-chip" id="cursorMemB">mem -</div>
+                <div class="hint" id="cursorKindB">B: waiting</div>
+              </div>
+            </div>
+            <div class="cursor-thread-meta">
+              <div class="cursor-thread-cfg" id="cursorCfgB">cfg -</div>
+            </div>
+            <div class="cursor-thread-controls">
+              <button type="button" class="thread-ctl-btn" id="threadPauseB"
+                title="Pause this worker process (SIGSTOP).">Pause</button>
+              <button type="button" class="thread-ctl-btn" id="threadResumeB"
+                title="Resume this worker process (SIGCONT).">Resume</button>
+              <button type="button" class="thread-ctl-btn" id="threadRestartB"
+                title="Restart this worker from checkpoint.">Restart</button>
+            </div>
+            <div class="stage-pipeline" id="cursorStagesB">
+              <div class="stage-chip pending"><span>skip</span></div>
+              <div class="stage-chip pending"><span>loop</span></div>
+              <div class="stage-chip pending"><span>flux</span></div>
+              <div class="stage-chip pending"><span>final</span></div>
+            </div>
+            <div class="cursor-pane-cursor">
+              <canvas id="cursorCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="cursorInfoB">Waiting for measurement cursor telemetry...</div>
+            </div>
+            <div class="cursor-pane-speed">
+              <canvas id="speedCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="speedInfoB">Waiting for speed samples...</div>
+            </div>
+          </div>
+          <div class="cursor-thread-card">
+            <div class="row">
+              <div class="cursor-thread-title">Thread C</div>
+              <div class="cursor-thread-top-right">
+                <div class="thread-stat-chip" id="cursorBackendC">backend -</div>
+                <div class="thread-stat-chip" id="cursorCpuC">cpu -</div>
+                <div class="thread-stat-chip" id="cursorMemC">mem -</div>
+                <div class="hint" id="cursorKindC">C: waiting</div>
+              </div>
+            </div>
+            <div class="cursor-thread-meta">
+              <div class="cursor-thread-cfg" id="cursorCfgC">cfg -</div>
+            </div>
+            <div class="cursor-thread-controls">
+              <button type="button" class="thread-ctl-btn" id="threadPauseC"
+                title="Pause this worker process (SIGSTOP).">Pause</button>
+              <button type="button" class="thread-ctl-btn" id="threadResumeC"
+                title="Resume this worker process (SIGCONT).">Resume</button>
+              <button type="button" class="thread-ctl-btn" id="threadRestartC"
+                title="Restart this worker from checkpoint.">Restart</button>
+            </div>
+            <div class="stage-pipeline" id="cursorStagesC">
+              <div class="stage-chip pending"><span>skip</span></div>
+              <div class="stage-chip pending"><span>loop</span></div>
+              <div class="stage-chip pending"><span>flux</span></div>
+              <div class="stage-chip pending"><span>final</span></div>
+            </div>
+            <div class="cursor-pane-cursor">
+              <canvas id="cursorCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="cursorInfoC">Waiting for measurement cursor telemetry...</div>
+            </div>
+            <div class="cursor-pane-speed">
+              <canvas id="speedCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="speedInfoC">Waiting for speed samples...</div>
+            </div>
+          </div>
+          <div class="cursor-thread-card">
+            <div class="row">
+              <div class="cursor-thread-title">Thread D</div>
+              <div class="cursor-thread-top-right">
+                <div class="thread-stat-chip" id="cursorBackendD">backend -</div>
+                <div class="thread-stat-chip" id="cursorCpuD">cpu -</div>
+                <div class="thread-stat-chip" id="cursorMemD">mem -</div>
+                <div class="hint" id="cursorKindD">D: waiting</div>
+              </div>
+            </div>
+            <div class="cursor-thread-meta">
+              <div class="cursor-thread-cfg" id="cursorCfgD">cfg -</div>
+            </div>
+            <div class="cursor-thread-controls">
+              <button type="button" class="thread-ctl-btn" id="threadPauseD"
+                title="Pause this worker process (SIGSTOP).">Pause</button>
+              <button type="button" class="thread-ctl-btn" id="threadResumeD"
+                title="Resume this worker process (SIGCONT).">Resume</button>
+              <button type="button" class="thread-ctl-btn" id="threadRestartD"
+                title="Restart this worker from checkpoint.">Restart</button>
+            </div>
+            <div class="stage-pipeline" id="cursorStagesD">
+              <div class="stage-chip pending"><span>skip</span></div>
+              <div class="stage-chip pending"><span>loop</span></div>
+              <div class="stage-chip pending"><span>flux</span></div>
+              <div class="stage-chip pending"><span>final</span></div>
+            </div>
+            <div class="cursor-pane-cursor">
+              <canvas id="cursorCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="cursorInfoD">Waiting for measurement cursor telemetry...</div>
+            </div>
+            <div class="cursor-pane-speed">
+              <canvas id="speedCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
+              <div class="hint cursor-thread-info" id="speedInfoD">Waiting for speed samples...</div>
+            </div>
+          </div>
+        </div>
+        <div class="speed-combined-wrap">
+          <canvas id="speedCanvasAll" class="cursor-canvas speed-canvas-all" width="1140" height="220"></canvas>
+          <div class="hint cursor-thread-info" id="speedInfoAll">Waiting for speed samples...</div>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="metric-title">Elapsed</div>
+          <div class="metric-value" id="elapsedVal">-</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">ETA</div>
+          <div class="metric-value" id="etaVal">-</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">Plaquette</div>
+          <div class="metric-value" id="plaqVal">-</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row">
+          <div class="metric-title">Thermalization Sweep Count</div>
+          <div class="hint" id="thermSweepMeta">waiting for thermalization data</div>
+        </div>
+        <div class="metric-value" id="thermSweepCount">- / -</div>
         <div style="height: 8px;"></div>
-        <div class="hint" id="measureError">
-          Error bands: ±1 standard error of the mean (SEM).
+        <div class="row">
+          <div class="hint">Current sweep (estimated)</div>
+          <div class="hint" id="thermStepPct">0%</div>
         </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div class="metric-title">Physical Comparison</div>
-        <div class="hint">combined potential + flux diagnostics</div>
-      </div>
-      <div class="table-wrap">
-        <table class="fit-table">
-          <thead>
-            <tr>
-              <th>Domain</th>
-              <th>Observable</th>
-              <th>Measured (lattice)</th>
-              <th>Physical / target</th>
-              <th>Agreement</th>
-            </tr>
-          </thead>
-          <tbody id="physicalCompareBody">
-            <tr><td colspan="5" class="hint">Waiting for measurements...</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <ol id="physicalRefList" class="ref-list"></ol>
-      <div id="physicalCompareSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for physical-comparison signal summary...</span></div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div class="metric-title">Next Jobs To Run</div>
-        <div class="hint">suggested larger L / beta scan</div>
-      </div>
-      <div id="nextJobsList" class="hint">Waiting for run metadata...</div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div class="metric-title">Admin Chat</div>
-        <div class="hint" id="chatStatus">chat: ready</div>
-      </div>
-      <div id="chatLog" class="chat-log"></div>
-      <div class="chat-input-row">
-        <input id="chatInput" placeholder="Ask about status, interpretation, next runs..." />
-        <button id="chatSendBtn">Send</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="row">
-        <div class="badge" id="phaseBadge">phase: unknown</div>
-        <div class="hint" id="lastUpdate">Last update: -</div>
+        <div class="bar">
+          <div class="fill sub-fill" id="thermStepFill"></div>
+        </div>
+        <div class="hint" id="thermSweepHint">font color = overall thermalization progress (cold to hot)</div>
       </div>
 
-      <div class="row"><div class="hint" id="overallLabel">Overall progress</div><div class="hint" id="overallPct">0%</div></div>
-      <div class="bar"><div class="fill" id="overallFill"></div></div>
-
-      <div style="height: 10px;"></div>
-      <div class="row"><div class="hint">Thermalization progress</div><div class="hint" id="thermPct">0.0%</div></div>
-      <div class="bar"><div class="fill sub-fill" id="thermFill"></div></div>
-
-      <div style="height: 10px;"></div>
-      <div class="row"><div class="hint">Production measurements</div><div class="hint" id="measPct">0 / 0</div></div>
-      <div class="bar"><div class="fill warn-fill" id="measFill"></div></div>
-      <div class="hint" id="measCounterDetail">N_meas = - / - (A=-, B=-, C=-, D=-)</div>
-
-      <div style="height: 10px;"></div>
-      <div class="row"><div class="hint">Current config progress (all threads)</div><div class="hint" id="cfgSubPct">-</div></div>
-      <div class="cfg-thread-grid">
-        <div class="cfg-thread-segment thread-a">
-          <div class="cfg-thread-fill" id="cfgSubFillA"></div>
-          <div class="cfg-thread-label" id="cfgSubLabelA">A cfg- 0.0%</div>
-        </div>
-        <div class="cfg-thread-segment thread-b">
-          <div class="cfg-thread-fill" id="cfgSubFillB"></div>
-          <div class="cfg-thread-label" id="cfgSubLabelB">B cfg- 0.0%</div>
-        </div>
-        <div class="cfg-thread-segment thread-c">
-          <div class="cfg-thread-fill" id="cfgSubFillC"></div>
-          <div class="cfg-thread-label" id="cfgSubLabelC">C cfg- 0.0%</div>
-        </div>
-        <div class="cfg-thread-segment thread-d">
-          <div class="cfg-thread-fill" id="cfgSubFillD"></div>
-          <div class="cfg-thread-label" id="cfgSubLabelD">D cfg- 0.0%</div>
-        </div>
-      </div>
-
-      <div style="height: 10px;"></div>
-      <div class="row"><div class="hint">Configs done / measured</div><div class="hint" id="cfgDoneMeasured">0 / 0</div></div>
-    </div>
-
-    <div class="card thread-viz-card" id="threadVizCard">
-      <div class="row">
-        <div class="metric-title">Per-Thread Monitor</div>
-        <label class="hint" style="display:flex; align-items:center; gap:6px; margin:0;">
-          view
-          <select id="threadVizMode" class="viz-select">
-            <option value="cursor" selected>Cursor</option>
-            <option value="speed">Speed graph</option>
-          </select>
-        </label>
-      </div>
-      <div id="cursorLegend">
-        <div class="cursor-legend" id="cursorLegendDirections">
-          <span
-            class="cursor-legend-item"
-            title="Blue marks the active time direction (tdir) used by the current Wilson loop or flux operation."
-          ><span class="cursor-legend-swatch t"></span>Blue: time dir (t)</span>
-          <span
-            class="cursor-legend-item"
-            title="Amber marks the active spatial direction (sdir) used with the current time direction for loop/flux operators."
-          ><span class="cursor-legend-swatch s"></span>Amber: space dir (s)</span>
-          <span
-            class="cursor-legend-item"
-            title="Green markers are the remaining lattice axes (mu) not currently chosen as time or space direction."
-          ><span class="cursor-legend-swatch other"></span>Green: other mu</span>
-          <span
-            class="cursor-legend-item"
-            title="Magenta track is per-thread overall config progress from meas_cfg_substep_progress (0-100% of current config), independent of which mu row is active."
-          ><span class="cursor-legend-swatch cfg"></span>Magenta track: cfg progress</span>
-        </div>
-        <div class="cursor-legend" id="cursorLegendThreads">
-          <span
-            class="cursor-legend-item"
-            title="Blue line in speed mode: thread A seconds per config over elapsed wall-time since config start."
-          ><span class="cursor-legend-swatch thread-a"></span>Blue: Thread A</span>
-          <span
-            class="cursor-legend-item"
-            title="Green line in speed mode: thread B seconds per config over elapsed wall-time since config start."
-          ><span class="cursor-legend-swatch thread-b"></span>Green: Thread B</span>
-          <span
-            class="cursor-legend-item"
-            title="Amber line in speed mode: thread C seconds per config over elapsed wall-time since config start."
-          ><span class="cursor-legend-swatch thread-c"></span>Amber: Thread C</span>
-          <span
-            class="cursor-legend-item"
-            title="Red line in speed mode: thread D seconds per config over elapsed wall-time since config start."
-          ><span class="cursor-legend-swatch thread-d"></span>Red: Thread D</span>
-        </div>
-      </div>
-      <div class="cursor-grid">
-        <div class="thread-all-controls">
-          <label for="threadPipelineSelect" class="hint" style="margin-right: 2px;">Restart pipeline</label>
-          <select id="threadPipelineSelect" class="thread-ctl-btn" style="padding-right: 22px;" title="Choose pipeline used when restarting workers.">
-            <option value="auto" selected>Auto</option>
-            <option value="cpu">CPU</option>
-            <option value="gpu">GPU</option>
-          </select>
-          <button id="threadPauseAllBtn" class="thread-all-btn" title="Pause all four worker processes (SIGSTOP).">Pause All Threads</button>
-          <button id="threadResumeAllBtn" class="thread-all-btn" title="Resume all paused worker processes (SIGCONT).">Resume All Threads</button>
-          <button id="threadRestartAllBtn" class="thread-all-btn danger" title="Restart all workers from checkpoint.">Restart All Threads</button>
-        </div>
-        <div class="cursor-thread-card">
-          <div class="row">
-            <div class="cursor-thread-title">Thread A</div>
-            <div class="cursor-thread-top-right">
-              <div class="thread-stat-chip" id="cursorBackendA">backend -</div>
-              <div class="thread-stat-chip" id="cursorCpuA">cpu -</div>
-              <div class="thread-stat-chip" id="cursorMemA">mem -</div>
-              <div class="hint" id="cursorKindA">A: waiting</div>
-            </div>
-          </div>
-          <div class="cursor-thread-meta">
-            <div class="cursor-thread-cfg" id="cursorCfgA">cfg -</div>
-          </div>
-          <div class="cursor-thread-controls">
-            <button type="button" class="thread-ctl-btn" id="threadPauseA" title="Pause this worker process (SIGSTOP).">Pause</button>
-            <button type="button" class="thread-ctl-btn" id="threadResumeA" title="Resume this worker process (SIGCONT).">Resume</button>
-            <button type="button" class="thread-ctl-btn" id="threadRestartA" title="Restart this worker from checkpoint.">Restart</button>
-          </div>
-          <div class="stage-pipeline" id="cursorStagesA">
-            <div class="stage-chip pending"><span>skip</span></div>
-            <div class="stage-chip pending"><span>loop</span></div>
-            <div class="stage-chip pending"><span>flux</span></div>
-            <div class="stage-chip pending"><span>final</span></div>
-          </div>
-          <div class="cursor-pane-cursor">
-            <canvas id="cursorCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="cursorInfoA">Waiting for measurement cursor telemetry...</div>
-          </div>
-          <div class="cursor-pane-speed">
-            <canvas id="speedCanvasA" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="speedInfoA">Waiting for speed samples...</div>
-          </div>
-        </div>
-        <div class="cursor-thread-card">
-          <div class="row">
-            <div class="cursor-thread-title">Thread B</div>
-            <div class="cursor-thread-top-right">
-              <div class="thread-stat-chip" id="cursorBackendB">backend -</div>
-              <div class="thread-stat-chip" id="cursorCpuB">cpu -</div>
-              <div class="thread-stat-chip" id="cursorMemB">mem -</div>
-              <div class="hint" id="cursorKindB">B: waiting</div>
-            </div>
-          </div>
-          <div class="cursor-thread-meta">
-            <div class="cursor-thread-cfg" id="cursorCfgB">cfg -</div>
-          </div>
-          <div class="cursor-thread-controls">
-            <button type="button" class="thread-ctl-btn" id="threadPauseB" title="Pause this worker process (SIGSTOP).">Pause</button>
-            <button type="button" class="thread-ctl-btn" id="threadResumeB" title="Resume this worker process (SIGCONT).">Resume</button>
-            <button type="button" class="thread-ctl-btn" id="threadRestartB" title="Restart this worker from checkpoint.">Restart</button>
-          </div>
-          <div class="stage-pipeline" id="cursorStagesB">
-            <div class="stage-chip pending"><span>skip</span></div>
-            <div class="stage-chip pending"><span>loop</span></div>
-            <div class="stage-chip pending"><span>flux</span></div>
-            <div class="stage-chip pending"><span>final</span></div>
-          </div>
-          <div class="cursor-pane-cursor">
-            <canvas id="cursorCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="cursorInfoB">Waiting for measurement cursor telemetry...</div>
-          </div>
-          <div class="cursor-pane-speed">
-            <canvas id="speedCanvasB" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="speedInfoB">Waiting for speed samples...</div>
-          </div>
-        </div>
-        <div class="cursor-thread-card">
-          <div class="row">
-            <div class="cursor-thread-title">Thread C</div>
-            <div class="cursor-thread-top-right">
-              <div class="thread-stat-chip" id="cursorBackendC">backend -</div>
-              <div class="thread-stat-chip" id="cursorCpuC">cpu -</div>
-              <div class="thread-stat-chip" id="cursorMemC">mem -</div>
-              <div class="hint" id="cursorKindC">C: waiting</div>
-            </div>
-          </div>
-          <div class="cursor-thread-meta">
-            <div class="cursor-thread-cfg" id="cursorCfgC">cfg -</div>
-          </div>
-          <div class="cursor-thread-controls">
-            <button type="button" class="thread-ctl-btn" id="threadPauseC" title="Pause this worker process (SIGSTOP).">Pause</button>
-            <button type="button" class="thread-ctl-btn" id="threadResumeC" title="Resume this worker process (SIGCONT).">Resume</button>
-            <button type="button" class="thread-ctl-btn" id="threadRestartC" title="Restart this worker from checkpoint.">Restart</button>
-          </div>
-          <div class="stage-pipeline" id="cursorStagesC">
-            <div class="stage-chip pending"><span>skip</span></div>
-            <div class="stage-chip pending"><span>loop</span></div>
-            <div class="stage-chip pending"><span>flux</span></div>
-            <div class="stage-chip pending"><span>final</span></div>
-          </div>
-          <div class="cursor-pane-cursor">
-            <canvas id="cursorCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="cursorInfoC">Waiting for measurement cursor telemetry...</div>
-          </div>
-          <div class="cursor-pane-speed">
-            <canvas id="speedCanvasC" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="speedInfoC">Waiting for speed samples...</div>
-          </div>
-        </div>
-        <div class="cursor-thread-card">
-          <div class="row">
-            <div class="cursor-thread-title">Thread D</div>
-            <div class="cursor-thread-top-right">
-              <div class="thread-stat-chip" id="cursorBackendD">backend -</div>
-              <div class="thread-stat-chip" id="cursorCpuD">cpu -</div>
-              <div class="thread-stat-chip" id="cursorMemD">mem -</div>
-              <div class="hint" id="cursorKindD">D: waiting</div>
-            </div>
-          </div>
-          <div class="cursor-thread-meta">
-            <div class="cursor-thread-cfg" id="cursorCfgD">cfg -</div>
-          </div>
-          <div class="cursor-thread-controls">
-            <button type="button" class="thread-ctl-btn" id="threadPauseD" title="Pause this worker process (SIGSTOP).">Pause</button>
-            <button type="button" class="thread-ctl-btn" id="threadResumeD" title="Resume this worker process (SIGCONT).">Resume</button>
-            <button type="button" class="thread-ctl-btn" id="threadRestartD" title="Restart this worker from checkpoint.">Restart</button>
-          </div>
-          <div class="stage-pipeline" id="cursorStagesD">
-            <div class="stage-chip pending"><span>skip</span></div>
-            <div class="stage-chip pending"><span>loop</span></div>
-            <div class="stage-chip pending"><span>flux</span></div>
-            <div class="stage-chip pending"><span>final</span></div>
-          </div>
-          <div class="cursor-pane-cursor">
-            <canvas id="cursorCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="cursorInfoD">Waiting for measurement cursor telemetry...</div>
-          </div>
-          <div class="cursor-pane-speed">
-            <canvas id="speedCanvasD" class="cursor-canvas cursor-canvas-thread" width="560" height="120"></canvas>
-            <div class="hint cursor-thread-info" id="speedInfoD">Waiting for speed samples...</div>
-          </div>
-        </div>
-      </div>
-      <div class="speed-combined-wrap">
-        <canvas id="speedCanvasAll" class="cursor-canvas speed-canvas-all" width="1140" height="220"></canvas>
-        <div class="hint cursor-thread-info" id="speedInfoAll">Waiting for speed samples...</div>
-      </div>
-    </div>
-
-    <div class="grid-3">
       <div class="card">
-        <div class="metric-title">Elapsed</div>
-        <div class="metric-value" id="elapsedVal">-</div>
+        <div class="row">
+          <div class="metric-title">Thread Status</div>
+          <div class="hint" id="threadTableNote">seed group: -</div>
+        </div>
+        <div class="table-wrap">
+          <table class="status-table">
+            <thead>
+              <tr>
+                <th>Thread</th>
+                <th>Seed</th>
+                <th>Phase</th>
+                <th>Therm</th>
+                <th>Meas</th>
+                <th>Cfg</th>
+                <th>Cfg time</th>
+                <th>CPU</th>
+                <th>Memory</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="threadStatusBody">
+              <tr>
+                <td colspan="10" class="hint">Waiting for progress files...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-      <div class="card">
-        <div class="metric-title">ETA</div>
-        <div class="metric-value" id="etaVal">-</div>
-      </div>
-      <div class="card">
-        <div class="metric-title">Plaquette</div>
-        <div class="metric-value" id="plaqVal">-</div>
-      </div>
-    </div>
 
-    <div class="card">
-      <div class="row">
-        <div class="metric-title">Thermalization Sweep Count</div>
-        <div class="hint" id="thermSweepMeta">waiting for thermalization data</div>
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="row">
+            <div class="metric-title">Plaquette History</div>
+            <div class="hint" id="historyCount">0 points</div>
+          </div>
+          <canvas id="plaqCanvas" width="560" height="220"></canvas>
+          <div class="hint" id="plaqAxes">x: measurement index, y: plaquette running mean</div>
+          <div id="plaqSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+              class="signal-text">Waiting for plaquette history...</span></div>
+        </div>
+        <div class="chart-card">
+          <div class="row">
+            <div class="metric-title">Selected Wilson Loop (Re)</div>
+            <div class="hint" id="loopKeyLabel">key: -</div>
+          </div>
+          <canvas id="loopCanvas" width="560" height="220"></canvas>
+          <div class="hint" id="loopAxes">x: measurement index, y: running mean of Re W(R,T) for selected key</div>
+          <div id="loopSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+              class="signal-text">Waiting for loop history...</span></div>
+        </div>
       </div>
-      <div class="metric-value" id="thermSweepCount">- / -</div>
-      <div style="height: 8px;"></div>
-      <div class="row"><div class="hint">Current sweep (estimated)</div><div class="hint" id="thermStepPct">0%</div></div>
-      <div class="bar"><div class="fill sub-fill" id="thermStepFill"></div></div>
-      <div class="hint" id="thermSweepHint">font color = overall thermalization progress (cold to hot)</div>
-    </div>
 
-    <div class="card">
-      <div class="row">
-        <div class="metric-title">Thread Status</div>
-        <div class="hint" id="threadTableNote">seed group: -</div>
-      </div>
-      <div class="table-wrap">
-        <table class="status-table">
-          <thead>
-            <tr>
-              <th>Thread</th>
-              <th>Seed</th>
-              <th>Phase</th>
-              <th>Therm</th>
-              <th>Meas</th>
-              <th>Cfg</th>
-              <th>Cfg time</th>
-              <th>CPU</th>
-              <th>Memory</th>
-              <th>Updated</th>
-            </tr>
-          </thead>
-          <tbody id="threadStatusBody">
-            <tr>
-              <td colspan="10" class="hint">Waiting for progress files...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="grid-2">
       <div class="chart-card">
         <div class="row">
-          <div class="metric-title">Plaquette History</div>
-          <div class="hint" id="historyCount">0 points</div>
+          <div class="metric-title">Flux Profile vs r⊥ (Mean ± SEM)</div>
+          <div class="hint" id="fluxLabel">aggregated over measured configs</div>
         </div>
-        <canvas id="plaqCanvas" width="560" height="220"></canvas>
-        <div class="hint" id="plaqAxes">x: measurement index, y: plaquette running mean</div>
-        <div id="plaqSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for plaquette history...</span></div>
+        <canvas id="fluxCanvas" width="1140" height="260"></canvas>
+        <div class="hint" id="fluxAxes">x: r⊥ (lattice units), y: connected flux ΔP(r⊥)</div>
+        <div id="fluxSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+            class="signal-text">Waiting for flux signal diagnostics...</span></div>
+        <div class="table-wrap">
+          <table class="fit-table">
+            <thead>
+              <tr>
+                <th>Flux Diagnostic</th>
+                <th>Value</th>
+                <th>Reference</th>
+                <th>Agreement</th>
+              </tr>
+            </thead>
+            <tbody id="fluxDiagBody">
+              <tr>
+                <td colspan="4" class="hint">Flux diagnostics pending.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
+
       <div class="chart-card">
         <div class="row">
-          <div class="metric-title">Selected Wilson Loop (Re)</div>
-          <div class="hint" id="loopKeyLabel">key: -</div>
+          <div class="metric-title">2Q Potential V(R) (Mean ± SEM)</div>
+          <div class="hint" id="vLabel">V(R) unavailable</div>
         </div>
-        <canvas id="loopCanvas" width="560" height="220"></canvas>
-        <div class="hint" id="loopAxes">x: measurement index, y: running mean of Re W(R,T) for selected key</div>
-        <div id="loopSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for loop history...</span></div>
+        <canvas id="vCanvas" width="1140" height="260"></canvas>
+        <div class="hint" id="vAxes">x: R (lattice units), y: V(R)</div>
+        <div class="hint" id="vFormula">Cornell: V(R)=V₀+σR−e/R | F(R)=dV/dR | r₀²F(r₀)=1.65 | r₁²F(r₁)=1.00 |
+          R_c=√(e/σ)</div>
+        <div id="vSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+            class="signal-text">Waiting for potential fit diagnostics...</span></div>
+        <div id="vTable" class="mono-list">No valid V(R) points yet.</div>
+        <div class="table-wrap">
+          <table class="fit-table">
+            <thead>
+              <tr>
+                <th>Parameter</th>
+                <th>Fit (lattice)</th>
+                <th>Physical</th>
+                <th>Reference</th>
+                <th>Agreement</th>
+              </tr>
+            </thead>
+            <tbody id="vFitBody">
+              <tr>
+                <td colspan="5" class="hint">Cornell fit unavailable.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div id="vForceTable" class="mono-list">Force diagnostics pending.</div>
+      </div>
+
+      <div class="grid-2">
+        <div class="chart-card">
+          <div class="row">
+            <div class="metric-title">Plaquette Autocorrelation</div>
+            <div class="hint" id="tauLabel">τ_int pending</div>
+          </div>
+          <canvas id="tauCanvas" width="560" height="220"></canvas>
+          <div class="hint" id="tauAxes">x: lag (measurements), y: rho(lag) for plaquette</div>
+          <div id="tauSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+              class="signal-text">Waiting for autocorrelation diagnostics...</span></div>
+          <div id="tauSummary" class="mono-list">Waiting for measurement history...</div>
+        </div>
+        <div class="chart-card">
+          <div class="row">
+            <div class="metric-title">Polyakov Sectors</div>
+            <div class="hint" id="polyLabel">Re P_mu pending</div>
+          </div>
+          <canvas id="polyCanvas" width="560" height="220"></canvas>
+          <div class="hint" id="polyAxes">x: measurement index, y: Re Polyakov loop by mu</div>
+          <div id="polySignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+              class="signal-text">Waiting for Polyakov sector diagnostics...</span></div>
+          <div id="polySummary" class="mono-list">Waiting for Polyakov-loop telemetry...</div>
+        </div>
       </div>
     </div>
 
-    <div class="chart-card">
-      <div class="row">
-        <div class="metric-title">Flux Profile vs r⊥ (Mean ± SEM)</div>
-        <div class="hint" id="fluxLabel">aggregated over measured configs</div>
-      </div>
-      <canvas id="fluxCanvas" width="1140" height="260"></canvas>
-      <div class="hint" id="fluxAxes">x: r⊥ (lattice units), y: connected flux ΔP(r⊥)</div>
-      <div id="fluxSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for flux signal diagnostics...</span></div>
-      <div class="table-wrap">
-        <table class="fit-table">
-          <thead>
-            <tr>
-              <th>Flux Diagnostic</th>
-              <th>Value</th>
-              <th>Reference</th>
-              <th>Agreement</th>
-            </tr>
-          </thead>
-          <tbody id="fluxDiagBody">
-            <tr><td colspan="4" class="hint">Flux diagnostics pending.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <div class="row">
-        <div class="metric-title">2Q Potential V(R) (Mean ± SEM)</div>
-        <div class="hint" id="vLabel">V(R) unavailable</div>
-      </div>
-      <canvas id="vCanvas" width="1140" height="260"></canvas>
-      <div class="hint" id="vAxes">x: R (lattice units), y: V(R)</div>
-      <div class="hint" id="vFormula">Cornell: V(R)=V₀+σR−e/R | F(R)=dV/dR | r₀²F(r₀)=1.65 | r₁²F(r₁)=1.00 | R_c=√(e/σ)</div>
-      <div id="vSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for potential fit diagnostics...</span></div>
-      <div id="vTable" class="mono-list">No valid V(R) points yet.</div>
-      <div class="table-wrap">
-        <table class="fit-table">
-          <thead>
-            <tr>
-              <th>Parameter</th>
-              <th>Fit (lattice)</th>
-              <th>Physical</th>
-              <th>Reference</th>
-              <th>Agreement</th>
-            </tr>
-          </thead>
-          <tbody id="vFitBody">
-            <tr><td colspan="5" class="hint">Cornell fit unavailable.</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <div id="vForceTable" class="mono-list">Force diagnostics pending.</div>
-    </div>
-
-    <div class="grid-2">
+    <div id="tabProfiling" style="display: none;">
       <div class="chart-card">
         <div class="row">
-          <div class="metric-title">Plaquette Autocorrelation</div>
-          <div class="hint" id="tauLabel">τ_int pending</div>
+          <div class="metric-title">Wilson Loop & Flux Execution Time</div>
+          <div class="hint" id="profileLabel">wall-clock profiling</div>
         </div>
-        <canvas id="tauCanvas" width="560" height="220"></canvas>
-        <div class="hint" id="tauAxes">x: lag (measurements), y: rho(lag) for plaquette</div>
-        <div id="tauSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for autocorrelation diagnostics...</span></div>
-        <div id="tauSummary" class="mono-list">Waiting for measurement history...</div>
-      </div>
-      <div class="chart-card">
-        <div class="row">
-          <div class="metric-title">Polyakov Sectors</div>
-          <div class="hint" id="polyLabel">Re P_mu pending</div>
-        </div>
-        <canvas id="polyCanvas" width="560" height="220"></canvas>
-        <div class="hint" id="polyAxes">x: measurement index, y: Re Polyakov loop by mu</div>
-        <div id="polySignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span class="signal-text">Waiting for Polyakov sector diagnostics...</span></div>
-        <div id="polySummary" class="mono-list">Waiting for Polyakov-loop telemetry...</div>
+        <canvas id="profileCanvas" width="1140" height="260"></canvas>
+        <div class="hint" id="profileAxes">x: measurement index, y: execution time (seconds)</div>
+        <div id="profileSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+            class="signal-text">Waiting for profiling data...</span></div>
       </div>
     </div>
   </div>
@@ -2452,14 +2697,14 @@
           : NaN;
         const snap = snapRaw
           ? {
-              ...snapRaw,
-              progress: stabilizeDisplayedCfgProgress(
-                seed,
-                snapRaw.cfgIdx,
-                Number.isFinite(liveProgress) ? liveProgress : snapRaw.progress,
-                inProd
-              ),
-            }
+            ...snapRaw,
+            progress: stabilizeDisplayedCfgProgress(
+              seed,
+              snapRaw.cfgIdx,
+              Number.isFinite(liveProgress) ? liveProgress : snapRaw.progress,
+              inProd
+            ),
+          }
           : null;
         return snap ? { label: slot.label, snap } : null;
       }).filter(Boolean);
@@ -2488,23 +2733,23 @@
       const singleRaw = configStageSnapshot(p, currentMeta);
       const singleLive = singleRaw
         ? estimateLiveCfgProgress(
-            String(p?.seed || ""),
-            singleRaw.cfgIdx,
-            singleRaw.progress,
-            Date.parse(p?.timestamp_utc || ""),
-            String(p?.phase || "").toLowerCase() === "production" && !p?.done
-          )
+          String(p?.seed || ""),
+          singleRaw.cfgIdx,
+          singleRaw.progress,
+          Date.parse(p?.timestamp_utc || ""),
+          String(p?.phase || "").toLowerCase() === "production" && !p?.done
+        )
         : NaN;
       const single = singleRaw
         ? {
-            ...singleRaw,
-            progress: stabilizeDisplayedCfgProgress(
-              String(p?.seed || ""),
-              singleRaw.cfgIdx,
-              Number.isFinite(singleLive) ? singleLive : singleRaw.progress,
-              String(p?.phase || "").toLowerCase() === "production" && !p?.done
-            ),
-          }
+          ...singleRaw,
+          progress: stabilizeDisplayedCfgProgress(
+            String(p?.seed || ""),
+            singleRaw.cfgIdx,
+            Number.isFinite(singleLive) ? singleLive : singleRaw.progress,
+            String(p?.phase || "").toLowerCase() === "production" && !p?.done
+          ),
+        }
         : null;
       if (single) {
         setThreadPart("A", single.progress, single.cfgIdx);
@@ -3350,6 +3595,8 @@
       const mean = [];
       const low = [];
       const high = [];
+      const stdLow = [];
+      const stdHigh = [];
       let n = 0;
       let mu = 0.0;
       let m2 = 0.0;
@@ -3359,21 +3606,27 @@
         mu += d / n;
         const d2 = x - mu;
         m2 += d * d2;
-        const sem = n > 1 ? Math.sqrt((m2 / (n - 1)) / n) : 0.0;
+        const variance = n > 1 ? (m2 / (n - 1)) : 0.0;
+        const std = Math.sqrt(variance);
+        const sem = n > 1 ? Math.sqrt(variance / n) : 0.0;
         mean.push(mu);
         low.push(mu - sem);
         high.push(mu + sem);
+        stdLow.push(mu - std);
+        stdHigh.push(mu + std);
       }
-      return { mean, low, high };
+      return { mean, low, high, stdLow, stdHigh };
     }
 
     function pointwiseMeanSem(series) {
       const n = series.length;
-      if (n === 0) return { mean: [], low: [], high: [] };
+      if (n === 0) return { mean: [], low: [], high: [], stdLow: [], stdHigh: [] };
       const m = Math.max(...series.map(x => (Array.isArray(x) ? x.length : 0)));
       const mean = [];
       const low = [];
       const high = [];
+      const stdLow = [];
+      const stdHigh = [];
       for (let j = 0; j < m; j += 1) {
         const vals = [];
         for (let i = 0; i < n; i += 1) {
@@ -3383,9 +3636,7 @@
           }
         }
         if (vals.length === 0) {
-          mean.push(0);
-          low.push(0);
-          high.push(0);
+          mean.push(0); low.push(0); high.push(0); stdLow.push(0); stdHigh.push(0);
           continue;
         }
         const mu = vals.reduce((a, b) => a + b, 0) / vals.length;
@@ -3394,12 +3645,15 @@
           for (const v of vals) varSample += (v - mu) * (v - mu);
           varSample /= (vals.length - 1);
         }
+        const std = Math.sqrt(varSample);
         const sem = vals.length > 1 ? Math.sqrt(varSample / vals.length) : 0.0;
         mean.push(mu);
         low.push(mu - sem);
         high.push(mu + sem);
+        stdLow.push(mu - std);
+        stdHigh.push(mu + std);
       }
-      return { mean, low, high };
+      return { mean, low, high, stdLow, stdHigh };
     }
 
     function meanSem(values) {
@@ -3436,8 +3690,8 @@
       }
       const extraPts = Array.isArray(opts.extraPts)
         ? opts.extraPts
-            .map((p) => ({ x: Number(p?.x), y: Number(p?.y), e: Number(p?.e ?? 0), label: String(p?.label || "") }))
-            .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.e))
+          .map((p) => ({ x: Number(p?.x), y: Number(p?.y), e: Number(p?.e ?? 0), label: String(p?.label || "") }))
+          .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.e))
         : [];
       if (pts.length < 2) {
         ctx.fillStyle = "#93a4be";
@@ -3620,6 +3874,28 @@
 
       const baseColor = opts.color || "#f2c14b";
       const lineWidth = Number.isFinite(Number(opts.lineWidth)) ? Number(opts.lineWidth) : 2;
+
+      const bandLow = opts.bandLow;
+      const bandHigh = opts.bandHigh;
+      if (Array.isArray(bandLow) && Array.isArray(bandHigh) && bandLow.length === pts.length && bandHigh.length === pts.length) {
+        ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.2)";
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i += 1) {
+          const p = pts[i];
+          const x = mapX(p.x);
+          const y = mapY(Math.min(maxY, Math.max(minY, bandHigh[i])));
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        for (let i = pts.length - 1; i >= 0; i -= 1) {
+          const p = pts[i];
+          const x = mapX(p.x);
+          const y = mapY(Math.min(maxY, Math.max(minY, bandLow[i])));
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
       const segColorFn = typeof opts.segmentColorFn === "function" ? opts.segmentColorFn : null;
       if (segColorFn && pts.length >= 2) {
         for (let i = 0; i < pts.length - 1; i += 1) {
@@ -4866,10 +5142,16 @@
       const xs = Array.from({ length: rho.length }, (_, i) => i);
       const minRho = rho.length > 0 ? Math.min(...rho) : -0.2;
       const maxRho = rho.length > 0 ? Math.max(...rho) : 1.0;
-      const minY = Math.min(-0.2, minRho - 0.05);
-      const maxY = Math.max(1.0, maxRho + 0.05);
+      const dRho = 1.0 / Math.sqrt(Math.max(1, stats.n));
+      const bandLow = rho.map(r => r - dRho);
+      const bandHigh = rho.map(r => r + dRho);
+      const minY = Math.min(-0.2, minRho - 0.05, ...bandLow);
+      const maxY = Math.max(1.0, maxRho + 0.05, ...bandHigh);
       drawXYLine("tauCanvas", xs, rho, {
         color: "#52adff",
+        bandLow,
+        bandHigh,
+        bandColor: "rgba(82, 173, 255, 0.2)",
         minX: 0,
         maxX: Math.max(1, xs.length - 1),
         minY,
@@ -4946,14 +5228,20 @@
         return;
       }
 
-      const series = keys.map((k) => ({
-        key: k,
-        color: polyakovColorByMu[k] || "#c6a0ff",
-        points: (ms || []).map((m, i) => {
+      const series = keys.map((k) => {
+        const points = (ms || []).map((m, i) => {
           const y = toFiniteNumber(m?.polyakov_loops?.[k]?.re, NaN);
           return { x: i + 1, y };
-        }).filter((p) => Number.isFinite(p.y)),
-      }));
+        }).filter((p) => Number.isFinite(p.y));
+        const stats = runningMeanSem(points.map(p => p.y));
+        return {
+          key: k,
+          color: polyakovColorByMu[k] || "#c6a0ff",
+          points,
+          stdLow: stats.stdLow,
+          stdHigh: stats.stdHigh
+        };
+      });
       const allVals = series.flatMap((s) => s.points.map((p) => p.y)).filter(Number.isFinite);
       if (allVals.length < 2) {
         ctx.fillStyle = "#93a4be";
@@ -4967,7 +5255,11 @@
 
       const n = ms.length;
       const maxAbs = Math.max(0.02, ...allVals.map((v) => Math.abs(v)));
-      const yMax = 1.15 * maxAbs;
+      let maxYOverall = 1.15 * maxAbs;
+      for (const s of series) {
+        maxYOverall = Math.max(maxYOverall, ...s.stdHigh.map(Math.abs), ...s.stdLow.map(Math.abs));
+      }
+      const yMax = 1.15 * maxYOverall;
       const yMin = -yMax;
       const xMin = 1;
       const xMax = Math.max(2, n);
@@ -5007,6 +5299,27 @@
         ctx.fillStyle = "#cbd7ea";
         ctx.fillText(label, legendX + 16, legendY + 4);
         legendX += 20 + ctx.measureText(label).width + 14;
+      }
+
+      for (const s of series) {
+        if (s.points.length < 2) continue;
+        const colorWithAlpha = s.color + "33"; // 20% alpha assuming #RRGGBB
+        ctx.fillStyle = colorWithAlpha;
+        ctx.beginPath();
+        for (let i = 0; i < s.points.length; i += 1) {
+          const p = s.points[i];
+          const x = mapX(p.x);
+          const y = mapY(Math.min(yMax, Math.max(yMin, s.stdHigh[i])));
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        for (let i = s.points.length - 1; i >= 0; i -= 1) {
+          const p = s.points[i];
+          const x = mapX(p.x);
+          const y = mapY(Math.min(yMax, Math.max(yMin, s.stdLow[i])));
+          ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.fill();
       }
 
       for (const s of series) {
@@ -5575,9 +5888,9 @@
         ? "legacy filtered per-sample log ratio"
         : (pot.selection === "per_r_t_log_fit"
           ? "all-sample per-R T-fit (Veff plateau fit, ln|W| fallback)"
-        : (pot.selection === "per_r_plateau_adjacent"
-          ? "all-sample per-R plateau (adjacent T, same-sign ratio incl. both-negative)"
-          : "all-sample ratio with jackknife"));
+          : (pot.selection === "per_r_plateau_adjacent"
+            ? "all-sample per-R plateau (adjacent T, same-sign ratio incl. both-negative)"
+            : "all-sample ratio with jackknife"));
       if (pot.selection === "per_r_t_log_fit") {
         document.getElementById("vLabel").textContent =
           `V(R) from per-R T-fits, N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}, T-fit R=${pot.nTFit || 0}, pair-fallback R=${pot.nPairFallback || 0}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
@@ -6183,21 +6496,21 @@
         // Do not map thermalization counters to cfg progress; keep those separate.
         const thermLive = hasTherm
           ? Math.min(
-              ntherm,
-              thermDone + (
-                phase === "thermalization" &&
+            ntherm,
+            thermDone + (
+              phase === "thermalization" &&
                 !p.done &&
                 thermDone > 0 &&
                 thermDone < ntherm &&
                 Number.isFinite(tsMs)
-                  ? Math.min(
-                      0.999,
-                      Math.max(0, (Date.now() - tsMs) / 1000.0) /
-                        Math.max(1e-9, liveElapsedFromProgress() / thermDone)
-                    )
-                  : 0
-              )
+                ? Math.min(
+                  0.999,
+                  Math.max(0, (Date.now() - tsMs) / 1000.0) /
+                  Math.max(1e-9, liveElapsedFromProgress() / thermDone)
+                )
+                : 0
             )
+          )
           : NaN;
         const thermOverallPct = hasTherm ? (100 * thermLive / ntherm) : NaN;
         document.getElementById("thermPct").textContent = hasTherm ? `${thermOverallPct.toFixed(1)}%` : "-";
@@ -6295,6 +6608,40 @@
       refreshThreadStatusTable(false);
     }
 
+    function renderProfile(ms) {
+      if (!ms || ms.length === 0) return;
+      const loopTime = ms.map(x => x?.profiling?.loop_time ?? 0.0);
+      const fluxTime = ms.map(x => x?.profiling?.flux_time ?? 0.0);
+
+      const loopStats = runningMeanSem(loopTime);
+      const fluxStats = runningMeanSem(fluxTime);
+
+      const totalTime = ms.map(x => (x?.profiling?.loop_time ?? 0.0) + (x?.profiling?.flux_time ?? 0.0));
+      const totalStats = runningMeanSem(totalTime);
+
+      drawSeries("profileCanvas", totalStats.mean, "#ff7171", {
+        bandLow: totalStats.stdLow,
+        bandHigh: totalStats.stdHigh,
+        bandColor: "rgba(255, 113, 113, 0.22)",
+        includeZero: true,
+        drawZeroLine: true,
+        xStartLabel: 1,
+        xEndLabel: Math.max(1, totalStats.mean.length)
+      });
+
+      const lastLoops = loopTime[loopTime.length - 1] || 0;
+      const lastFlux = fluxTime[fluxTime.length - 1] || 0;
+      const lastTotal = totalTime[totalTime.length - 1] || 0;
+
+      document.getElementById("profileLabel").textContent = `N=${ms.length}, latest total: ${lastTotal.toFixed(2)}s (loops: ${lastLoops.toFixed(2)}s, flux: ${lastFlux.toFixed(2)}s)`;
+
+      if (lastTotal > 0) {
+        setSignalNote("profileSignal", "green", `Profiling active. Mean wall-clock per configuration: ${totalStats.mean[totalStats.mean.length - 1].toFixed(2)}s`);
+      } else {
+        setSignalNote("profileSignal", "na", `Waiting for profiling data (requires updated su2_2q_signal_scan.py).`);
+      }
+    }
+
     function renderLive(live, livePathHint = null) {
       const livePath = normalizePath(livePathHint || document.getElementById("livePath")?.value || "");
       live = applyCachedMeasurements(livePath, live);
@@ -6332,8 +6679,8 @@
       const plaq = ms.map(x => x.plaquette);
       const plaqStats = runningMeanSem(plaq);
       drawSeries("plaqCanvas", plaqStats.mean, "#2fd08a", {
-        bandLow: plaqStats.low,
-        bandHigh: plaqStats.high,
+        bandLow: plaqStats.stdLow,
+        bandHigh: plaqStats.stdHigh,
         bandColor: "rgba(47, 208, 138, 0.22)",
         includeZero: true,
         drawZeroLine: true,
@@ -6379,8 +6726,8 @@
       const loopVals = loopKey ? ms.map(x => (x.loops?.[loopKey]?.re ?? 0)) : [];
       const loopStats = runningMeanSem(loopVals);
       drawSeries("loopCanvas", loopStats.mean, "#52adff", {
-        bandLow: loopStats.low,
-        bandHigh: loopStats.high,
+        bandLow: loopStats.stdLow,
+        bandHigh: loopStats.stdHigh,
         bandColor: "rgba(82, 173, 255, 0.22)",
         includeZero: true,
         drawZeroLine: true,
@@ -6418,8 +6765,8 @@
       const fluxView = buildFluxDisplaySeries(ms, currentMeta);
       const fluxStats = pointwiseMeanSem(fluxView.series);
       drawSeries("fluxCanvas", fluxStats.mean, "#f2c14b", {
-        bandLow: fluxStats.low,
-        bandHigh: fluxStats.high,
+        bandLow: fluxStats.stdLow,
+        bandHigh: fluxStats.stdHigh,
         bandColor: "rgba(242, 193, 75, 0.26)",
         includeZero: true,
         drawZeroLine: true,
@@ -6477,6 +6824,7 @@
       renderPolyakov(ms);
       renderFluxDiagnostics(ms, currentMeta);
       renderPotential(ms, currentMeta);
+      renderProfile(ms);
       updateNextJobs();
     }
 
@@ -6809,6 +7157,34 @@
       });
     }
 
+    const tabBtnPhysics = document.getElementById("tabBtnPhysics");
+    const tabBtnProfiling = document.getElementById("tabBtnProfiling");
+    const tabPhysics = document.getElementById("tabPhysics");
+    const tabProfiling = document.getElementById("tabProfiling");
+
+    if (tabBtnPhysics && tabBtnProfiling) {
+      tabBtnPhysics.addEventListener("click", () => {
+        tabPhysics.style.display = "block";
+        tabProfiling.style.display = "none";
+        tabBtnPhysics.style.background = "var(--accent)";
+        tabBtnPhysics.style.color = "#000";
+        tabBtnPhysics.style.border = "none";
+        tabBtnProfiling.style.background = "#162138";
+        tabBtnProfiling.style.color = "var(--text)";
+        tabBtnProfiling.style.border = "1px solid var(--border)";
+      });
+      tabBtnProfiling.addEventListener("click", () => {
+        tabPhysics.style.display = "none";
+        tabProfiling.style.display = "block";
+        tabBtnProfiling.style.background = "var(--accent)";
+        tabBtnProfiling.style.color = "#000";
+        tabBtnProfiling.style.border = "none";
+        tabBtnPhysics.style.background = "#162138";
+        tabBtnPhysics.style.color = "var(--text)";
+        tabBtnPhysics.style.border = "1px solid var(--border)";
+      });
+    }
+
     applyUrlDefaults();
     applyThreadVizMode();
     addChat("system", "Admin chat ready.");
@@ -6829,4 +7205,5 @@
     }, pollMs);
   </script>
 </body>
+
 </html>
