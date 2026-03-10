@@ -1203,6 +1203,7 @@ def main():
                     flux_time_total += time.time() - t0_flux
             # Free C++ lattice temporaries from smearing/loops/flux for this tdir
             del U_use
+            clear_gpt_caches()
             gc.collect()
 
         # Aggregate loops
@@ -1262,6 +1263,7 @@ def main():
                         if progress_cb is not None:
                             progress_cb("multihit_temporal_sweeps", 1)
                 hits.append(single_measurement(U_hit, progress_cb=progress_cb))
+                clear_gpt_caches()
                 gc.collect()
 
             blocks.append(mean_measurement_items(hits))
@@ -1443,6 +1445,11 @@ def main():
             )
         if checkpoint_every > 0 and (((i + 1) % checkpoint_every) == 0 or (i + 1) == ntherm):
             save_checkpoint("thermalization", i + 1, meas_start)
+            
+        # Free memory aggressively during thermalization sweeps
+        clear_gpt_caches()
+        gc.collect()
+        
         if stop_requested:
             break
 
@@ -1606,6 +1613,10 @@ def main():
                         "shift": [int(x) for x in skip_mu_counts],
                     },
                 )
+            
+            # Free memory aggressively during skip sweeps
+            clear_gpt_caches()
+            gc.collect()
 
         measured = measure_with_variance_reduction(U, progress_cb=advance_meas_subprogress)
         meas_substate["done"] = meas_substate["total"]
@@ -1614,6 +1625,7 @@ def main():
         # Free C++ lattice temporaries from smearing/loops/flux measurements.
         # The grid stays the same so caches stabilize, but gc.collect() ensures
         # reference-cycled C++ objects are freed promptly.
+        clear_gpt_caches()
         gc.collect()
 
         item = {
