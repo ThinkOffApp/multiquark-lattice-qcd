@@ -157,7 +157,7 @@
 #define HAVE_EXECINFO_H 1
 
 /* Define to 1 if you have the `FFTW' library */
-#define HAVE_FFTW 1
+/* #undef HAVE_FFTW */
 
 /* Define to 1 if you have the 'gettimeofday' function. */
 #define HAVE_GETTIMEOFDAY 1
@@ -169,13 +169,13 @@
 #define HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the `GMP' library */
-#define HAVE_LIBGMP 1
+/* #undef HAVE_LIBGMP */
 
 /* Define to 1 if you have the 'm' library (-lm). */
 #define HAVE_LIBM 1
 
 /* Define to 1 if you have the `MPFR' library */
-#define HAVE_LIBMPFR 1
+/* #undef HAVE_LIBMPFR */
 
 /* Define to 1 if you have the 'stdc++' library (-lstdc++). */
 #define HAVE_LIBSTDC__ 1

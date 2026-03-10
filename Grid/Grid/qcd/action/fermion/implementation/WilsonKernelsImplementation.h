@@ -485,10 +485,8 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
 #define KERNEL_CALLNB(A) \
   if (std::string(#A) == "GenericDhopSite") { \
       id<MTLComputePipelineState> pipeline = getGenericDhopSitePipeline(); \
-      if (theGridAcceleratorCommandBuffer == nil) { \
-          theGridAcceleratorCommandBuffer = [theGridAcceleratorCommandQueue commandBuffer]; \
-      } \
-      id<MTLComputeCommandEncoder> encoder = [theGridAcceleratorCommandBuffer computeCommandEncoder]; \
+      id<MTLCommandBuffer> commandBuffer = [theGridAcceleratorCommandQueue commandBuffer]; \
+      id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder]; \
       [encoder setComputePipelineState:pipeline]; \
       \
       id<MTLBuffer> mtl_in  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[in_v.getHostPointer()]; \
@@ -520,6 +518,8 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
       MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
       [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize]; \
       [encoder endEncoding]; \
+      [commandBuffer commit]; \
+      [commandBuffer waitUntilCompleted]; \
   } else { \
       const uint64_t    NN = Nsite*Ls; \
       accelerator_forNB( ss, NN, Simd::Nsimd(), { \

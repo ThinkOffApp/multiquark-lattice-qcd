@@ -22,34 +22,26 @@ Shared memory mmap path     : /var/lib/hugetlbfs/global/pagesize-2MB/
 Default precision           : 
 Software FP16 conversion    : yes
 RNG choice                  : sitmo
-GMP                         : yes
+GMP                         : no
 LAPACK                      : no
-FFTW                        : yes
+FFTW                        : no
 LIME (ILDG support)         : no
 HDF5                        : no
 build DOXYGEN documentation : no
 Sp2n                        : no
 ----- BUILD FLAGS -------------------------------------
 CXXFLAGS:
-    -I/Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt-public/Grid
+    -I/Users/petrus/multiquark-lattice-qcd/Grid
     -O3
-    -x
-objective-c++
+    -ObjC++
     -fobjc-arc
     -fno-strict-aliasing
 LDFLAGS:
-    -L/Users/petrus/AndroidStudioProjects/ThinkOff/grid-gpt-public/Grid/Grid
-    -L/opt/homebrew/lib
+    -L/Users/petrus/multiquark-lattice-qcd/Grid/Grid
     -L/opt/homebrew/opt/openssl@3/lib
-    -x
-none
 LIBS:
     -lz
     -lcrypto
-    -lfftw3f
-    -lfftw3
-    -lmpfr
-    -lgmp
     -lstdc++
     -lm
     -framework
