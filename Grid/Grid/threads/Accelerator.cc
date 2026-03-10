@@ -285,15 +285,14 @@ void acceleratorInit(void)
 
 #ifdef GRID_METAL
 NAMESPACE_END(Grid);
-#include <unordered_map>
+#include <map>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 NAMESPACE_BEGIN(Grid);
 
-std::unordered_map<void*, void*> acceleratorMetalBufferMap;
+std::map<void*, void*> acceleratorMetalBufferMap;
 id<MTLDevice> theGridAcceleratorDevice = nil;
 id<MTLCommandQueue> theGridAcceleratorCommandQueue = nil;
-id<MTLCommandBuffer> theGridAcceleratorCommandBuffer = nil;
 
 void acceleratorInit(void)
 {

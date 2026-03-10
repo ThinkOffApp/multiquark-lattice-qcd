@@ -573,7 +573,7 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 //////////////////////////////////////////////
 #ifdef GRID_METAL
 NAMESPACE_END(Grid);
-#include <unordered_map>
+#include <map>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
@@ -584,8 +584,7 @@ NAMESPACE_BEGIN(Grid);
 
 extern id<MTLDevice> theGridAcceleratorDevice;
 extern id<MTLCommandQueue> theGridAcceleratorCommandQueue;
-extern id<MTLCommandBuffer> theGridAcceleratorCommandBuffer;
-extern std::unordered_map<void*, void*> acceleratorMetalBufferMap;
+extern std::map<void*, void*> acceleratorMetalBufferMap;
 
 inline void acceleratorMem(void) {
   std::cout << "Metal MemoryManager info not currently implemented" << std::endl;
@@ -596,21 +595,14 @@ accelerator_inline int acceleratorSIMTlane(int Nsimd) { return 0; }
 #define accelerator_for2dNB( iter1, num1, iter2, num2, nsimd, ... ) \
   { \
     dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0); \
-    dispatch_apply(num1*num2, queue, ^(size_t _grid_metal_idx_) { \
-      uint64_t iter1 = _grid_metal_idx_ / num2; \
-      uint64_t iter2 = _grid_metal_idx_ % num2; \
+    dispatch_apply(num1*num2, queue, ^(size_t _metal_idx) { \
+      uint64_t iter1 = _metal_idx / num2; \
+      uint64_t iter2 = _metal_idx % num2; \
       { __VA_ARGS__; } \
     }); \
   }
 
-inline void acceleratorMetalBarrier(void) {
-  if (theGridAcceleratorCommandBuffer != nil) {
-    [theGridAcceleratorCommandBuffer commit];
-    [theGridAcceleratorCommandBuffer waitUntilCompleted];
-    theGridAcceleratorCommandBuffer = nil;
-  }
-}
-#define accelerator_barrier(dummy) acceleratorMetalBarrier()
+#define accelerator_barrier(dummy)
 
 typedef int acceleratorEvent_t;
 

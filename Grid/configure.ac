@@ -314,8 +314,7 @@ case ${ac_ACCELERATOR} in
     metal)
       echo Metal acceleration
       AC_DEFINE([GRID_METAL],[1],[Use Apple Metal offload])
-      CXXFLAGS="$CXXFLAGS -x objective-c++ -fobjc-arc"
-      LDFLAGS="$LDFLAGS -x none"
+      CXXFLAGS="$CXXFLAGS -ObjC++ -fobjc-arc"
       LIBS="${LIBS} -framework Metal -framework Foundation"
       ;;
     none)

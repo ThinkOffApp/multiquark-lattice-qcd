@@ -46,7 +46,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         "stopped",
     }
     dashboard_alias_path = "/tools/su2_dashboard.html"
-    dashboard_alias_seed = "petrus-su2-signal"
+    dashboard_alias_seed = "petrus-su2-signal-e"
     dashboard_alias_combine = True
     dashboard_alias_token = ""
     worker_launcher_auto = "tools/start_su2_worker.sh"
@@ -70,7 +70,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         parsed = urlparse(self.path)
-        if parsed.path in {"/", "/dashboard", "/d"}:
+        if parsed.path in {"/dashboard", "/d"}:
             qs = parse_qs(parsed.query)
             seed = (qs.get("seed", [self.dashboard_alias_seed])[0] or "").strip()
             token = (qs.get("token", [self.dashboard_alias_token])[0] or "").strip()
@@ -203,13 +203,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if p.startswith("http://") or p.startswith("https://"):
             raise ValueError("absolute URLs are not supported for streaming endpoint")
         rel = p[1:] if p.startswith("/") else p
-        # Use lexical path containment so symlinked descendants (e.g. /results -> /Volumes/...)
-        # remain valid while still blocking ../ escapes out of the workspace root.
-        joined = (self.root / rel).absolute()
-        root_abs = self.root.absolute()
-        if os.path.commonpath((str(root_abs), str(joined))) != str(root_abs):
+        full = (self.root / rel).resolve()
+        if not (full == self.root or self.root in full.parents):
             raise ValueError("path escapes workspace root")
-        return (self.root / rel).resolve()
+        return full
 
     @staticmethod
     def file_sig(path: Path):
@@ -317,14 +314,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     @staticmethod
     def base_seed(seed: str):
         txt = str(seed or "").strip()
-        return re.sub(r"-(b|c|d)$", "", txt)
+        return re.sub(r"-(b|c|d|e|f|g|h)$", "", txt)
 
     @staticmethod
     def seed_group(base_seed: str):
         root = DashboardHandler.base_seed(base_seed)
         if not root:
             return []
-        return [root, f"{root}-b", f"{root}-c", f"{root}-d"]
+        return [f"{root}-e", f"{root}-f", f"{root}-g", f"{root}-h"]
 
     @staticmethod
     def parse_ps_number(value, default=None):
@@ -675,8 +672,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         """Load live data from all seeds in the group, combining measurements."""
         data, err = DashboardHandler.load_live_with_jsonl(path)
         if data is None:
-            data = {"meta": {}, "measurements": []}
-        
+            return data, err
         seed = ((data.get("meta") or {}).get("seed") or "").strip()
         if not seed:
             seed = DashboardHandler.infer_seed_from_live_path(path)
