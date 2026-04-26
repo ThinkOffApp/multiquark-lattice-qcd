@@ -562,6 +562,9 @@ struct MetalWilsonImplOK {
       } \
       if (threadGroupSize > pipeline.maxTotalThreadsPerThreadgroup) threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
       if (threadGroupSize > Nsite*Ls) threadGroupSize = Nsite*Ls; \
+      /* threadGroupSize can hit 0 only if simdWidth > Nsite*Ls (single-site */ \
+      /* test lattices smaller than one SIMD group). Floor it to 1 so the    */ \
+      /* dispatch is well-formed; correctness is unaffected.                  */ \
       if (threadGroupSize == 0) threadGroupSize = 1; \
       MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
       [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize]; \
