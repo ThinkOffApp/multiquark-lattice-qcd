@@ -502,16 +502,24 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
     return pipeline;
 }
 
-// The Metal Wilson kernel is hard-coded to vComplexF layout: Nsimd=2 float
-// complex per site, so SiteSpinor is 12 complex * 2 lanes * 2*sizeof(float)
-// = 192 bytes. If the Impl uses double precision or a wider SIMD width, the
-// host buffer is reinterpreted as float4 by the GPU and silently miscomputes.
-// Catch that mismatch loudly rather than dispatching anyway. See Codex #1/#2.
-inline constexpr size_t kMetalWilsonExpectedSiteSpinorBytes = 12 * 2 * 2 * sizeof(float);
+// The Metal Wilson kernel is hard-coded to vComplexF layout (Nsimd==2 float
+// complex per site). On Apple NEON, sizeof(WilsonImplF::SiteSpinor) and
+// sizeof(WilsonImplD::SiteSpinor) collide at 192 bytes (2 lanes * 8B vs
+// 1 lane * 16B), so a sizeof-only guard is not enough. We must check both
+// the SIMD width and the scalar precision so a vComplexD Impl falls through
+// to the CPU path instead of being reinterpreted as float4 on the GPU.
+// See Codex review #1/#2.
+template<class Impl>
+struct MetalWilsonImplOK {
+    using S = typename Impl::SiteSpinor;
+    static constexpr bool value =
+        (S::Nsimd() == 2) &&
+        (sizeof(typename S::scalar_type) == sizeof(ComplexF));
+};
 
 #define KERNEL_CALLNB(A) \
   if (std::string(#A) == "GenericDhopSite" \
-      && sizeof(SiteSpinor) == kMetalWilsonExpectedSiteSpinorBytes) { \
+      && MetalWilsonImplOK<Impl>::value) { \
     @autoreleasepool { \
       id<MTLComputePipelineState> pipeline = getGenericDhopSitePipeline(); \
       id<MTLCommandBuffer> commandBuffer = [theGridAcceleratorCommandQueue commandBuffer]; \
