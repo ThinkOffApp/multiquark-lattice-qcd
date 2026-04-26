@@ -454,9 +454,29 @@ extern "C" {
 
 #ifdef GRID_METAL
 
+// Resolve default.metallib by trying, in order:
+//   1) GRID_METALLIB env var (explicit override),
+//   2) the executable / bundle directory (works for app bundles AND CLI tools
+//      built as a single binary, since +mainBundle returns the binary's dir),
+//   3) the current working directory (legacy behaviour, kept as a fallback so
+//      in-tree `make && ./bench` invocations still work).
+inline NSString* resolveDefaultMetallibPath() {
+    if (const char *override = getenv("GRID_METALLIB")) {
+        return [NSString stringWithUTF8String:override];
+    }
+    NSBundle *bundle = [NSBundle mainBundle];
+    if (bundle) {
+        NSString *bundled = [bundle pathForResource:@"default" ofType:@"metallib"];
+        if (bundled) return bundled;
+        NSString *next = [[bundle bundlePath] stringByAppendingPathComponent:@"default.metallib"];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:next]) return next;
+    }
+    return @"default.metallib";
+}
+
 inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
     // Metal Structs assume single precision matching Grid's `ComplexF`.
-    // SU(3) Matrix     : 9 complex numbers  => 18 floats 
+    // SU(3) Matrix     : 9 complex numbers  => 18 floats
     // SiteHalfSpinor   : 6 complex numbers  => 12 floats
     // SiteSpinor       : 12 complex numbers => 24 floats
     using TargetPrecision = float;
@@ -466,7 +486,7 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSError *error = nil;
-        NSString *libPath = @"default.metallib";
+        NSString *libPath = resolveDefaultMetallibPath();
         id<MTLLibrary> library = [theGridAcceleratorDevice newLibraryWithFile:libPath error:&error];
         if (!library) {
             NSLog(@"Failed to load %@: %@", libPath, error);
@@ -482,18 +502,32 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
     return pipeline;
 }
 
+// The Metal Wilson kernel is hard-coded to vComplexF layout: Nsimd=2 float
+// complex per site, so SiteSpinor is 12 complex * 2 lanes * 2*sizeof(float)
+// = 192 bytes. If the Impl uses double precision or a wider SIMD width, the
+// host buffer is reinterpreted as float4 by the GPU and silently miscomputes.
+// Catch that mismatch loudly rather than dispatching anyway. See Codex #1/#2.
+inline constexpr size_t kMetalWilsonExpectedSiteSpinorBytes = 12 * 2 * 2 * sizeof(float);
+
 #define KERNEL_CALLNB(A) \
-  if (std::string(#A) == "GenericDhopSite") { \
+  if (std::string(#A) == "GenericDhopSite" \
+      && sizeof(SiteSpinor) == kMetalWilsonExpectedSiteSpinorBytes) { \
+    @autoreleasepool { \
       id<MTLComputePipelineState> pipeline = getGenericDhopSitePipeline(); \
       id<MTLCommandBuffer> commandBuffer = [theGridAcceleratorCommandQueue commandBuffer]; \
       id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder]; \
       [encoder setComputePipelineState:pipeline]; \
       \
-      id<MTLBuffer> mtl_in  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[in_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_out = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[out_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_U   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[U_v.getHostPointer()]; \
-      id<MTLBuffer> mtl_st  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[st_v._entries_p]; \
-      id<MTLBuffer> mtl_buf = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[buf]; \
+      id<MTLBuffer> mtl_in  = acceleratorMetalBufferFor(in_v.getHostPointer()); \
+      id<MTLBuffer> mtl_out = acceleratorMetalBufferFor(out_v.getHostPointer()); \
+      id<MTLBuffer> mtl_U   = acceleratorMetalBufferFor(U_v.getHostPointer()); \
+      id<MTLBuffer> mtl_st  = acceleratorMetalBufferFor(st_v._entries_p); \
+      id<MTLBuffer> mtl_buf = acceleratorMetalBufferFor(buf); \
+      NSCAssert(mtl_in  != nil, @"Metal Dslash: in_v not registered in acceleratorMetalBufferMap"); \
+      NSCAssert(mtl_out != nil, @"Metal Dslash: out_v not registered in acceleratorMetalBufferMap"); \
+      NSCAssert(mtl_U   != nil, @"Metal Dslash: U_v not registered in acceleratorMetalBufferMap"); \
+      NSCAssert(mtl_st  != nil, @"Metal Dslash: stencil entries not registered in acceleratorMetalBufferMap"); \
+      NSCAssert(mtl_buf != nil, @"Metal Dslash: comm buffer not registered in acceleratorMetalBufferMap"); \
       \
       [encoder setBuffer:mtl_in offset:0 atIndex:0]; \
       [encoder setBuffer:mtl_out offset:0 atIndex:1]; \
@@ -506,20 +540,27 @@ inline id<MTLComputePipelineState> getGenericDhopSitePipeline() {
       [encoder setBytes:&cNsite length:sizeof(uint32_t) atIndex:5]; \
       \
       MTLSize gridSize = MTLSizeMake(Nsite*Ls, 1, 1); \
-      /* M-series optimal threadgroup occupancy for mathematical operators is roughly 256. */ \
+      /* Apple GPU SIMD width is 32 (threadExecutionWidth). Round the user / */ \
+      /* env preference down to a multiple of that for clean occupancy.      */ \
       static NSUInteger globalThreadGroupSize = 0; \
       if (globalThreadGroupSize == 0) { \
           const char* env = getenv("GRID_METAL_THREADGROUP"); \
           globalThreadGroupSize = env ? std::stoi(env) : 256; \
       } \
+      NSUInteger simdWidth = pipeline.threadExecutionWidth; \
       NSUInteger threadGroupSize = globalThreadGroupSize; \
+      if (simdWidth > 0 && threadGroupSize >= simdWidth) { \
+          threadGroupSize = (threadGroupSize / simdWidth) * simdWidth; \
+      } \
       if (threadGroupSize > pipeline.maxTotalThreadsPerThreadgroup) threadGroupSize = pipeline.maxTotalThreadsPerThreadgroup; \
       if (threadGroupSize > Nsite*Ls) threadGroupSize = Nsite*Ls; \
+      if (threadGroupSize == 0) threadGroupSize = 1; \
       MTLSize threadgroupSize = MTLSizeMake(threadGroupSize, 1, 1); \
       [encoder dispatchThreads:gridSize threadsPerThreadgroup:threadgroupSize]; \
       [encoder endEncoding]; \
       [commandBuffer commit]; \
       [commandBuffer waitUntilCompleted]; \
+    } \
   } else { \
       const uint64_t    NN = Nsite*Ls; \
       accelerator_forNB( ss, NN, Simd::Nsimd(), { \
