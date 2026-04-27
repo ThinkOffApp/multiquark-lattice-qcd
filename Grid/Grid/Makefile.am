@@ -24,9 +24,18 @@ endif
 
 all: version-cache Version.h WilsonKernels.metallib
 
+# Reproducible Metal compilation:
+#   -std=metal3.0     pin language version (default tracks Xcode, breaks repro)
+#   -O3               release optimisation
+#   -frecord-sources  embed sources for crash logs / Xcode shader debugger
+#   -Wall -Werror     don't ship a kernel with warnings
+# We deliberately do NOT pass -ffast-math here: complex sums in Wilson Dslash
+# rely on associative ordering for gauge-covariance to hold.
+METAL_FLAGS = -std=metal3.0 -O3 -frecord-sources -Wall -Werror
+
 WilsonKernels.metallib: $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal
 	@echo "Compiling Metal shaders..."
-	xcrun -sdk macosx metal -c $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal -o WilsonKernels.air
+	xcrun -sdk macosx metal $(METAL_FLAGS) -c $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal -o WilsonKernels.air
 	xcrun -sdk macosx metallib WilsonKernels.air -o default.metallib
 
 version-cache:

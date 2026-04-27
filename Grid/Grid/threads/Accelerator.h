@@ -574,6 +574,7 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 #ifdef GRID_METAL
 NAMESPACE_END(Grid);
 #include <map>
+#include <mutex>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
@@ -585,6 +586,7 @@ NAMESPACE_BEGIN(Grid);
 extern id<MTLDevice> theGridAcceleratorDevice;
 extern id<MTLCommandQueue> theGridAcceleratorCommandQueue;
 extern std::map<void*, void*> acceleratorMetalBufferMap;
+extern std::mutex acceleratorMetalBufferMapMutex;
 
 inline void acceleratorMem(void) {
   std::cout << "Metal MemoryManager info not currently implemented" << std::endl;
@@ -610,7 +612,10 @@ inline void *acceleratorAllocShared(size_t bytes) {
   if (bytes == 0) return NULL;
   id<MTLBuffer> buffer = [theGridAcceleratorDevice newBufferWithLength:bytes options:MTLResourceStorageModeShared];
   void *ptr = [buffer contents];
-  acceleratorMetalBufferMap[ptr] = (void *)CFBridgingRetain(buffer);
+  {
+    std::lock_guard<std::mutex> lk(acceleratorMetalBufferMapMutex);
+    acceleratorMetalBufferMap[ptr] = (void *)CFBridgingRetain(buffer);
+  }
   return ptr;
 }
 inline void *acceleratorAllocHost(size_t bytes) { return acceleratorAllocShared(bytes); }
@@ -618,12 +623,23 @@ inline void *acceleratorAllocDevice(size_t bytes) { return acceleratorAllocShare
 
 inline void acceleratorFreeShared(void *ptr) {
   if (ptr == NULL) return;
+  std::lock_guard<std::mutex> lk(acceleratorMetalBufferMapMutex);
   auto it = acceleratorMetalBufferMap.find(ptr);
   if (it != acceleratorMetalBufferMap.end()) {
     id<MTLBuffer> buffer = (id<MTLBuffer>)CFBridgingRelease(it->second);
     buffer = nil; // ARC releases it
     acceleratorMetalBufferMap.erase(it);
   }
+}
+
+// Thread-safe lookup: returns nil if pointer was not registered via
+// acceleratorAllocShared. Callers must NSCAssert/abort on nil before
+// passing to setBuffer:, since Metal silently no-ops on nil bindings.
+inline id<MTLBuffer> acceleratorMetalBufferFor(void *ptr) {
+  std::lock_guard<std::mutex> lk(acceleratorMetalBufferMapMutex);
+  auto it = acceleratorMetalBufferMap.find(ptr);
+  if (it == acceleratorMetalBufferMap.end()) return nil;
+  return (__bridge id<MTLBuffer>)it->second;
 }
 inline void acceleratorFreeHost(void *ptr) { acceleratorFreeShared(ptr); }
 inline void acceleratorFreeDevice(void *ptr) { acceleratorFreeShared(ptr); }

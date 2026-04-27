@@ -286,11 +286,13 @@ void acceleratorInit(void)
 #ifdef GRID_METAL
 NAMESPACE_END(Grid);
 #include <map>
+#include <mutex>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 NAMESPACE_BEGIN(Grid);
 
 std::map<void*, void*> acceleratorMetalBufferMap;
+std::mutex acceleratorMetalBufferMapMutex;
 id<MTLDevice> theGridAcceleratorDevice = nil;
 id<MTLCommandQueue> theGridAcceleratorCommandQueue = nil;
 
