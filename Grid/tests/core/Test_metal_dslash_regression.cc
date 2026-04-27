@@ -54,8 +54,14 @@ using namespace Grid;
 
 namespace {
 
+// Absolute tolerances for tests whose ground-truth value is exactly zero
+// (Deo+Doe=D consistency, Determinism). Hermiticity is compared with a
+// relative tolerance instead since |<phi|D|chi>| scales with field magnitude
+// and lattice volume.
 constexpr double kSingleTol = 1e-5;
 constexpr double kDoubleTol = 1e-10;
+constexpr double kSingleHermRelTol = 1e-4;
+constexpr double kDoubleHermRelTol = 1e-12;
 constexpr double kCrossPrecTol = 5e-5;
 
 int g_failures = 0;
@@ -73,7 +79,7 @@ void Report(const std::string &name, bool ok, double measured, double tol)
 
 template <class Impl>
 void TestHermiticity(GridCartesian &Grid_, GridRedBlackCartesian &RBGrid_,
-                     GridParallelRNG &pRNG, double tol, const std::string &tag)
+                     GridParallelRNG &pRNG, double rel_tol, const std::string &tag)
 {
   using FermionField = typename Impl::FermionField;
   using GaugeField = typename Impl::GaugeField;
@@ -95,9 +101,17 @@ void TestHermiticity(GridCartesian &Grid_, GridRedBlackCartesian &RBGrid_,
   ComplexD lhs = innerProduct(phi, Dchi);
   ComplexD rhs = innerProduct(chi, Ddagphi);
   double diff = std::abs(lhs - std::conj(rhs));
+  // Use a relative tolerance: |lhs - conj(rhs)| / |lhs|. Absolute diff
+  // scales with the magnitude of the inner product (and therefore with
+  // lattice volume and field RMS), so an absolute threshold is fragile.
+  // The relative form catches a real Hermiticity bug (which produces
+  // O(1) divergence) without false-positiving on accumulated float
+  // round-off across the 8-leg stencil reduction.
+  double scale = std::max(std::abs(lhs), 1e-30);
+  double rel = diff / scale;
 
-  Report("Hermiticity (" + tag + "): |<phi|D|chi> - conj(<chi|Ddag|phi>)|",
-         diff < tol, diff, tol);
+  Report("Hermiticity (" + tag + "): |<phi|D|chi> - conj(<chi|Ddag|phi>)| / |lhs|",
+         rel < rel_tol, rel, rel_tol);
 }
 
 template <class Impl>
@@ -252,7 +266,7 @@ int main(int argc, char **argv)
 
   // Single-precision suite. This is the only Impl currently exercised by the
   // Metal kernel, so most failures will surface here first.
-  TestHermiticity<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, kSingleTol, "WilsonImplF");
+  TestHermiticity<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, kSingleHermRelTol, "WilsonImplF");
   TestEvenOddConsistency<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, kSingleTol, "WilsonImplF");
   TestDeterminism<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, "WilsonImplF");
 
@@ -261,7 +275,7 @@ int main(int argc, char **argv)
   // does not gate on Impl precision. With PR #2's MetalWilsonImplOK trait
   // landed these should pass (D Impl falls through to CPU); without it they
   // will fail loudly.
-  TestHermiticity<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, kDoubleTol, "WilsonImplD");
+  TestHermiticity<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, kDoubleHermRelTol, "WilsonImplD");
   TestEvenOddConsistency<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, kDoubleTol, "WilsonImplD");
   TestDeterminism<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, "WilsonImplD");
 
