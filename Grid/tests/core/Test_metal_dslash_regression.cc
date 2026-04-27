@@ -169,38 +169,40 @@ void TestDeterminism(GridCartesian &Grid_, GridRedBlackCartesian &RBGrid_,
          n == 0.0, n, 0.0);
 }
 
-void TestFloatVsDouble(GridCartesian &Grid_, GridRedBlackCartesian &RBGrid_,
-                       GridParallelRNG &pRNG)
+void TestFloatVsDouble(GridCartesian &Grid_F, GridRedBlackCartesian &RBGrid_F,
+                       GridCartesian &Grid_D, GridRedBlackCartesian &RBGrid_D,
+                       GridParallelRNG &pRNG_D)
 {
-  // Build a hot gauge in double precision (Grid's canonical form), then
-  // project to single precision for the float test. Apply Dhop on both
-  // and compare the result on the float grid via norm2 of the difference.
+  // Build a hot gauge in double precision on the D-shaped grid, project to
+  // single precision on the F-shaped grid, run Dhop on each, and compare on
+  // the F grid. precisionChange handles the SIMD-layout difference between
+  // the two grids (different Nsimd for vComplexF vs vComplexD on NEON).
   // If the Metal kernel silently reinterprets a vComplexD buffer as float4,
   // the double-precision result will be wildly off and this assertion fires.
 
-  LatticeGaugeFieldD UmuD(&Grid_);
-  SU<Nc>::HotConfiguration(pRNG, UmuD);
+  LatticeGaugeFieldD UmuD(&Grid_D);
+  SU<Nc>::HotConfiguration(pRNG_D, UmuD);
 
-  LatticeGaugeFieldF UmuF(&Grid_);
+  LatticeGaugeFieldF UmuF(&Grid_F);
   precisionChange(UmuF, UmuD);
 
-  LatticeFermionD srcD(&Grid_); random(pRNG, srcD);
-  LatticeFermionF srcF(&Grid_);
+  LatticeFermionD srcD(&Grid_D); random(pRNG_D, srcD);
+  LatticeFermionF srcF(&Grid_F);
   precisionChange(srcF, srcD);
 
-  LatticeFermionD outD(&Grid_); outD = Zero();
-  LatticeFermionF outF(&Grid_); outF = Zero();
+  LatticeFermionD outD(&Grid_D); outD = Zero();
+  LatticeFermionF outF(&Grid_F); outF = Zero();
 
-  WilsonFermionD DwD(UmuD, Grid_, RBGrid_, 0.1);
-  WilsonFermionF DwF(UmuF, Grid_, RBGrid_, 0.1);
+  WilsonFermionD DwD(UmuD, Grid_D, RBGrid_D, 0.1);
+  WilsonFermionF DwF(UmuF, Grid_F, RBGrid_F, 0.1);
 
   DwD.Dhop(srcD, outD, DaggerNo);
   DwF.Dhop(srcF, outF, DaggerNo);
 
-  LatticeFermionF outDinF(&Grid_);
+  LatticeFermionF outDinF(&Grid_F);
   precisionChange(outDinF, outD);
 
-  LatticeFermionF diff(&Grid_);
+  LatticeFermionF diff(&Grid_F);
   diff = outF - outDinF;
   double n = std::sqrt(norm2(diff)) / std::max(1.0, std::sqrt(norm2(outF)));
 
@@ -217,18 +219,30 @@ int main(int argc, char **argv)
   // Force a 4^4 lattice for fast deterministic regression. Override-able via
   // --grid X.Y.Z.T on the command line if a larger sweep is wanted.
   Coordinate latt_size = GridDefaultLatt();
-  Coordinate simd_layout = GridDefaultSimd(Nd, vComplex::Nsimd());
   Coordinate mpi_layout = GridDefaultMpi();
 
   if (latt_size.size() < (size_t)Nd) {
     latt_size = Coordinate({4, 4, 4, 4});
   }
 
-  GridCartesian Grid_(latt_size, simd_layout, mpi_layout);
-  GridRedBlackCartesian RBGrid_(&Grid_);
+  // vComplexF and vComplexD have different Nsimd (e.g. on NEON: 2 vs 1).
+  // Each Lattice<vobj> requires a Grid whose simd_layout matches its vobj's
+  // Nsimd, so we build two grids and route F-typed and D-typed tests to the
+  // matching one. Using a single grid with vComplex::Nsimd() (the build-time
+  // default) crashes peekLocalSite with an `sizeof(sobj)*Nsimd ==
+  // sizeof(vobj)` assertion the moment the wrong-shape field is touched.
+  Coordinate simd_F = GridDefaultSimd(Nd, vComplexF::Nsimd());
+  Coordinate simd_D = GridDefaultSimd(Nd, vComplexD::Nsimd());
 
-  GridParallelRNG pRNG(&Grid_);
-  pRNG.SeedFixedIntegers(std::vector<int>({45, 12, 81, 9}));
+  GridCartesian Grid_F(latt_size, simd_F, mpi_layout);
+  GridCartesian Grid_D(latt_size, simd_D, mpi_layout);
+  GridRedBlackCartesian RBGrid_F(&Grid_F);
+  GridRedBlackCartesian RBGrid_D(&Grid_D);
+
+  GridParallelRNG pRNG_F(&Grid_F);
+  GridParallelRNG pRNG_D(&Grid_D);
+  pRNG_F.SeedFixedIntegers(std::vector<int>({45, 12, 81, 9}));
+  pRNG_D.SeedFixedIntegers(std::vector<int>({45, 12, 81, 9}));
 
   std::cout << GridLogMessage
             << "============================================================" << std::endl
@@ -238,20 +252,20 @@ int main(int argc, char **argv)
 
   // Single-precision suite. This is the only Impl currently exercised by the
   // Metal kernel, so most failures will surface here first.
-  TestHermiticity<WilsonImplF>(Grid_, RBGrid_, pRNG, kSingleTol, "WilsonImplF");
-  TestEvenOddConsistency<WilsonImplF>(Grid_, RBGrid_, pRNG, kSingleTol, "WilsonImplF");
-  TestDeterminism<WilsonImplF>(Grid_, RBGrid_, pRNG, "WilsonImplF");
+  TestHermiticity<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, kSingleTol, "WilsonImplF");
+  TestEvenOddConsistency<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, kSingleTol, "WilsonImplF");
+  TestDeterminism<WilsonImplF>(Grid_F, RBGrid_F, pRNG_F, "WilsonImplF");
 
   // Double-precision suite. Under the current Metal backend, Codex flagged
   // that vComplexD will be misinterpreted as float4 if the kernel dispatch
-  // does not gate on Impl precision. These checks should fail loudly until
-  // either a vComplexD .metal kernel lands or the dispatcher routes double
-  // through the CPU path.
-  TestHermiticity<WilsonImplD>(Grid_, RBGrid_, pRNG, kDoubleTol, "WilsonImplD");
-  TestEvenOddConsistency<WilsonImplD>(Grid_, RBGrid_, pRNG, kDoubleTol, "WilsonImplD");
-  TestDeterminism<WilsonImplD>(Grid_, RBGrid_, pRNG, "WilsonImplD");
+  // does not gate on Impl precision. With PR #2's MetalWilsonImplOK trait
+  // landed these should pass (D Impl falls through to CPU); without it they
+  // will fail loudly.
+  TestHermiticity<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, kDoubleTol, "WilsonImplD");
+  TestEvenOddConsistency<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, kDoubleTol, "WilsonImplD");
+  TestDeterminism<WilsonImplD>(Grid_D, RBGrid_D, pRNG_D, "WilsonImplD");
 
-  TestFloatVsDouble(Grid_, RBGrid_, pRNG);
+  TestFloatVsDouble(Grid_F, RBGrid_F, Grid_D, RBGrid_D, pRNG_D);
 
   std::cout << GridLogMessage
             << "============================================================" << std::endl
