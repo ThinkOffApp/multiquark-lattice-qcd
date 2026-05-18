@@ -159,3 +159,23 @@ if failed:
     sys.exit(1)
 
 print("\n[SUCCESS] Native Apple Metal GPU matrix math strictly matches standard CPU paths on an identical gauge field invariant.")
+
+# Write a marker for the dashboard's "CPU<->Metal parity" indicator.
+try:
+    import time as _time
+    marker_dir = os.path.join(os.getcwd(), ".dashboard_state")
+    os.makedirs(marker_dir, exist_ok=True)
+    marker_path = os.path.join(marker_dir, "gpu_crosscheck_ok.json")
+    payload = {
+        "ok": True,
+        "when": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime()),
+        "tolerance": TOLERANCE,
+        "diffs": [{"name": n, "value": d} for n, d in diffs],
+        "config_sha256": cfg_hash,
+        "script": "scripts/gpu_crosscheck.py",
+    }
+    with open(marker_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, indent=2)
+    print(f"\nDashboard marker written: {marker_path}")
+except Exception as _marker_exc:
+    print(f"\n[warn] could not write dashboard marker: {_marker_exc}")

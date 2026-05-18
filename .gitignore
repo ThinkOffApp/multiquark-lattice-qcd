@@ -27,3 +27,6 @@ tmp_smoke_test/
 
 # macOS
 .DS_Store
+
+# Dashboard validation markers
+.dashboard_state/

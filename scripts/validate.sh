@@ -78,3 +78,19 @@ PY
 
 echo "baseline_V_R2=${baseline}"
 echo "validate: OK"
+
+# Write a marker for the dashboard's "Synthetic baseline" indicator.
+MARKER_DIR="$ROOT_DIR/.dashboard_state"
+mkdir -p "$MARKER_DIR"
+python3 - "$MARKER_DIR/validate_ok.json" "$baseline" <<'PY'
+import json, sys, time
+path, baseline = sys.argv[1], sys.argv[2]
+payload = {
+    "ok": True,
+    "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "baseline_V_R2": float(baseline),
+    "script": "scripts/validate.sh",
+}
+with open(path, "w", encoding="utf-8") as f:
+    json.dump(payload, f, indent=2)
+PY

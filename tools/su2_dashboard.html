@@ -117,6 +117,114 @@
       color: var(--muted);
     }
 
+    /* Operator cockpit (top-of-page) */
+    .cockpit {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--card);
+    }
+    .cockpit-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+    }
+    .cockpit-banner.toy {
+      background: rgba(245, 158, 11, 0.18);
+      border: 1px solid rgba(245, 158, 11, 0.5);
+      color: #fde68a;
+    }
+    .cockpit-banner.dev {
+      background: rgba(234, 88, 12, 0.18);
+      border: 1px solid rgba(234, 88, 12, 0.55);
+      color: #fed7aa;
+    }
+    .cockpit-banner.prod {
+      background: rgba(34, 197, 94, 0.13);
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      color: #bbf7d0;
+    }
+    .cockpit-banner.unknown {
+      background: #1d2a44;
+      border: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .cockpit-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text);
+    }
+    .cockpit-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: #0f1627;
+      color: var(--text);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .cockpit-chip .k {
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .cockpit-chip.warn {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.55);
+      color: #fde68a;
+    }
+    .cockpit-chip.ok {
+      background: rgba(34, 197, 94, 0.13);
+      border-color: rgba(34, 197, 94, 0.45);
+      color: #bbf7d0;
+    }
+    .cockpit-chip.muted {
+      color: var(--muted);
+    }
+    .cockpit-admin {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(220, 38, 38, 0.18);
+      border: 1px solid rgba(220, 38, 38, 0.6);
+      color: #fecaca;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .cockpit-export {
+      padding: 4px 10px;
+      font-size: 12px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .live-approx-label {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      padding: 4px 8px;
+      border-left: 3px solid var(--warn);
+      background: rgba(245, 158, 11, 0.06);
+      border-radius: 4px;
+    }
+
     .metric-title {
       font-size: 12px;
       color: var(--muted);
@@ -778,6 +886,35 @@
   <div class="wrap">
     <h1>SU(2) Measurement Dashboard</h1>
 
+    <div class="cockpit" id="cockpit">
+      <div class="cockpit-banner unknown" id="cockpitBanner">
+        <span id="cockpitBannerText">Waiting for run header...</span>
+        <span class="cockpit-admin" id="cockpitAdminBadge" title="Auth: unknown" style="display:none">ADMIN</span>
+      </div>
+      <div class="cockpit-row" id="cockpitRow">
+        <span class="cockpit-chip muted"><span class="k">backend</span><span id="cockpitBackend">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">precision</span><span id="cockpitPrecision">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">L</span><span id="cockpitLattice">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">β</span><span id="cockpitBeta">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">ntherm</span><span id="cockpitNtherm">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">nmeas</span><span id="cockpitNmeas">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">nskip</span><span id="cockpitNskip">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">R</span><span id="cockpitR">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">T</span><span id="cockpitT">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">commit</span><span id="cockpitCommit" title="">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">chip</span><span id="cockpitChip">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">ram</span><span id="cockpitRam">-</span></span>
+        <span class="cockpit-chip muted"><span class="k">os</span><span id="cockpitOs">-</span></span>
+        <span class="cockpit-chip muted" id="cockpitOutDirWrap" style="display:none"><span class="k">out</span><span id="cockpitOutDir">-</span></span>
+        <span class="cockpit-chip warn" id="cockpitOutDirWarn" style="display:none" title="output dir is a symlink or resolves outside the repo root">⚠ output dir outside repo</span>
+      </div>
+      <div class="cockpit-row" id="cockpitValidationRow">
+        <span class="cockpit-chip muted" id="cockpitValBaseline" title="scripts/validate.sh writes .dashboard_state/validate_ok.json">Synthetic baseline: not run</span>
+        <span class="cockpit-chip muted" id="cockpitValGpu" title="scripts/gpu_crosscheck.py writes .dashboard_state/gpu_crosscheck_ok.json">CPU↔Metal parity: not run</span>
+        <button class="cockpit-export" id="cockpitExportBtn" title="Download a JSON repro bundle for this run">📋 Export run bundle</button>
+      </div>
+    </div>
+
     <div class="controls">
       <div class="grid-3">
         <div>
@@ -1321,6 +1458,7 @@
     </div>
 
     <div class="chart-card">
+      <div class="live-approx-label" title="JS-side fits are for live monitoring only; quote values from tools/su2_signal_postprocess.py for the paper.">Live approximate — Python postprocessor is authoritative.</div>
       <div class="row">
         <div class="metric-title">2Q Potential V(R) (Mean ± SEM)</div>
         <div class="hint" id="vLabel">V(R) unavailable</div>
@@ -6506,6 +6644,7 @@
       updatePhysicalScale(currentMeta);
       updateNextJobs();
       refreshThreadStatusTable(false);
+      updateCockpit();
     }
 
     function renderLive(live, livePathHint = null) {
@@ -6528,6 +6667,7 @@
           { short: false }
         );
         updatePhysicalScale(currentMeta);
+        updateCockpit();
       }
       if (currentProgress) {
         renderThreadCursors(currentProgress);
@@ -6846,6 +6986,190 @@
       refreshThreadStatusTable(true);
     }
 
+    // -- Operator cockpit (run header, validation, repro export) -----------
+    let cockpitHostInfo = null;
+    let cockpitAuthInfo = null;
+    let cockpitValidationInfo = null;
+    let cockpitOutDirOutside = false;
+
+    function inferRunTier(meta, progress) {
+      const L = meta && Array.isArray(meta.L) ? meta.L : null;
+      const lmax = L && L.length ? Math.max(...L.map((x) => Number(x) || 0)) : NaN;
+      const nmeas = toFiniteNumber(progress?.nmeas, NaN);
+      if (Number.isFinite(lmax) && lmax > 0 && lmax < 8) {
+        return { key: "toy", text: "TOY - small lattice, debug only.", cls: "toy" };
+      }
+      if (Number.isFinite(nmeas) && nmeas > 0 && nmeas < 50) {
+        return { key: "dev", text: "DEV - small run, results not paper-grade.", cls: "dev" };
+      }
+      if (Number.isFinite(lmax) && lmax > 0 && Number.isFinite(nmeas) && nmeas >= 50) {
+        return { key: "prod", text: "PROD - production-scale run.", cls: "prod" };
+      }
+      return { key: "unknown", text: "Waiting for run header...", cls: "unknown" };
+    }
+
+    function setChip(id, value, cls) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const v = value === null || value === undefined || value === "" ? "-" : String(value);
+      el.textContent = v;
+      const wrap = el.closest(".cockpit-chip");
+      if (wrap && cls) {
+        wrap.classList.remove("ok", "warn", "muted");
+        wrap.classList.add(cls);
+      }
+    }
+
+    function shortCommit(c) {
+      if (!c) return "-";
+      return String(c).slice(0, 8);
+    }
+
+    function fmtValidationChip(elId, info, label) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      if (!info || !info.present) {
+        el.textContent = `${label}: not run`;
+        el.classList.remove("ok", "warn");
+        el.classList.add("muted");
+        return;
+      }
+      if (info.ok) {
+        const when = info.when ? ` (${info.when})` : "";
+        el.textContent = `${label}: ✓ passed${when}`;
+        el.classList.remove("muted", "warn");
+        el.classList.add("ok");
+      } else {
+        el.textContent = `${label}: ✗ failed`;
+        el.classList.remove("muted", "ok");
+        el.classList.add("warn");
+      }
+    }
+
+    function updateCockpit() {
+      const meta = currentMeta || {};
+      const progress = currentProgress || {};
+      // Banner
+      const tier = inferRunTier(meta, progress);
+      const banner = document.getElementById("cockpitBanner");
+      const bannerText = document.getElementById("cockpitBannerText");
+      if (banner && bannerText) {
+        banner.classList.remove("toy", "dev", "prod", "unknown");
+        banner.classList.add(tier.cls);
+        bannerText.textContent = tier.text;
+      }
+      // Backend / precision / lattice / beta / etc.
+      const backend = (progress.compute_backend || meta.compute_backend || meta.pipeline_label || "unknown");
+      setChip("cockpitBackend", backend);
+      const precision = (progress.precision || meta.precision || "-");
+      setChip("cockpitPrecision", precision);
+      setChip("cockpitLattice", Array.isArray(meta.L) ? meta.L.join("x") : (meta.L || "-"));
+      setChip("cockpitBeta", meta.beta ?? "-");
+      setChip("cockpitNtherm", progress.ntherm ?? meta.ntherm ?? "-");
+      setChip("cockpitNmeas", progress.nmeas ?? meta.nmeas ?? "-");
+      setChip("cockpitNskip", progress.nskip ?? meta.nskip ?? "-");
+      setChip("cockpitR", Array.isArray(meta.R) ? meta.R.join(",") : (meta.R || "-"));
+      setChip("cockpitT", Array.isArray(meta.T) ? meta.T.join(",") : (meta.T || "-"));
+      // Host info
+      if (cockpitHostInfo) {
+        const cEl = document.getElementById("cockpitCommit");
+        if (cEl) {
+          cEl.textContent = shortCommit(cockpitHostInfo.commit_short || cockpitHostInfo.commit);
+          const dirty = cockpitHostInfo.dirty ? " (dirty)" : "";
+          cEl.title = `${cockpitHostInfo.commit || ""} on ${cockpitHostInfo.branch || "?"}${dirty}`;
+        }
+        setChip("cockpitChip", cockpitHostInfo.chip || "-");
+        setChip("cockpitRam", cockpitHostInfo.ram_gb ? `${cockpitHostInfo.ram_gb} GB` : "-");
+        setChip("cockpitOs", cockpitHostInfo.os || "-");
+      }
+      // Output dir
+      const outDir = progress.out_dir || "";
+      const outWrap = document.getElementById("cockpitOutDirWrap");
+      const outWarn = document.getElementById("cockpitOutDirWarn");
+      if (outDir) {
+        if (outWrap) outWrap.style.display = "";
+        setChip("cockpitOutDir", outDir);
+        if (outWarn) outWarn.style.display = cockpitOutDirOutside ? "" : "none";
+      } else {
+        if (outWrap) outWrap.style.display = "none";
+        if (outWarn) outWarn.style.display = "none";
+      }
+      // Admin badge
+      const adminBadge = document.getElementById("cockpitAdminBadge");
+      if (adminBadge) {
+        adminBadge.style.display = "";
+        const mode = cockpitAuthInfo?.mode || "disabled";
+        adminBadge.title = `Auth: ${mode === "disabled" ? "DISABLED" : mode}. /thread_control is reachable from this dashboard.`;
+      }
+      // Validation chips
+      if (cockpitValidationInfo) {
+        fmtValidationChip("cockpitValBaseline", cockpitValidationInfo.synthetic_baseline, "Synthetic baseline");
+        fmtValidationChip("cockpitValGpu", cockpitValidationInfo.gpu_crosscheck, "CPU↔Metal parity");
+      }
+    }
+
+    async function refreshRunInfo() {
+      try {
+        const livePath = (document.getElementById("livePath")?.value || "").trim();
+        const m = livePath.match(/live_([^/]+)\.json/i);
+        const seed = m ? m[1] : "";
+        const token = (document.getElementById("authToken")?.value || "").trim();
+        const u = new URL(withApiBase("/run_info"), window.location.origin);
+        if (seed) u.searchParams.set("seed", seed);
+        if (token) u.searchParams.set("token", token);
+        const r = await fetch(u.toString(), {
+          headers: token ? { "X-Auth-Token": token } : {},
+        });
+        if (!r.ok) return;
+        const info = await r.json();
+        cockpitHostInfo = info.host || null;
+        cockpitAuthInfo = info.auth || null;
+        cockpitValidationInfo = info.validation || null;
+        cockpitOutDirOutside = !!info.out_dir_outside_repo;
+        updateCockpit();
+      } catch (_) {
+        // Non-fatal.
+      }
+    }
+
+    async function triggerRunBundleExport() {
+      const livePath = (document.getElementById("livePath")?.value || "").trim();
+      const m = livePath.match(/live_([^/]+)\.json/i);
+      const seed = m ? m[1] : "";
+      if (!seed) {
+        alert("Could not infer seed from live path");
+        return;
+      }
+      const token = (document.getElementById("authToken")?.value || "").trim();
+      const u = new URL(withApiBase("/export_bundle"), window.location.origin);
+      u.searchParams.set("seed", seed);
+      if (token) u.searchParams.set("token", token);
+      try {
+        const r = await fetch(u.toString(), {
+          headers: token ? { "X-Auth-Token": token } : {},
+        });
+        if (!r.ok) {
+          alert(`Export failed: HTTP ${r.status}`);
+          return;
+        }
+        const blob = await r.blob();
+        const cd = r.headers.get("Content-Disposition") || "";
+        const fnameMatch = cd.match(/filename="([^"]+)"/);
+        const fname = fnameMatch ? fnameMatch[1] : `run_bundle_${seed}.json`;
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 0);
+      } catch (e) {
+        alert(`Export failed: ${e.message}`);
+      }
+    }
+
     function stopStream() {
       if (eventSource) {
         eventSource.close();
@@ -7022,11 +7346,20 @@
       });
     }
 
+    const cockpitExportBtn = document.getElementById("cockpitExportBtn");
+    if (cockpitExportBtn) {
+      cockpitExportBtn.addEventListener("click", () => {
+        triggerRunBundleExport();
+      });
+    }
+
     applyUrlDefaults();
     applyThreadVizMode();
     addChat("system", "Admin chat ready.");
     refresh();
     startStream();
+    refreshRunInfo();
+    setInterval(refreshRunInfo, 30000);
     setInterval(() => {
       if (paused) return;
       if (!currentProgress) return;
