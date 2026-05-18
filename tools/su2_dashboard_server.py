@@ -583,12 +583,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def measurement_key(row):
         if not isinstance(row, dict):
             return None
+        seed = row.get("_seed")
         idx = row.get("idx")
         if isinstance(idx, (int, float)):
-            return ("idx", int(idx))
+            return ("idx", int(idx), seed)
         cfg_idx = row.get("cfg_idx")
         if isinstance(cfg_idx, (int, float)):
-            return ("cfg_idx", int(cfg_idx))
+            return ("cfg_idx", int(cfg_idx), seed)
         return None
 
     @staticmethod
@@ -697,10 +698,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if sib_meas:
                 # Tag each measurement with its seed so dedup doesn't
                 # drop measurements with the same idx from different seeds.
-                for m in sib_meas:
+                for i, m in enumerate(sib_meas):
                     if isinstance(m, dict) and "idx" in m:
                         m = dict(m)
                         m["_seed"] = sib
+                        sib_meas[i] = m
                 all_meas.extend(sib_meas)
                 seeds_used.append(sib)
 
@@ -1133,7 +1135,7 @@ def main():
     )
     p.add_argument(
         "--cors-origin",
-        default=os.environ.get("SU2_DASHBOARD_CORS_ORIGIN", "*"),
+        default=os.environ.get("SU2_DASHBOARD_CORS_ORIGIN", ""),
         help="Optional CORS allow origin (for external dashboard UI).",
     )
     p.add_argument(
@@ -1168,7 +1170,11 @@ def main():
             print("  - Shared auth token: enabled")
         print(f"  - Protect /results/*: {DashboardHandler.protect_results}")
     else:
-        print("Auth disabled (no allowlist or token configured)")
+        print("\n" + "="*50)
+        print("WARNING: Auth is DISABLED (no allowlist or token configured).")
+        print("Control endpoints (/thread_control) are open to anyone who can reach this host!")
+        print("Recommend binding only to 127.0.0.1 or setting SU2_DASHBOARD_AUTH_TOKEN.")
+        print("="*50 + "\n")
     server.serve_forever()
 
 

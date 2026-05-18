@@ -5894,12 +5894,8 @@
       const r0RefFmErr = 0.02;
       const r1RefFm = 0.31;
       const r1RefFmErr = 0.02;
-      const sigmaAgreementRaw = hasAFm
-        ? classifyAgreementWithReference(sigmaGeV2, sigmaGeV2Err, sigmaRefGeV2)
-        : { level: "na", text: "n/a" };
-      const sqrtSigmaAgreementRaw = hasAFm
-        ? classifyAgreementWithReference(sqrtSigmaMeV, sqrtSigmaMeVErr, sqrtSigmaRefMeV)
-        : { level: "na", text: "n/a" };
+      const sigmaAgreementRaw = { level: "na", text: "n/a" };
+      const sqrtSigmaAgreementRaw = { level: "na", text: "n/a" };
       const eAgreementRaw = classifyAgreementWithReference(fit.e, fit.errE, eRef);
 
       const rc = (fit.sigma > 0 && fit.e > 0) ? Math.sqrt(fit.e / fit.sigma) : NaN;
@@ -5999,9 +5995,7 @@
           param: "σ",
           lattice: fmtPM(fit.sigma, fit.errSigma, 6),
           physical: hasAFm ? `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6)} GeV²` : "set a(fm)",
-          reference: hasAFm && Number.isFinite(sigmaGeV2)
-            ? `SU(3) ~${sigmaRefGeV2.toFixed(4)} GeV² | ratio ${fmtMaybe(sigmaGeV2 / sigmaRefGeV2, 2)}x`
-            : `SU(3) ~${sigmaRefGeV2.toFixed(4)} GeV²`,
+          reference: "Dimensionless a√σ comparison only",
           agreementLevel: sigmaAgreement.level,
           agreementText: sigmaAgreement.text,
         },
@@ -6017,9 +6011,7 @@
           param: "√σ",
           lattice: "-",
           physical: hasAFm ? `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1)} MeV` : "set a(fm)",
-          reference: hasAFm && Number.isFinite(sqrtSigmaMeV)
-            ? `SU(3) ~${sqrtSigmaRefMeV.toFixed(0)} MeV | ratio ${fmtMaybe(sqrtSigmaMeV / sqrtSigmaRefMeV, 2)}x`
-            : `SU(3) ~${sqrtSigmaRefMeV.toFixed(0)} MeV`,
+          reference: "Dimensionless a√σ comparison only",
           agreementLevel: sqrtSigmaAgreement.level,
           agreementText: sqrtSigmaAgreement.text,
         },

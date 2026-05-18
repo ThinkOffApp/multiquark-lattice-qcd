@@ -13,5 +13,17 @@ gpt/lib/cgpt/build/
 gpt/lib/cgpt/lib/
 gpt/lib/cgpt/next.lock
 
+# Grid configure/build autogen artifacts (embed local paths/hashes)
+Grid/Grid/Config.h
+Grid/Grid/Config.h.bak
+Grid/Grid/Version.h
+Grid/Grid/version-cache
+Grid/grid.configure.summary
+Grid/Grid/default.metallib
+Grid/Grid/WilsonKernels.air
+
+# Smoke-test scratch
+tmp_smoke_test/
+
 # macOS
 .DS_Store
