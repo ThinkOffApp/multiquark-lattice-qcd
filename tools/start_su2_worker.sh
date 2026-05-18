@@ -14,8 +14,11 @@ if [[ "$PIPELINE" != "auto" && "$PIPELINE" != "cpu" && "$PIPELINE" != "gpu" ]]; 
   exit 2
 fi
 
-ROOT="${SU2_ROOT:-/Users/petrus/AndroidStudioProjects/ThinkOff}"
-GPT_DIR="${SU2_GPT_DIR:-$ROOT/grid-gpt-public/gpt}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+ROOT="${SU2_ROOT:-$DEFAULT_ROOT}"
+GPT_DIR="${SU2_GPT_DIR:-$ROOT/gpt}"
 OUT_DIR="${SU2_OUT_DIR:-$ROOT/results/su2_signal_scan}"
 CGPT_SOURCE="${SU2_CGPT_SOURCE:-$GPT_DIR/lib/cgpt/build/source.sh}"
 LOG_FILE="${SU2_LOG_FILE:-$OUT_DIR/log_${SEED}.txt}"

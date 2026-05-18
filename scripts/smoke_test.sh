@@ -17,9 +17,8 @@ export PYTHONPATH="$(pwd)/gpt/lib/cgpt/build:$(pwd)/gpt/lib:${PYTHONPATH:-}"
 mkdir -p "$SU2_OUT_DIR"
 
 echo "Executing dummy 2^4 lattice run..."
-# Ensure the python script knows it's a test run or provide tiny parameters
-# We'll use tiny parameters directly if supported, or just verify the module loads.
-python3 gpt/applications/hmc/su2_2q_signal_scan.py --test-mode 2>/dev/null || echo "Python execution engine loaded successfully."
+python3 gpt/applications/hmc/su2_2q_signal_scan.py --L 2,2,2,2 --ntherm 1 --nmeas 1 --backend cpu --seed smoke --out "$SU2_OUT_DIR" || { echo "Smoke test failed!"; exit 1; }
+echo "Python execution engine loaded successfully and ran a tiny lattice."
 
 echo "Cleaning up..."
 rm -rf "$SU2_OUT_DIR"
