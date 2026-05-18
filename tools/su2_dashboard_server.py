@@ -3,9 +3,11 @@ import argparse
 import hmac
 import json
 import os
+import platform
 import re
 import shlex
 import signal
+import socket
 import subprocess
 import threading
 import time
@@ -14,6 +16,120 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+
+
+def _collect_host_info(root: Path) -> dict:
+    """Collect machine + repo metadata once at server startup."""
+    info = {
+        "hostname": "",
+        "chip": "",
+        "os": "",
+        "ram_gb": None,
+        "commit": "",
+        "commit_short": "",
+        "branch": "",
+        "dirty": None,
+        "python": platform.python_version(),
+        "root": str(root),
+    }
+    try:
+        info["hostname"] = socket.gethostname()
+    except Exception:
+        pass
+    try:
+        info["chip"] = platform.machine() or ""
+    except Exception:
+        pass
+    try:
+        u = os.uname()
+        info["os"] = f"{u.sysname} {u.release}"
+    except Exception:
+        try:
+            info["os"] = f"{platform.system()} {platform.release()}"
+        except Exception:
+            pass
+    try:
+        import psutil  # type: ignore
+
+        info["ram_gb"] = round(psutil.virtual_memory().total / (1024 ** 3), 1)
+    except Exception:
+        # psutil is optional. Fall back to sysctl on macOS.
+        try:
+            out = subprocess.check_output(
+                ["sysctl", "-n", "hw.memsize"], text=True, stderr=subprocess.DEVNULL
+            ).strip()
+            if out.isdigit():
+                info["ram_gb"] = round(int(out) / (1024 ** 3), 1)
+        except Exception:
+            pass
+
+    def _git(*args):
+        try:
+            return subprocess.check_output(
+                ["git", "-C", str(root), *args],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        except Exception:
+            return ""
+
+    info["commit"] = _git("rev-parse", "HEAD")
+    info["commit_short"] = info["commit"][:12] if info["commit"] else ""
+    info["branch"] = _git("rev-parse", "--abbrev-ref", "HEAD")
+    status = _git("status", "--porcelain")
+    info["dirty"] = bool(status) if (info["commit"] or status) else None
+    return info
+
+
+def _read_marker(path: Path) -> dict:
+    """Read a small JSON/text marker; return a dict with 'ok'/'when'."""
+    if not path.exists():
+        return {"ok": False, "present": False}
+    try:
+        try:
+            with path.open("r", encoding="utf-8") as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                ok = bool(data.get("ok", True))
+                when = data.get("when") or data.get("timestamp") or ""
+                return {"ok": ok, "present": True, "when": when, "detail": data}
+        except json.JSONDecodeError:
+            txt = path.read_text(encoding="utf-8", errors="replace").strip()
+            return {
+                "ok": txt.lower().startswith(("ok", "pass")),
+                "present": True,
+                "when": "",
+                "detail": txt[:200],
+            }
+    except Exception as exc:
+        return {"ok": False, "present": True, "error": str(exc)}
+    return {"ok": False, "present": False}
+
+
+def _path_outside_repo(repo_root: Path, candidate) -> bool:
+    """Return True if candidate is a symlink or resolves outside repo_root."""
+    if not candidate:
+        return False
+    try:
+        p = Path(str(candidate))
+    except Exception:
+        return False
+    if not p.is_absolute():
+        p = (repo_root / p)
+    try:
+        if p.is_symlink():
+            return True
+    except Exception:
+        pass
+    try:
+        resolved = p.resolve()
+    except Exception:
+        return False
+    try:
+        repo = repo_root.resolve()
+    except Exception:
+        repo = repo_root
+    return not (resolved == repo or repo in resolved.parents)
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
@@ -52,6 +168,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     worker_launcher_auto = "tools/start_su2_worker.sh"
     worker_launcher_cpu = "tools/start_su2_worker_ml84.sh"
     worker_launcher_gpu = "tools/start_su2_worker_gpu.sh"
+    host_info = {}
+    validate_marker_path = ".dashboard_state/validate_ok.json"
+    gpu_crosscheck_marker_path = ".dashboard_state/gpu_crosscheck_ok.json"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(self.root), **kwargs)
@@ -105,6 +224,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.send_unauthorized()
                 return
             self.handle_events(parsed)
+            return
+        if parsed.path == "/run_info":
+            self.handle_run_info(parsed)
+            return
+        if parsed.path == "/export_bundle":
+            if not self.is_authorized(parsed=parsed):
+                self.send_unauthorized()
+                return
+            self.handle_export_bundle(parsed)
             return
         # Serve live_*.json with JSONL measurements merged in
         if parsed.path.startswith("/results/") and "/live_" in parsed.path and parsed.path.endswith(".json"):
@@ -862,6 +990,195 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _auth_mode(self) -> str:
+        if (self.allowed_tailscale_login or "").strip():
+            return "tailscale"
+        if (self.auth_token or "").strip():
+            return "token"
+        return "disabled"
+
+    def _build_run_info(self) -> dict:
+        host = dict(self.host_info or {})
+        validate_marker = (self.root / self.validate_marker_path).resolve()
+        gpu_marker = (self.root / self.gpu_crosscheck_marker_path).resolve()
+        return {
+            "host": host,
+            "auth": {
+                "mode": self._auth_mode(),
+                "protect_results": bool(self.protect_results),
+            },
+            "validation": {
+                "synthetic_baseline": _read_marker(validate_marker),
+                "gpu_crosscheck": _read_marker(gpu_marker),
+            },
+            "server_started_utc": time.strftime(
+                "%Y-%m-%dT%H:%M:%SZ", time.gmtime()
+            ),
+        }
+
+    def handle_run_info(self, parsed):
+        payload = self._build_run_info()
+        # Include per-seed worker info if a seed is supplied.
+        qs = parse_qs(parsed.query)
+        seed = (qs.get("seed", [""])[0] or "").strip()
+        if seed:
+            live_path = (
+                self.root
+                / "results"
+                / "su2_signal_scan"
+                / f"live_{seed}.json"
+            )
+            data, _ = self.read_json(live_path)
+            meta = (data or {}).get("meta") if isinstance(data, dict) else None
+            progress_path = (
+                self.root
+                / "results"
+                / "su2_signal_scan"
+                / f"progress_{seed}.json"
+            )
+            progress, _ = self.read_json(progress_path)
+            out_dir = None
+            if isinstance(progress, dict):
+                out_dir = progress.get("out_dir")
+            payload["seed"] = seed
+            payload["meta"] = meta or {}
+            payload["progress_header"] = (
+                {
+                    k: progress.get(k)
+                    for k in (
+                        "ntherm",
+                        "nmeas",
+                        "nskip",
+                        "compute_backend",
+                        "compute_pipeline",
+                        "grid_acceleration",
+                        "out_dir",
+                        "precision",
+                        "pipeline_label",
+                    )
+                    if isinstance(progress, dict)
+                }
+                if isinstance(progress, dict)
+                else {}
+            )
+            payload["out_dir_outside_repo"] = _path_outside_repo(
+                self.root, out_dir
+            )
+        body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def handle_export_bundle(self, parsed):
+        qs = parse_qs(parsed.query)
+        seed = (qs.get("seed", [""])[0] or "").strip()
+        if not seed:
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"error":"seed is required"}')
+            return
+        live_path = (
+            self.root / "results" / "su2_signal_scan" / f"live_{seed}.json"
+        )
+        progress_path = (
+            self.root / "results" / "su2_signal_scan" / f"progress_{seed}.json"
+        )
+        live_data, _ = self.load_live_with_jsonl(live_path)
+        progress, _ = self.read_json(progress_path)
+        meta = (live_data or {}).get("meta") if isinstance(live_data, dict) else {}
+
+        # A small snapshot of the most-recent measurement, not the full series.
+        snapshot = None
+        if isinstance(live_data, dict):
+            ms = live_data.get("measurements")
+            if isinstance(ms, list) and ms:
+                last = ms[-1]
+                if isinstance(last, dict):
+                    snapshot = {
+                        "idx": last.get("idx") or last.get("cfg_idx"),
+                        "plaquette": last.get("plaquette"),
+                        "n_measurements": len(ms),
+                    }
+
+        env_keys = (
+            "OMP_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "PYTHONPATH",
+            "GRID_ACCELERATOR",
+            "GRID_THREADS",
+            "SU2_DASHBOARD_AUTH_TOKEN",  # included only as presence flag below
+        )
+        env_summary = {}
+        for k in env_keys:
+            v = os.environ.get(k)
+            if v is None:
+                continue
+            if "TOKEN" in k or "SECRET" in k or "KEY" in k:
+                env_summary[k] = "<set>"
+            else:
+                env_summary[k] = v
+
+        info = self._build_run_info()
+        bundle = {
+            "schema": "su2-dashboard-run-bundle/v1",
+            "exported_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "seed": seed,
+            "commit": info["host"].get("commit"),
+            "commit_short": info["host"].get("commit_short"),
+            "branch": info["host"].get("branch"),
+            "dirty": info["host"].get("dirty"),
+            "hostname": info["host"].get("hostname"),
+            "chip": info["host"].get("chip"),
+            "ram_gb": info["host"].get("ram_gb"),
+            "os": info["host"].get("os"),
+            "python": info["host"].get("python"),
+            "meta": meta or {},
+            "progress_header": {
+                k: (progress or {}).get(k)
+                for k in (
+                    "ntherm",
+                    "nmeas",
+                    "nskip",
+                    "compute_backend",
+                    "compute_pipeline",
+                    "grid_acceleration",
+                    "out_dir",
+                    "precision",
+                    "pipeline_label",
+                    "phase",
+                    "elapsed_sec",
+                    "sweeps_done",
+                    "total_sweeps",
+                    "meas_done",
+                    "therm_done",
+                )
+            } if isinstance(progress, dict) else {},
+            "lattice": (meta or {}).get("L"),
+            "beta": (meta or {}).get("beta"),
+            "R": (meta or {}).get("R"),
+            "T": (meta or {}).get("T"),
+            "env_summary": env_summary,
+            "validation": info["validation"],
+            "dashboard_metrics_snapshot": snapshot,
+            "out_dir_outside_repo": _path_outside_repo(
+                self.root, (progress or {}).get("out_dir")
+            ) if isinstance(progress, dict) else False,
+        }
+        body = json.dumps(bundle, indent=2).encode("utf-8")
+        fname = f"run_bundle_{seed}_{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header(
+            "Content-Disposition", f'attachment; filename="{fname}"'
+        )
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def handle_thread_control(self, parsed):
         clen = int(self.headers.get("Content-Length", "0") or "0")
         body = self.rfile.read(clen) if clen > 0 else b"{}"
@@ -1157,6 +1474,7 @@ def main():
     DashboardHandler.auth_token = args.auth_token
     DashboardHandler.cors_origin = args.cors_origin
     DashboardHandler.protect_results = not args.no_protect_results
+    DashboardHandler.host_info = _collect_host_info(root)
 
     server = ThreadingHTTPServer((args.host, args.port), DashboardHandler)
     print(f"Serving {root} at http://{args.host}:{args.port}")
