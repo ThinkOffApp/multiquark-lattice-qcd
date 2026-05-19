@@ -19,9 +19,64 @@ DEFAULT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 ROOT="${SU2_ROOT:-$DEFAULT_ROOT}"
 GPT_DIR="${SU2_GPT_DIR:-$ROOT/gpt}"
+# Track whether the operator explicitly set SU2_OUT_DIR before we apply the default.
+if [[ -n "${SU2_OUT_DIR-}" ]]; then
+  OUT_DIR_EXPLICIT=1
+else
+  OUT_DIR_EXPLICIT=0
+fi
 OUT_DIR="${SU2_OUT_DIR:-$ROOT/results/su2_signal_scan}"
 CGPT_SOURCE="${SU2_CGPT_SOURCE:-$GPT_DIR/lib/cgpt/build/source.sh}"
 LOG_FILE="${SU2_LOG_FILE:-$OUT_DIR/log_${SEED}.txt}"
+
+# OUT_DIR safety guardrail:
+#   - If the operator explicitly set SU2_OUT_DIR, allow it but print a banner so
+#     external paths are visible in the worker log.
+#   - Otherwise (default OUT_DIR), refuse to start when the resolved path is a
+#     symlink or escapes the repo root, unless SU2_ALLOW_EXTERNAL_OUT_DIR=1.
+out_parent="$(dirname "$OUT_DIR")"
+mkdir -p "$out_parent"
+out_parent_real="$(cd "$out_parent" && pwd -P)"
+out_dir_real="$out_parent_real/$(basename "$OUT_DIR")"
+root_real="$(cd "$ROOT" && pwd -P)"
+
+if [[ "$OUT_DIR_EXPLICIT" == "1" ]]; then
+  echo "[start_su2_worker] external OUT_DIR: $OUT_DIR"
+else
+  is_symlink=0
+  if [[ -L "$OUT_DIR" ]]; then
+    is_symlink=1
+  fi
+  # Also flag any ancestor symlink (e.g. results -> /Volumes/...).
+  probe="$OUT_DIR"
+  while [[ "$probe" != "/" && "$probe" != "." ]]; do
+    if [[ -L "$probe" ]]; then
+      is_symlink=1
+      break
+    fi
+    probe="$(dirname "$probe")"
+  done
+  outside_repo=0
+  case "$out_dir_real/" in
+    "$root_real"/*) ;;
+    *) outside_repo=1 ;;
+  esac
+  if (( is_symlink == 1 )) || (( outside_repo == 1 )); then
+    if [[ "${SU2_ALLOW_EXTERNAL_OUT_DIR:-0}" != "1" ]]; then
+      echo "[start_su2_worker] refusing to start: default OUT_DIR ($OUT_DIR)"
+      if (( is_symlink == 1 )); then
+        echo "  reason: path or an ancestor is a symlink"
+      fi
+      if (( outside_repo == 1 )); then
+        echo "  reason: resolves outside repo root ($root_real -> $out_dir_real)"
+      fi
+      echo "  set SU2_OUT_DIR explicitly, or export SU2_ALLOW_EXTERNAL_OUT_DIR=1 to bypass."
+      exit 5
+    else
+      echo "[start_su2_worker] external OUT_DIR allowed via SU2_ALLOW_EXTERNAL_OUT_DIR=1: $OUT_DIR"
+    fi
+  fi
+fi
 
 mkdir -p "$OUT_DIR"
 cd "$GPT_DIR"

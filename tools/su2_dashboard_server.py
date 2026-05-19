@@ -699,10 +699,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # Tag each measurement with its seed so dedup doesn't
                 # drop measurements with the same idx from different seeds.
                 for i, m in enumerate(sib_meas):
-                    if isinstance(m, dict) and "idx" in m:
-                        m = dict(m)
-                        m["_seed"] = sib
-                        sib_meas[i] = m
+                    if isinstance(m, dict):
+                        sib_meas[i] = {**m, "_seed": sib}
                 all_meas.extend(sib_meas)
                 seeds_used.append(sib)
 

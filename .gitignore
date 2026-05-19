@@ -1,10 +1,13 @@
 # Runtime outputs
 results/
+results-local/
+run-scratch/
 *.log
 
 # Python
 __pycache__/
 *.pyc
+.venv/
 
 # Local build outputs
 Grid/build/
