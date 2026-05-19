@@ -11,7 +11,7 @@ echo "====================================="
 # which fails later inside gpt as `AttributeError: module 'cgpt' has no
 # attribute 'time'`. Detect the required interpreter from the built .so.
 CGPT_BUILD_DIR="$(pwd)/gpt/lib/cgpt/build"
-CGPT_SO="$(ls "$CGPT_BUILD_DIR"/cgpt.cpython-*-darwin.so "$CGPT_BUILD_DIR"/cgpt.cpython-*-linux-gnu.so 2>/dev/null | head -n1 || true)"
+CGPT_SO="$(ls "$CGPT_BUILD_DIR"/cgpt.cpython-*-*.so 2>/dev/null | head -n1 || true)"
 if [ -z "$CGPT_SO" ]; then
     echo "Smoke test failed: no built cgpt native extension found in $CGPT_BUILD_DIR." >&2
     echo "Build cgpt first via the project's normal build steps." >&2
