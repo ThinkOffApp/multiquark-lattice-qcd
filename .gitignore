@@ -30,3 +30,6 @@ tmp_smoke_test/
 
 # macOS
 .DS_Store
+
+# Smoke-test venv built for the cgpt-matching Python ABI
+.venv-smoke/
