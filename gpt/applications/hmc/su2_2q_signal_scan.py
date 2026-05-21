@@ -264,13 +264,28 @@ def detect_runtime_backend():
     # An accelerator is present if EITHER:
     #   - cgpt's mem_info reports a nonzero accelerator pool (works on CUDA;
     #     cgpt's util.cc populates this only under #ifdef GRID_CUDA), or
-    #   - Grid's configure summary reports an enabled accelerator backend.
+    #   - Grid's configure summary reports an *enumerated* accelerator backend.
     # The second signal is what catches Apple Metal builds, where util.cc has
     # no Metal branch and accelerator_total stays at 0 even when Metal kernels
     # are firing (Benchmark_wilson prints AcceleratorMetalInit on this box).
+    # Conservative match: an unknown/empty/"none"/"cpu" value MUST fall through
+    # to backend="cpu". The whitelist mirrors Grid/configure.ac's enum.
     accelerator_backends = {"cuda", "metal", "sycl", "hip"}
-    has_accelerator = accel_total > 0 or acceleration.lower() in accelerator_backends
+    accel_norm = acceleration.lower()
+    has_accelerator = accel_total > 0 or accel_norm in accelerator_backends
     backend = "gpu" if has_accelerator else "cpu"
+
+    # Boring, explicit receipt fields. loaded_cgpt_so and python_version are
+    # added so dashboard/report consumers don't have to re-derive them from
+    # the environment.
+    try:
+        import cgpt  # noqa: F401  (already loaded transitively by `import gpt`)
+        loaded_cgpt_so = getattr(cgpt, "__file__", "") or ""
+    except Exception:
+        loaded_cgpt_so = ""
+    python_version = (
+        f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
+    )
 
     return {
         "backend": backend,
@@ -280,6 +295,8 @@ def detect_runtime_backend():
         "grid_simd": simd or None,
         "grid_threading": threading or None,
         "grid_summary_path": str(build.get("summary_path") or ""),
+        "loaded_cgpt_so": loaded_cgpt_so,
+        "python_version": python_version,
     }
 
 
