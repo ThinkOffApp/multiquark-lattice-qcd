@@ -257,10 +257,20 @@ def detect_runtime_backend():
     build = detect_grid_build_info()
     accel_total = float(mem.get("accelerator_total") or 0.0)
     accel_available = float(mem.get("accelerator_available") or 0.0)
-    backend = "gpu" if accel_total > 0 else "cpu"
     acceleration = str(build.get("acceleration") or "").strip()
     simd = str(build.get("simd") or "").strip()
     threading = str(build.get("threading") or "").strip()
+
+    # An accelerator is present if EITHER:
+    #   - cgpt's mem_info reports a nonzero accelerator pool (works on CUDA;
+    #     cgpt's util.cc populates this only under #ifdef GRID_CUDA), or
+    #   - Grid's configure summary reports an enabled accelerator backend.
+    # The second signal is what catches Apple Metal builds, where util.cc has
+    # no Metal branch and accelerator_total stays at 0 even when Metal kernels
+    # are firing (Benchmark_wilson prints AcceleratorMetalInit on this box).
+    accelerator_backends = {"cuda", "metal", "sycl", "hip"}
+    has_accelerator = accel_total > 0 or acceleration.lower() in accelerator_backends
+    backend = "gpu" if has_accelerator else "cpu"
 
     return {
         "backend": backend,
@@ -957,9 +967,14 @@ def main():
     )
     if require_accelerator and runtime_backend.get("backend") != "gpu":
         raise SystemExit(
-            "Requested --require-accelerator 1 but no accelerator memory is available. "
+            "Requested --require-accelerator 1 but no accelerator is available. "
             f"grid_acceleration={runtime_backend.get('grid_acceleration')}, "
-            f"accelerator_total_bytes={runtime_backend.get('accelerator_total_bytes')}"
+            f"accelerator_total_bytes={runtime_backend.get('accelerator_total_bytes')}. "
+            "An accelerator is recognised when either accelerator_total_bytes > 0 "
+            "(populated by cgpt under GRID_CUDA), or grid_acceleration is one of "
+            "{cuda, metal, sycl, hip} per the Grid configure summary. "
+            "Set GRID_CONFIG_SUMMARY=<path-to-grid-build/grid.configure.summary> if "
+            "the summary file is not auto-discovered."
         )
 
     # Ensure time dirs are legal in case L/nd differs from expectation.
