@@ -23,7 +23,7 @@ produce a meaningful Metal pass on this codebase:
 The replacement gate is a Grid-level Wilson Dslash regression that actually
 exercises the Metal kernel and produces a structured receipt:
 
-    scripts/metal_parity_gate.sh
+    scripts/metal_readiness_gate.sh
 
 That script verifies a Metal-enabled cgpt is loaded, that the Grid configure
 summary reports ``Acceleration: metal``, optionally runs Grid's own
@@ -36,7 +36,7 @@ For CPU-only output-schema and dashboard read-path receipts, see
 
 import sys
 
-REPLACEMENT = "scripts/metal_parity_gate.sh"
+REPLACEMENT = "scripts/metal_readiness_gate.sh"
 EXIT_DEPRECATED = 2
 
 

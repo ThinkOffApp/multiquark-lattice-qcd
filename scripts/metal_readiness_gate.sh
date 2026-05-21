@@ -27,7 +27,7 @@
 #      line FAILS the gate.
 #   6. Benchmark_wilson emits a parseable, strictly positive mflop/s line.
 #
-# Receipt is written to $SU2_GATE_RECEIPT (default: /tmp/metal_parity_gate.json)
+# Receipt is written to $SU2_GATE_RECEIPT (default: /tmp/metal_readiness_gate.json)
 # and includes: loaded_cgpt_so, python_version, grid_summary_path,
 # grid_acceleration, grid_simd, backend, accelerator_total_bytes, mflop_s,
 # metal_init_line, status, reason.
@@ -52,18 +52,18 @@
 # Optional env:
 #   GRID_CONFIG_SUMMARY : path to grid.configure.summary. If unset, the
 #                         driver auto-discovers <repo>/Grid/build/grid.configure.summary.
-#   SU2_GATE_RECEIPT    : output JSON path (default /tmp/metal_parity_gate.json).
+#   SU2_GATE_RECEIPT    : output JSON path (default /tmp/metal_readiness_gate.json).
 #   PYTHON              : python interpreter matching the cgpt ABI tag
 #                         (default: auto-detect from cgpt.cpython-X.Y-*.so).
 
 set -euo pipefail
 
-RECEIPT_PATH="${SU2_GATE_RECEIPT:-/tmp/metal_parity_gate.json}"
+RECEIPT_PATH="${SU2_GATE_RECEIPT:-/tmp/metal_readiness_gate.json}"
 # Hard-coded to "metal" since this is the Metal gate. CUDA/SYCL/HIP builds
 # need their own readiness gates (#9a's detector already supports them).
 REQUIRED_ACCELERATION="metal"
 
-log() { printf '[metal-parity-gate] %s\n' "$*" >&2; }
+log() { printf '[metal-readiness-gate] %s\n' "$*" >&2; }
 fail() { local code="$1"; shift; log "FAIL: $*"; emit_receipt "fail" "$*"; exit "$code"; }
 
 emit_receipt() {
@@ -121,7 +121,7 @@ fi
 log "python: $($PY -V 2>&1)"
 
 # 2 & 3. Import cgpt, probe runtime backend, capture receipt fields.
-TMPOUT="$(mktemp -t metal_parity_probe.XXXXXX.json)"
+TMPOUT="$(mktemp -t metal_readiness_probe.XXXXXX.json)"
 trap 'rm -f "$TMPOUT"' EXIT
 DRIVER_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/gpt/applications/hmc"
 if [ ! -f "$DRIVER_DIR/su2_2q_signal_scan.py" ]; then
@@ -130,7 +130,7 @@ fi
 
 # The probe lives in a heredoc so we can capture both stderr (Grid banner
 # + AcceleratorMetalInit) and the structured JSON written to TMPOUT.
-"$PY" - "$DRIVER_DIR" "$TMPOUT" <<'PY' 2>&1 | tee /tmp/metal_parity_gate.probe.log
+"$PY" - "$DRIVER_DIR" "$TMPOUT" <<'PY' 2>&1 | tee /tmp/metal_readiness_gate.probe.log
 import json, os, sys
 driver_dir, out_path = sys.argv[1], sys.argv[2]
 sys.path.insert(0, driver_dir)
@@ -141,10 +141,10 @@ with open(out_path, "w") as f:
 print("PROBE_OK")
 PY
 
-if ! grep -q PROBE_OK /tmp/metal_parity_gate.probe.log; then
-    fail 2 "detect_runtime_backend probe failed; see /tmp/metal_parity_gate.probe.log"
+if ! grep -q PROBE_OK /tmp/metal_readiness_gate.probe.log; then
+    fail 2 "detect_runtime_backend probe failed; see /tmp/metal_readiness_gate.probe.log"
 fi
-METAL_INIT_LINE="$(grep -E 'AcceleratorMetalInit' /tmp/metal_parity_gate.probe.log | head -n1 || true)"
+METAL_INIT_LINE="$(grep -E 'AcceleratorMetalInit' /tmp/metal_readiness_gate.probe.log | head -n1 || true)"
 
 LOADED_SO="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("loaded_cgpt_so") or "")' "$TMPOUT")"
 PY_VER="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1])).get("python_version") or "")' "$TMPOUT")"
@@ -186,7 +186,7 @@ if [ ! -x "$BENCH_BIN" ]; then
     fail 2 "Benchmark_wilson not found / not executable at $BENCH_BIN"
 fi
 log "running $BENCH_BIN"
-BENCH_LOG="${TMPDIR:-/tmp}/metal_parity_gate.bench.log"
+BENCH_LOG="${TMPDIR:-/tmp}/metal_readiness_gate.bench.log"
 # Benchmark_wilson loads default.metallib from its build directory at
 # runtime; running it from elsewhere fails with MTLLibraryErrorDomain
 # Code=6 "library not found". Run from the build dir so the relative
