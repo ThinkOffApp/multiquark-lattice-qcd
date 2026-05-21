@@ -1,48 +1,57 @@
 #!/usr/bin/env bash
 #
-# Metal Wilson Dslash parity / readiness gate.
+# Metal Wilson readiness gate (issue #9b).
 #
-# Replaces the retired scripts/gpu_crosscheck.py (see issue #9). Produces a
-# structured pass/fail receipt that the dashboard / CI can rely on.
+# Scope (explicit): this is a Metal *readiness* gate, not a Metal *parity*
+# gate. It proves the build IS Metal and that a Metal Wilson Dslash actually
+# dispatches on this box. It does NOT yet run a Wilson/Dslash correctness
+# regression against a CPU reference. That second piece (Wilson Dslash
+# CPU-single vs Metal-single parity via Grid's Test_metal_dslash_regression)
+# is the follow-up that finally closes #9.
 #
-# What this gate actually checks (in order, all must pass):
+# Replaces the retired scripts/gpu_crosscheck.py (see issue #9 for history).
+# Produces a structured JSON receipt the dashboard / CI can rely on.
+#
+# What this gate REQUIRES (every item must hold; missing or weak signal -> fail):
 #
 #   1. A cgpt .so is on PYTHONPATH and importable.
-#   2. The loaded Grid build's configure summary reports
-#      `Acceleration: metal` (the *enumerated* signal; "none"/"cpu" rejected).
-#   3. Loading cgpt prints `AcceleratorMetalInit: Selected device is ...`
-#      and the SU(2) driver's detect_runtime_backend() reports backend=gpu
-#      with the patched logic from PR #10 (#9a).
-#   4. If `Benchmark_wilson` is built in the same Grid tree, it runs to
-#      completion and prints a non-zero mflop/s line. (Demonstrates a real
-#      Wilson Dslash actually fires on Metal; this is the substantive part.)
-#   5. (Future) If `Test_metal_dslash_regression` is built (Grid/tests/core/),
-#      it runs and returns 0. That's the proper float-vs-double precision-
-#      guard regression test, but it requires a Grid build off the
-#      multiquark-lattice-qcd Grid source tree that has the
-#      `MetalWilsonImplOK` trait. Currently TODO.
+#   2. Grid configure summary reports EXACTLY `Acceleration: metal`. Other
+#      enumerated accelerators (cuda/sycl/hip) and any non-enumerated value
+#      ("none"/"cpu"/""/unknown) FAIL this gate. This is a Metal gate.
+#   3. The patched detect_runtime_backend() (PR #10) reports backend=gpu.
+#   4. GRID_BUILD_DIR is set and $GRID_BUILD_DIR/benchmarks/Benchmark_wilson
+#      exists and is executable.
+#   5. Benchmark_wilson runs to completion (from its build dir so
+#      default.metallib resolves) and its output includes
+#      `AcceleratorMetalInit: Selected device is ...`. Absence of that
+#      line FAILS the gate.
+#   6. Benchmark_wilson emits a parseable, strictly positive mflop/s line.
 #
 # Receipt is written to $SU2_GATE_RECEIPT (default: /tmp/metal_parity_gate.json)
 # and includes: loaded_cgpt_so, python_version, grid_summary_path,
-# grid_acceleration, simd, backend, accelerator_total_bytes, mflop_s.
+# grid_acceleration, grid_simd, backend, accelerator_total_bytes, mflop_s,
+# metal_init_line, status, reason.
 #
 # Exit codes:
 #   0  all required checks passed (receipt complete and positive)
-#   2  prerequisites missing (cgpt not importable, no Grid summary, etc.)
-#   3  signal mismatch (grid_acceleration not metal/cuda/sycl/hip, etc.)
-#   4  Benchmark_wilson failed or did not print mflop/s
+#   2  prerequisites missing (cgpt not importable, no Grid summary,
+#      GRID_BUILD_DIR missing, Benchmark_wilson binary missing, etc.)
+#   3  signal mismatch (grid_acceleration != "metal", or backend != "gpu")
+#   4  Benchmark_wilson failed, did not print AcceleratorMetalInit, or
+#      did not emit a strictly positive mflop/s value
 #
-# Required env (one of):
-#   GRID_CGPT_BUILD  : path to a dir containing cgpt.cpython-*-darwin.so
-#                      built against a Metal-enabled Grid.
-#   PYTHONPATH       : pre-set so `import cgpt` works (script will trust it).
+# Required env:
+#   GRID_CGPT_BUILD     : path to a dir containing cgpt.cpython-*-darwin.so
+#                         built against a Metal-enabled Grid.
+#                         Alternatively, pre-set PYTHONPATH so `import cgpt`
+#                         already works.
+#   GRID_BUILD_DIR      : path to the Grid build dir containing
+#                         benchmarks/Benchmark_wilson and default.metallib.
+#                         No fallback; required.
 #
 # Optional env:
-#   GRID_CONFIG_SUMMARY : path to grid.configure.summary (auto-discovered if
-#                         a Grid/build/grid.configure.summary lives next to
-#                         the cgpt source tree).
-#   GRID_BUILD_DIR      : path to the Grid build dir, used to locate
-#                         benchmarks/Benchmark_wilson.
+#   GRID_CONFIG_SUMMARY : path to grid.configure.summary. If unset, the
+#                         driver auto-discovers <repo>/Grid/build/grid.configure.summary.
 #   SU2_GATE_RECEIPT    : output JSON path (default /tmp/metal_parity_gate.json).
 #   PYTHON              : python interpreter matching the cgpt ABI tag
 #                         (default: auto-detect from cgpt.cpython-X.Y-*.so).
@@ -50,7 +59,9 @@
 set -euo pipefail
 
 RECEIPT_PATH="${SU2_GATE_RECEIPT:-/tmp/metal_parity_gate.json}"
-ACCEPTED_BACKENDS_RE='^(cuda|metal|sycl|hip)$'
+# Hard-coded to "metal" since this is the Metal gate. CUDA/SYCL/HIP builds
+# need their own readiness gates (#9a's detector already supports them).
+REQUIRED_ACCELERATION="metal"
 
 log() { printf '[metal-parity-gate] %s\n' "$*" >&2; }
 fail() { local code="$1"; shift; log "FAIL: $*"; emit_receipt "fail" "$*"; exit "$code"; }
@@ -71,6 +82,7 @@ receipt = {
     "backend": os.environ.get("RECEIPT_BACKEND", ""),
     "accelerator_total_bytes": int(os.environ.get("RECEIPT_ACCEL_TOTAL", "0") or "0"),
     "mflop_s": os.environ.get("RECEIPT_MFLOPS", ""),
+    "metal_init_line": os.environ.get("RECEIPT_METAL_INIT", ""),
 }
 json.dump(receipt, sys.stdout, indent=2, sort_keys=True)
 sys.stdout.write("\n")
@@ -158,41 +170,61 @@ log "metal init line: ${METAL_INIT_LINE:-<not observed>}"
 if [ -z "$SUMMARY_PATH" ] || [ ! -f "$SUMMARY_PATH" ]; then
     fail 2 "no Grid configure summary found (set GRID_CONFIG_SUMMARY)"
 fi
-if ! echo "$ACCEL" | grep -qE "$ACCEPTED_BACKENDS_RE"; then
-    fail 3 "grid_acceleration='$ACCEL' is not in {cuda,metal,sycl,hip}"
+if [ "$ACCEL" != "$REQUIRED_ACCELERATION" ]; then
+    fail 3 "grid_acceleration='$ACCEL'; this is the Metal gate, requires exactly 'metal'"
 fi
 if [ "$BACKEND" != "gpu" ]; then
     fail 3 "detect_runtime_backend reports backend='$BACKEND'; expected 'gpu'"
 fi
 
-# 4. Optional: run Grid's own Benchmark_wilson if available.
-MFLOPS=""
-if [ -n "${GRID_BUILD_DIR:-}" ] && [ -x "$GRID_BUILD_DIR/benchmarks/Benchmark_wilson" ]; then
-    log "running $GRID_BUILD_DIR/benchmarks/Benchmark_wilson"
-    BENCH_LOG="${TMPDIR:-/tmp}/metal_parity_gate.bench.log"
-    # Benchmark_wilson loads default.metallib from its build directory at
-    # runtime; running it from elsewhere fails with MTLLibraryErrorDomain
-    # Code=6 "library not found". Run from the build dir so the relative
-    # lookup resolves.
-    ( cd "$GRID_BUILD_DIR" && ./benchmarks/Benchmark_wilson --grid 8.8.8.8 ) > "$BENCH_LOG" 2>&1 || true
-    set +e +o pipefail
-    MFLOPS="$(grep -m1 'mflop/s' "$BENCH_LOG" | sed -nE 's/.*mflop\/s[[:space:]]*=[[:space:]]*([0-9.]+).*/\1/p')"
-    METAL_INIT_BENCH="$(grep -m1 'AcceleratorMetalInit: Selected device' "$BENCH_LOG" || true)"
-    set -e -o pipefail
-    if [ -n "$METAL_INIT_BENCH" ]; then
-        log "metal init (from Benchmark_wilson): $METAL_INIT_BENCH"
-        METAL_INIT_LINE="$METAL_INIT_BENCH"
-    fi
-    log "Benchmark_wilson mflop/s: ${MFLOPS:-<not parsed>}"
-    if [ -z "$MFLOPS" ]; then
-        export RECEIPT_MFLOPS=""
-        fail 4 "Benchmark_wilson did not emit a parseable mflop/s line"
-    fi
-    export RECEIPT_MFLOPS="$MFLOPS"
-else
-    log "Benchmark_wilson not found at \$GRID_BUILD_DIR/benchmarks/Benchmark_wilson; skipping mflop/s receipt"
-    export RECEIPT_MFLOPS=""
+# 4. GRID_BUILD_DIR + Benchmark_wilson are REQUIRED (no longer optional).
+if [ -z "${GRID_BUILD_DIR:-}" ]; then
+    fail 2 "GRID_BUILD_DIR is not set; the gate needs Benchmark_wilson + default.metallib"
 fi
+BENCH_BIN="$GRID_BUILD_DIR/benchmarks/Benchmark_wilson"
+if [ ! -x "$BENCH_BIN" ]; then
+    fail 2 "Benchmark_wilson not found / not executable at $BENCH_BIN"
+fi
+log "running $BENCH_BIN"
+BENCH_LOG="${TMPDIR:-/tmp}/metal_parity_gate.bench.log"
+# Benchmark_wilson loads default.metallib from its build directory at
+# runtime; running it from elsewhere fails with MTLLibraryErrorDomain
+# Code=6 "library not found". Run from the build dir so the relative
+# lookup resolves.
+( cd "$GRID_BUILD_DIR" && ./benchmarks/Benchmark_wilson --grid 8.8.8.8 ) > "$BENCH_LOG" 2>&1
+BENCH_RC=$?
+log "Benchmark_wilson exit code: $BENCH_RC"
+if [ "$BENCH_RC" -ne 0 ]; then
+    fail 4 "Benchmark_wilson exited non-zero ($BENCH_RC); see $BENCH_LOG"
+fi
+set +e +o pipefail
+MFLOPS="$(grep -m1 'mflop/s' "$BENCH_LOG" | sed -nE 's/.*mflop\/s[[:space:]]*=[[:space:]]*([0-9.]+).*/\1/p')"
+METAL_INIT_BENCH="$(grep -m1 'AcceleratorMetalInit: Selected device' "$BENCH_LOG" || true)"
+set -e -o pipefail
+
+# 5. AcceleratorMetalInit must be observed. Without it, Metal didn't init
+# even though the Grid build claims metal acceleration. That's exactly the
+# fall-through case @ether asked us to gate on.
+if [ -z "$METAL_INIT_BENCH" ]; then
+    export RECEIPT_METAL_INIT=""
+    export RECEIPT_MFLOPS="${MFLOPS:-}"
+    fail 4 "AcceleratorMetalInit line not observed in Benchmark_wilson output ($BENCH_LOG)"
+fi
+log "metal init (from Benchmark_wilson): $METAL_INIT_BENCH"
+export RECEIPT_METAL_INIT="$METAL_INIT_BENCH"
+
+# 6. mflop/s must be parseable AND strictly positive.
+if [ -z "$MFLOPS" ]; then
+    export RECEIPT_MFLOPS=""
+    fail 4 "Benchmark_wilson did not emit a parseable mflop/s line"
+fi
+# Strictly positive numeric check (awk handles the float compare portably).
+if ! awk -v m="$MFLOPS" 'BEGIN { exit (m+0 > 0) ? 0 : 1 }'; then
+    export RECEIPT_MFLOPS="$MFLOPS"
+    fail 4 "Benchmark_wilson mflop/s='$MFLOPS' is not strictly positive"
+fi
+log "Benchmark_wilson mflop/s: $MFLOPS"
+export RECEIPT_MFLOPS="$MFLOPS"
 
 emit_receipt "pass" ""
 log "PASS"
