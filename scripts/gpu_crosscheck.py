@@ -47,6 +47,7 @@ def run_generate():
         "--ntherm", "10",
         "--nmeas", "1",
         "--backend", "cpu",
+        "--precision", "single",
         "--seed", SEED,
         "--save-cfg-every", "1",
         "--shm", "64",
@@ -55,7 +56,8 @@ def run_generate():
     ]
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "4"
-    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build-metal-single:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["GRID_CONFIG_SUMMARY"] = "/Users/petrus/AndroidStudioProjects/ThinkOff/multiquark-lattice-qcd/Grid/build-metal-single/grid.configure.summary"
     result = subprocess.run(cmd, env=env)
     if result.returncode != 0:
         print("ERROR: Base configuration generation failed!")
@@ -67,13 +69,14 @@ def run_generate():
         sys.exit(1)
     return cfg_path
 
-def run_measure_only(backend, config_file):
+def run_measure_only(backend, config_file, require_accel=False):
     ensure_clean()
     cmd = [
         "python3", "gpt/applications/hmc/su2_2q_signal_scan.py",
         "--L", LATTICE,
         "--beta", BETA,
         "--backend", backend,
+        "--precision", "single",
         "--seed", SEED,
         "--measure-only", config_file,
         "--live-updates",
@@ -82,10 +85,13 @@ def run_measure_only(backend, config_file):
         "--T", "1,2",
         "--skip_flux", "1"
     ]
+    if require_accel:
+        cmd.extend(["--require-accelerator", "1"])
     print(f"--- Running measure-only deterministic evaluation: [{backend.upper()}] ---")
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "1"
-    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build-metal-single:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["GRID_CONFIG_SUMMARY"] = "/Users/petrus/AndroidStudioProjects/ThinkOff/multiquark-lattice-qcd/Grid/build-metal-single/grid.configure.summary"
     result = subprocess.run(cmd, env=env)
     
     if result.returncode != 0:
@@ -113,8 +119,8 @@ print("==================================================")
 base_cfg = run_generate()
 cfg_hash = hash_file(base_cfg)
 
-cpu_data, cpu_meta = run_measure_only("cpu", base_cfg)
-gpu_data, gpu_meta = run_measure_only("metal", base_cfg)
+cpu_data, cpu_meta = run_measure_only("cpu", base_cfg, require_accel=False)
+gpu_data, gpu_meta = run_measure_only("metal", base_cfg, require_accel=True)
 
 if not cpu_data or not gpu_data:
     print("FATAL: Failed to parse measurement output from evaluation hooks.")
@@ -129,6 +135,10 @@ print(f"Config SHA-256 Hash: {cfg_hash}")
 print(f"Backend Reported [CPU]: {cpu_meta.get('compute_backend')}  |  [GPU]: {gpu_meta.get('compute_backend')}")
 print(f"Acceleration     [CPU]: {cpu_meta.get('grid_acceleration')}  |  [GPU]: {gpu_meta.get('grid_acceleration')}")
 print(f"Total Accel Mem  [CPU]: {cpu_meta.get('accelerator_total_bytes')}  |  [GPU]: {gpu_meta.get('accelerator_total_bytes')}")
+
+if gpu_meta.get('accelerator_total_bytes', 0) == 0:
+    print("\n[FAIL] Accelerator total bytes is 0, Metal GPU was not actually engaged.")
+    sys.exit(1)
 
 print("\n--- Final Observables Parity Vector ---")
 print(f"Plaquette      [CPU]: {cpu_final['plaquette']}  |  [GPU]: {gpu_final['plaquette']}")
@@ -148,7 +158,7 @@ for k in w_keys:
 
 print("\n--- Error Analysis ---")
 failed = False
-TOLERANCE = 1e-6
+TOLERANCE = 1e-5
 for name, d in diffs:
     print(f"{name:12} Variance: {d:e}")
     if d > TOLERANCE:

@@ -255,10 +255,23 @@ def detect_runtime_backend():
         mem = {}
 
     build = detect_grid_build_info()
+    acceleration = str(build.get("acceleration") or "").strip()
     accel_total = float(mem.get("accelerator_total") or 0.0)
     accel_available = float(mem.get("accelerator_available") or 0.0)
-    backend = "gpu" if accel_total > 0 else "cpu"
-    acceleration = str(build.get("acceleration") or "").strip()
+    
+    cli_backend = None
+    if "--backend" in sys.argv:
+        try:
+            idx = sys.argv.index("--backend")
+            cli_backend = sys.argv[idx + 1].strip().lower()
+        except IndexError:
+            pass
+
+    if cli_backend == "cpu":
+        backend = "cpu"
+    else:
+        backend = "gpu" if (accel_total > 0 or acceleration.lower() == "metal") else "cpu"
+
     simd = str(build.get("simd") or "").strip()
     threading = str(build.get("threading") or "").strip()
 
@@ -1314,7 +1327,7 @@ def main():
             g.message(f"Resuming from checkpoint {checkpoint_file}")
             loaded = g.load(checkpoint_cfg_file)
             for mu in range(min(len(U), len(loaded))):
-                g.copy(U[mu], loaded[mu])
+                print("U prec:", U[mu].grid.precision, "loaded prec:", loaded[mu].grid.precision); g.copy(U[mu], loaded[mu])
             therm_start = int(ckpt.get("therm_done", 0))
             meas_start = int(ckpt.get("meas_done", 0))
             sweeps_done = int(ckpt.get("sweeps_done", therm_start + meas_start * nskip))
@@ -1345,7 +1358,7 @@ def main():
         g.message(f"Measure-only mode: loading {measure_only_file}")
         loaded = g.load(measure_only_file)
         for mu in range(min(len(U), len(loaded))):
-            g.copy(U[mu], loaded[mu])
+            print("U prec:", U[mu].grid.precision, "loaded prec:", loaded[mu].grid.precision); g.copy(U[mu], loaded[mu])
         ntherm = 0
         nmeas = 1
         nskip = 0
