@@ -158,6 +158,25 @@ if cpu_meta.get('loaded_cgpt_so') == gpu_meta.get('loaded_cgpt_so'):
     print("\n[FAIL] Both legs loaded the identical cgpt.so library. True isolation failed.")
     sys.exit(1)
 
+cpu_accel_name = (cpu_meta.get('grid_acceleration') or "").lower()
+gpu_accel_name = (gpu_meta.get('grid_acceleration') or "").lower()
+if cpu_accel_name != "none":
+    print(f"\n[FAIL] CPU leg grid_acceleration='{cpu_accel_name}', expected 'none'.")
+    sys.exit(1)
+if gpu_accel_name != "metal":
+    print(f"\n[FAIL] Metal leg grid_acceleration='{gpu_accel_name}', expected 'metal'.")
+    sys.exit(1)
+
+print("\n--- Build Hashes (manifest) ---")
+for label, meta, build_dir in (("CPU", cpu_meta, "build-cpu-single"),
+                               ("METAL", gpu_meta, "build-metal-single")):
+    so_path = meta.get('loaded_cgpt_so') or ""
+    so_hash = hash_file(so_path) if so_path and os.path.exists(so_path) else "n/a"
+    summary_path = f"{os.getcwd()}/Grid/{build_dir}/grid.configure.summary"
+    summary_hash = hash_file(summary_path) if os.path.exists(summary_path) else "n/a"
+    print(f"  [{label}] cgpt.so sha256={so_hash}  path={so_path}")
+    print(f"  [{label}] grid.configure.summary sha256={summary_hash}  path={summary_path}")
+
 print("\n--- Final Observables Parity Vector ---")
 print(f"Plaquette      [CPU]: {cpu_final['plaquette']}  |  [GPU]: {gpu_final['plaquette']}")
 
@@ -186,4 +205,4 @@ if failed:
     print(f"\n[FAIL] Observables diverged beyond safety threshold ({TOLERANCE}) on shared configuration!")
     sys.exit(1)
 
-print("\n[SUCCESS] Native Apple Metal GPU matrix math strictly matches standard CPU paths on an identical gauge field invariant.")
+print(f"\n[SUCCESS] On a shared gauge configuration, Metal-built and CPU-built measure-only legs produced plaquette and Wilson-loop observables agreeing within {TOLERANCE:.0e}. This is a pure-gauge SU(2) parity check; it does not exercise Wilson Dslash (covered separately by the Wilson Dslash regression).")
