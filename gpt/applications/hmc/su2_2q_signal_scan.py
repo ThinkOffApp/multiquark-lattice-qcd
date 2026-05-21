@@ -256,20 +256,10 @@ def detect_runtime_backend():
 
     build = detect_grid_build_info()
     acceleration = str(build.get("acceleration") or "").strip()
-    accel_total = float(mem.get("accelerator_total") or 0.0)
-    accel_available = float(mem.get("accelerator_available") or 0.0)
-    acceleration = str(build.get("acceleration") or "").strip()
     simd = str(build.get("simd") or "").strip()
     threading = str(build.get("threading") or "").strip()
-
-    cli_backend = None
-    if "--backend" in sys.argv:
-        try:
-            idx = sys.argv.index("--backend")
-            cli_backend = sys.argv[idx + 1].strip().lower()
-        except IndexError:
-            pass
-
+    accel_total = float(mem.get("accelerator_total") or 0.0)
+    accel_available = float(mem.get("accelerator_available") or 0.0)
     # An accelerator is present if EITHER:
     #   - cgpt's mem_info reports a nonzero accelerator pool (works on CUDA;
     #     cgpt's util.cc populates this only under #ifdef GRID_CUDA), or
@@ -283,9 +273,6 @@ def detect_runtime_backend():
     accel_norm = acceleration.lower()
     has_accelerator = accel_total > 0 or accel_norm in accelerator_backends
     backend = "gpu" if has_accelerator else "cpu"
-
-    if cli_backend == "cpu":
-        backend = "cpu"
 
     # Boring, explicit receipt fields. loaded_cgpt_so and python_version are
     # added so dashboard/report consumers don't have to re-derive them from
@@ -992,6 +979,8 @@ def main():
             "grid_simd": runtime_backend.get("grid_simd"),
             "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
             "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+            "loaded_cgpt_so": runtime_backend.get("loaded_cgpt_so"),
+            "python_version": runtime_backend.get("python_version"),
         }
     )
     if require_accelerator and runtime_backend.get("backend") != "gpu":
@@ -1005,6 +994,14 @@ def main():
             "Set GRID_CONFIG_SUMMARY=<path-to-grid-build/grid.configure.summary> if "
             "the summary file is not auto-discovered."
         )
+
+    grid_accel = (runtime_backend.get("grid_acceleration") or "").lower()
+    if pipeline_label == "metal":
+        if grid_accel != "metal":
+            raise SystemExit(f"Hard fail: Expected grid_acceleration 'metal' for Metal pipeline, got '{grid_accel}'")
+    elif runtime_backend.get("backend") == "cpu":
+        if grid_accel != "none":
+            raise SystemExit(f"Hard fail: Expected grid_acceleration 'none' for CPU backend, got '{grid_accel}'")
 
     # Ensure time dirs are legal in case L/nd differs from expectation.
     time_dirs[:] = [mu for mu in time_dirs if 0 <= mu < Nd]
@@ -1122,6 +1119,8 @@ def main():
                 "grid_summary_path": runtime_backend.get("grid_summary_path"),
                 "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
                 "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+                "loaded_cgpt_so": runtime_backend.get("loaded_cgpt_so"),
+                "python_version": runtime_backend.get("python_version"),
                 "jsonl_path": os.path.basename(live_file_jsonl),
             },
             # "measurements": [], # Removed to save space
@@ -1151,6 +1150,8 @@ def main():
                     "grid_summary_path": runtime_backend.get("grid_summary_path"),
                     "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
                     "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+                    "loaded_cgpt_so": runtime_backend.get("loaded_cgpt_so"),
+                    "python_version": runtime_backend.get("python_version"),
                 },
                 "therm_done": therm_done,
                 "meas_done": meas_done,
@@ -1358,7 +1359,7 @@ def main():
             g.message(f"Resuming from checkpoint {checkpoint_file}")
             loaded = g.load(checkpoint_cfg_file)
             for mu in range(min(len(U), len(loaded))):
-                print("U prec:", U[mu].grid.precision, "loaded prec:", loaded[mu].grid.precision); g.copy(U[mu], loaded[mu])
+                g.copy(U[mu], loaded[mu])
             therm_start = int(ckpt.get("therm_done", 0))
             meas_start = int(ckpt.get("meas_done", 0))
             sweeps_done = int(ckpt.get("sweeps_done", therm_start + meas_start * nskip))
@@ -1389,7 +1390,7 @@ def main():
         g.message(f"Measure-only mode: loading {measure_only_file}")
         loaded = g.load(measure_only_file)
         for mu in range(min(len(U), len(loaded))):
-            print("U prec:", U[mu].grid.precision, "loaded prec:", loaded[mu].grid.precision); g.copy(U[mu], loaded[mu])
+            g.copy(U[mu], loaded[mu])
         ntherm = 0
         nmeas = 1
         nskip = 0
@@ -1823,6 +1824,8 @@ def main():
             "grid_summary_path": runtime_backend.get("grid_summary_path"),
             "accelerator_total_bytes": runtime_backend.get("accelerator_total_bytes"),
             "accelerator_available_bytes": runtime_backend.get("accelerator_available_bytes"),
+            "loaded_cgpt_so": runtime_backend.get("loaded_cgpt_so"),
+            "python_version": runtime_backend.get("python_version"),
         },
         "mean_plaquette": mean([m["plaquette"] for m in measurements]),
         "mean_loops": mean_loops,
