@@ -56,8 +56,8 @@ def run_generate():
     ]
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "4"
-    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build-metal-single:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
-    env["GRID_CONFIG_SUMMARY"] = "/Users/petrus/AndroidStudioProjects/ThinkOff/multiquark-lattice-qcd/Grid/build-metal-single/grid.configure.summary"
+    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build-cpu-single:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["GRID_CONFIG_SUMMARY"] = f"{os.getcwd()}/Grid/build-cpu-single/grid.configure.summary"
     result = subprocess.run(cmd, env=env)
     if result.returncode != 0:
         print("ERROR: Base configuration generation failed!")
@@ -90,8 +90,14 @@ def run_measure_only(backend, config_file, require_accel=False):
     print(f"--- Running measure-only deterministic evaluation: [{backend.upper()}] ---")
     env = os.environ.copy()
     env["OMP_NUM_THREADS"] = "1"
-    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/build-metal-single:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
-    env["GRID_CONFIG_SUMMARY"] = "/Users/petrus/AndroidStudioProjects/ThinkOff/multiquark-lattice-qcd/Grid/build-metal-single/grid.configure.summary"
+    
+    if backend == "cpu":
+        build_dir = "build-cpu-single"
+    else:
+        build_dir = "build-metal-single"
+        
+    env["PYTHONPATH"] = f"{os.getcwd()}/gpt/lib/cgpt/{build_dir}:{os.getcwd()}/gpt/lib:" + env.get("PYTHONPATH", "")
+    env["GRID_CONFIG_SUMMARY"] = f"{os.getcwd()}/Grid/{build_dir}/grid.configure.summary"
     result = subprocess.run(cmd, env=env)
     
     if result.returncode != 0:
@@ -135,9 +141,21 @@ print(f"Config SHA-256 Hash: {cfg_hash}")
 print(f"Backend Reported [CPU]: {cpu_meta.get('compute_backend')}  |  [GPU]: {gpu_meta.get('compute_backend')}")
 print(f"Acceleration     [CPU]: {cpu_meta.get('grid_acceleration')}  |  [GPU]: {gpu_meta.get('grid_acceleration')}")
 print(f"Total Accel Mem  [CPU]: {cpu_meta.get('accelerator_total_bytes')}  |  [GPU]: {gpu_meta.get('accelerator_total_bytes')}")
+print(f"Loaded .so       [CPU]: {cpu_meta.get('loaded_cgpt_so')}  |  [GPU]: {gpu_meta.get('loaded_cgpt_so')}")
 
-if gpu_meta.get('accelerator_total_bytes', 0) == 0:
-    print("\n[FAIL] Accelerator total bytes is 0, Metal GPU was not actually engaged.")
+cpu_accel = cpu_meta.get('accelerator_total_bytes', 0)
+gpu_accel = gpu_meta.get('accelerator_total_bytes', 0)
+
+if gpu_accel == 0:
+    print("\n[FAIL] Accelerator total bytes is 0 on GPU leg. Metal GPU was not actually engaged.")
+    sys.exit(1)
+
+if cpu_accel != 0:
+    print(f"\n[FAIL] Accelerator total bytes is {cpu_accel} on CPU leg. True isolation failed.")
+    sys.exit(1)
+    
+if cpu_meta.get('loaded_cgpt_so') == gpu_meta.get('loaded_cgpt_so'):
+    print("\n[FAIL] Both legs loaded the identical cgpt.so library. True isolation failed.")
     sys.exit(1)
 
 print("\n--- Final Observables Parity Vector ---")
