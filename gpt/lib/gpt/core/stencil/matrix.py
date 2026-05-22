@@ -34,6 +34,16 @@ class matrix_padded:
         )
         self.write_fields = None
         self.verbose_performance = g.default.is_verbose("stencil_performance")
+        # Reusable scratch buffers for the write/temporary (non-read) padded
+        # fields. Layout is fully determined by `lat` + `margin` so the size
+        # is invariant across calls. Reusing them avoids leaking
+        # ~Nscratch * padded_lattice_bytes per call into Grid's allocator
+        # cache, which under the Metal allocator does not evict aggressively
+        # enough to bound RSS for repeated stencil applications (e.g. stout
+        # smear in an HMC loop). The read-field padded buffers still get a
+        # fresh padding() copy each call because their source data changes.
+        self._scratch_padded = None
+        self._scratch_n = None
 
     def data_access_hints(self, write_fields, read_fields, cache_fields):
         self.write_fields = write_fields
@@ -48,18 +58,44 @@ class matrix_padded:
         if self.verbose_performance:
             t = g.timer("stencil.matrix")
             t("create fields")
-        padded_fields = []
-        padded_field = None
-        for i in range(len(fields)):
-            if i in self.read_fields:
-                padded_field = self.padding(fields[i])
-                padded_fields.append(padded_field)
-            else:
-                padded_fields.append(None)
-        assert padded_field is not None
-        for i in range(len(fields)):
-            if padded_fields[i] is None:
-                padded_fields[i] = g.lattice(padded_field)
+        n = len(fields)
+        # Lazy-init reusable padded buffers for ALL slots. Layout is fully
+        # determined by `lat` + `margin` + `otype` so size is invariant
+        # across calls. Allocating fresh each call leaked
+        # ~Nfields * padded_lattice_bytes per call into Grid's allocator
+        # cache, which under the Metal allocator does not evict aggressively
+        # enough to bound RSS for repeated stencil applications (e.g. stout
+        # smear inside an HMC sweep). For 16^4 SU(2) single + 4-mu staple
+        # that was ~235 MB/iter, killing long HMC runs in <1 h.
+        if (
+            self._scratch_padded is None
+            or self._scratch_n != n
+        ):
+            # Use any read field to size the padded layout.
+            template_src = None
+            for i in range(n):
+                if i in self.read_fields:
+                    template_src = fields[i]
+                    break
+            assert template_src is not None
+            template_padded = self.padding(template_src)
+            self._scratch_padded = [
+                template_padded if i == 0
+                # avoid double-allocating the template by reusing it for slot 0;
+                # but only if slot 0 is a read slot (we refill below either way).
+                else g.lattice(template_padded)
+                for i in range(n)
+            ]
+            self._scratch_n = n
+        padded_fields = self._scratch_padded
+        # Refill read-field padded buffers from the current sources via
+        # project (no new allocation).
+        read_indices = [i for i in range(n) if i in self.read_fields]
+        if read_indices:
+            self.padding.domain.project(
+                [padded_fields[i] for i in read_indices],
+                [fields[i] for i in read_indices],
+            )
         if self.verbose_performance:
             t("local stencil")
         self.local_stencil(*padded_fields)
