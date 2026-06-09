@@ -1359,6 +1359,22 @@ def main():
             g.message(
                 f"Resume state: therm={therm_start}/{ntherm}, meas={meas_start}/{nmeas}, sweeps={sweeps_done}/{total_sweeps}"
             )
+
+            # Reseed the Markov + estimator RNGs on resume. GPT's gpt.random
+            # state lives in the C++ engine and is not serializable here, so a
+            # plain restart would replay the SAME random numbers already
+            # consumed before the checkpoint -- biasing the chain (repeated
+            # proposals) and breaking ergodicity guarantees. Derive a fresh,
+            # deterministic, run-position-dependent seed so resumed runs are
+            # reproducible yet do not reuse the pre-checkpoint stream.
+            resume_tag = f"{seed}:resume@therm{therm_start}:meas{meas_start}:sweeps{sweeps_done}"
+            rng = g.random(resume_tag)
+            meas_rng = g.random(f"{resume_tag}:meas")
+            estimator_rng = g.random(f"{resume_tag}:estimator")
+            sampler = SiteSampler(grid, meas_rng, sample_sites)
+            hb_chain = g.algorithms.markov.su2_heat_bath(rng)
+            hb_estimator = g.algorithms.markov.su2_heat_bath(estimator_rng)
+            g.message(f"Reseeded RNGs on resume with tag '{resume_tag}'")
             
             # Rewrite JSONL to ensure consistency with checkpoint.
             # Important: truncate even when measurements is empty, otherwise
