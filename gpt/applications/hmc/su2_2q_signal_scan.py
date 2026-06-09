@@ -923,7 +923,13 @@ def main():
     multihit_samples = max(1, g.default.get_int("--multihit-samples", 2))
     multihit_temporal_sweeps = max(0, g.default.get_int("--multihit-temporal-sweeps", 1))
 
-    flux_vacuum_mode = (g.default.get("--flux-vacuum-mode", "tail_mean") or "none").strip().lower()
+    # Vacuum subtraction is applied ONCE, in postprocessing. The scanner
+    # defaults to 'none' so the stored data is raw: the ensemble-ratio path
+    # uses the unsubtracted raw components, and the legacy field is no longer
+    # pre-subtracted (which, combined with the analyzer's own tail subtraction,
+    # previously subtracted the tail twice and flattened the profile). Set
+    # --flux-vacuum-mode tail_mean only to reproduce the old scanner behaviour.
+    flux_vacuum_mode = (g.default.get("--flux-vacuum-mode", "none") or "none").strip().lower()
     if flux_vacuum_mode not in {"none", "tail_mean"}:
         flux_vacuum_mode = "tail_mean"
     flux_vacuum_tail = max(0, g.default.get_int("--flux-vacuum-tail", 2))
