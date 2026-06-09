@@ -37,6 +37,11 @@ class FitResult:
     chi2_dof: float
     n_bins: int
     n_cfg: int
+    aic: float = float("nan")
+    weight: float = float("nan")
+    method: str = "single_window"
+    sys_err: float = 0.0
+    stat_err: float = float("nan")
 
 
 def load_live(path: Path) -> dict:
@@ -200,6 +205,7 @@ def fit_potential_for_R(
     windows = select_windows(Ts_sorted, tmin, tmax, min_points)
 
     best = None
+    candidates: List[dict] = []
 
     for lo, hi in windows:
         idx = [k for k, t in enumerate(Ts_sorted) if lo <= t <= hi]
@@ -259,10 +265,20 @@ def fit_potential_for_R(
 
         chi2_dof = float(chi2 / dof) if dof > 0 else float("inf")
 
-        # Fit-window tuning score: prefer chi2/dof near 1, then smaller uncertainty.
-        score = abs(chi2_dof - 1.0) + 0.15 * V_err
+        # Akaike information criterion for fit-window model averaging
+        # (Jay & Neil, arXiv:2008.01069). For a window that uses n_used of the
+        # n_avail time points with k=2 parameters:
+        #   AIC = chi2 + 2k + 2*n_cut,   n_cut = n_avail - n_used
+        # The +2*n_cut term penalizes discarding data, so windows that drop
+        # many points (e.g. tiny large-T windows) are not free to win on chi2
+        # alone. Relative weight w ~ exp(-AIC/2), normalized across windows.
+        k_params = 2
+        n_used = len(Tsel)
+        n_cut = max(0, len(Ts_sorted) - n_used)
+        aic = float(chi2 + 2 * k_params + 2 * n_cut)
+
         cand = {
-            "score": score,
+            "aic": aic,
             "fit": FitResult(
                 R=R,
                 V=V,
@@ -276,13 +292,75 @@ def fit_potential_for_R(
                 chi2_dof=chi2_dof,
                 n_bins=nbin,
                 n_cfg=raw_ncfg,
+                aic=aic,
+                stat_err=V_err,
             ),
         }
+        candidates.append(cand)
 
-        if best is None or cand["score"] < best["score"]:
+        if best is None or cand["aic"] < best["aic"]:
             best = cand
 
-    return None if best is None else best["fit"]
+    if best is None:
+        return None
+
+    # Single forced window, or only one viable window: return it unaveraged.
+    if (tmin is not None and tmax is not None) or len(candidates) == 1:
+        return best["fit"]
+
+    # AIC model averaging across all viable windows. The averaged variance is
+    #   Var = sum_i w_i (stat_var_i + V_i^2) - (sum_i w_i V_i)^2
+    # i.e. statistical variance plus the window-to-window systematic spread.
+    aics = np.array([c["aic"] for c in candidates], dtype=float)
+    a_min = float(np.min(aics))
+    w = np.exp(-0.5 * (aics - a_min))
+    w_sum = float(np.sum(w))
+    if not np.isfinite(w_sum) or w_sum <= 0.0:
+        return best["fit"]
+    w = w / w_sum
+
+    Vs = np.array([c["fit"].V for c in candidates], dtype=float)
+    stat_vars = np.array([c["fit"].stat_err ** 2 for c in candidates], dtype=float)
+    amps = np.array([c["fit"].amp for c in candidates], dtype=float)
+    amp_vars = np.array([c["fit"].amp_err ** 2 for c in candidates], dtype=float)
+
+    V_avg = float(np.sum(w * Vs))
+    var_stat = float(np.sum(w * stat_vars))
+    var_sys = float(np.sum(w * Vs**2) - V_avg**2)
+    var_sys = max(0.0, var_sys)
+    V_err_avg = float(math.sqrt(var_stat + var_sys))
+
+    amp_avg = float(np.sum(w * amps))
+    amp_var = float(np.sum(w * amp_vars) + (np.sum(w * amps**2) - amp_avg**2))
+    amp_err_avg = float(math.sqrt(max(0.0, amp_var)))
+
+    # Report the AIC-weighted result; tmin/tmax describe the full scanned span,
+    # and chi2/dof is the weight-averaged value for diagnostics.
+    chi2_avg = float(np.sum(w * np.array([c["fit"].chi2 for c in candidates])))
+    dof_eff = int(round(float(np.sum(w * np.array([c["fit"].dof for c in candidates])))))
+    lo_all = min(c["fit"].tmin for c in candidates)
+    hi_all = max(c["fit"].tmax for c in candidates)
+    eff_weight = float(np.max(w))
+
+    return FitResult(
+        R=R,
+        V=V_avg,
+        err=V_err_avg,
+        amp=amp_avg,
+        amp_err=amp_err_avg,
+        tmin=lo_all,
+        tmax=hi_all,
+        chi2=chi2_avg,
+        dof=dof_eff,
+        chi2_dof=float(chi2_avg / dof_eff) if dof_eff > 0 else float("inf"),
+        n_bins=nbin,
+        n_cfg=raw_ncfg,
+        aic=float(a_min),
+        weight=eff_weight,
+        method="aic_average",
+        sys_err=float(math.sqrt(var_sys)),
+        stat_err=float(math.sqrt(var_stat)),
+    )
 
 
 def flux_stats(binned: Sequence[dict], vacuum_tail: int) -> dict:
@@ -431,6 +509,8 @@ def main() -> int:
                 "R": f.R,
                 "V": f.V,
                 "err": f.err,
+                "stat_err": f.stat_err,
+                "sys_err": f.sys_err,
                 "amp": f.amp,
                 "amp_err": f.amp_err,
                 "tmin": f.tmin,
@@ -438,6 +518,9 @@ def main() -> int:
                 "chi2": f.chi2,
                 "dof": f.dof,
                 "chi2_dof": f.chi2_dof,
+                "aic": f.aic,
+                "weight": f.weight,
+                "method": f.method,
                 "n_bins": f.n_bins,
                 "n_cfg": f.n_cfg,
             }
@@ -451,9 +534,12 @@ def main() -> int:
         f"tau_int~{max(tau_by_seed.values()) if tau_by_seed else 0.0:.2f}"
     )
     for f in fits:
+        extra = (
+            f", sys={f.sys_err:.6f}" if f.method == "aic_average" else ""
+        )
         print(
-            f"R={f.R}: V={f.V:.6f} +/- {f.err:.6f} "
-            f"[T={f.tmin}..{f.tmax}, chi2/dof={f.chi2_dof:.3f}, bins={f.n_bins}]"
+            f"R={f.R}: V={f.V:.6f} +/- {f.err:.6f}{extra} "
+            f"[T={f.tmin}..{f.tmax}, chi2/dof={f.chi2_dof:.3f}, bins={f.n_bins}, {f.method}]"
         )
 
     if args.out:
