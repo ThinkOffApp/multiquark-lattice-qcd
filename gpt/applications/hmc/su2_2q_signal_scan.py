@@ -1037,9 +1037,10 @@ def main():
         f"smear_steps={smear_steps}, smear_rho={smear_rho}, smear_spatial_only={int(smear_spatial_only)}"
     )
     g.message(
-        "Variance reduction: "
-        f"multilevel_blocks={multilevel_blocks}, multilevel_sweeps={multilevel_sweeps}, "
-        f"multihit_samples={multihit_samples}, multihit_temporal_sweeps={multihit_temporal_sweeps}"
+        "Resampling (decorrelating sweeps on copies; NOT Luscher-Weisz "
+        "multilevel and NOT analytic multihit -- see code notes): "
+        f"blocks={multilevel_blocks}, block_sweeps={multilevel_sweeps}, "
+        f"hits={multihit_samples}, hit_temporal_sweeps={multihit_temporal_sweeps}"
     )
     g.message(
         f"Flux vacuum subtraction: mode={flux_vacuum_mode}, tail={flux_vacuum_tail}"
@@ -1273,6 +1274,27 @@ def main():
         }
 
     def measure_with_variance_reduction(U_field, progress_cb=None):
+        # NOTE ON METHOD (important): this is NOT Luscher-Weisz multilevel and
+        # NOT analytic multihit. It performs additional *full* heat-bath sweeps
+        # on copies of the gauge field and averages the resulting measurements.
+        # That is unbiased and reduces variance somewhat (more decorrelated
+        # samples per stored config), but it does NOT give the exponential
+        # error reduction of true multilevel, because:
+        #   - there are no frozen time-slab boundaries, so sub-lattice averages
+        #     are not computed and stitched;
+        #   - temporal links are not analytically integrated (one-link / multihit
+        #     integral), which is the operation that actually beats the
+        #     exp(-V*T) signal decay for large T.
+        # The 'multilevel'/'multihit' flag names are retained for config
+        # compatibility but describe the intent, not a Luscher-Weisz scheme.
+        #
+        # TODO(6q): implement true two-level Luscher-Weisz averaging
+        #   (freeze boundary time-slices every dt; average sub-lattice loop
+        #   factors over interior updates; multiply slab factors) and/or the
+        #   exact SU(2) one-link integral for temporal segments,
+        #     <U>_link = (I1(k)/I0(k)) * Fhat,  k = |sum of staples|,
+        #   which is legal for the straight temporal sides of W(R>=2,T) and is
+        #   the piece that delivers exponential error reduction at large T.
         if multilevel_blocks == 1 and multihit_samples == 1:
             return single_measurement(U_field, progress_cb=progress_cb)
 
