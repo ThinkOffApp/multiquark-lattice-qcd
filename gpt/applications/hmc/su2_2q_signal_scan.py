@@ -597,7 +597,12 @@ def measure_flux_profile_for_tdir(
 
         avg_w = sampler.mean(w_field)
         avg_w_re = float(avg_w.real)
-        if abs(avg_w_re) < 1e-20:
+        # Only skip genuinely degenerate (exactly zero) loops. The previous
+        # threshold (|<W>| < 1e-20) could drop orientations in a way correlated
+        # with downward W fluctuations, biasing the average. With ensemble-level
+        # ratios the small-|W| orientations are handled correctly by the
+        # jackknife, so keep them.
+        if avg_w_re == 0.0:
             continue
 
         perp_axes = [mu for mu in range(nd) if mu not in (tdir, sdir)]
@@ -630,16 +635,28 @@ def measure_flux_profile_for_tdir(
                 if svm_key not in shift_map: shift_map[svm_key] = []
                 shift_map[svm_key].append(r_perp)
 
-        # Accumulators for this specific tube orientation
-        # profile_vals[r_perp] = list of connected correlator values
+        # Accumulators for this specific tube orientation.
+        # We store the raw components <W P(shift)>, <W>, <P> rather than the
+        # per-config ratio. E[A/B] != E[A]/E[B]: the per-config ratio is biased,
+        # and the bias grows with Var(<W>_cfg), i.e. exactly at the large (R,T)
+        # where signal/noise is worst. Forming the ratio at ensemble level
+        # (inside the jackknife in postprocessing) removes this bias.
+        # wp_vals[r_perp] = list of <W P> over rotationally-equivalent points
+        wp_vals = [[] for _ in range(flux_r_perp_max + 1)]
+        # Per-orientation <W> and <P> are constant across r_perp; store once.
+        avg_w_re_orient = avg_w_re
+        avg_p_re_orient = float(avg_p.real)
+        # Legacy per-config connected estimate (kept for back-compat output).
         profile_vals = [[] for _ in range(flux_r_perp_max + 1)]
 
         for s_key, r_indices in shift_map.items():
             p_shift = shifted(p_field, s_key)
             wp = sampler.mean(w_field * p_shift)
+            wp_re = float(wp.real)
             connected = (wp / avg_w) - avg_p
             val = float(connected.real)
             for r_idx in r_indices:
+                wp_vals[r_idx].append(wp_re)
                 profile_vals[r_idx].append(val)
             if progress_cb is not None:
                 cursor_r_perp = int(r_indices[0]) if r_indices else 0
@@ -659,7 +676,15 @@ def measure_flux_profile_for_tdir(
         
         # Average over rotationally equivalent points for this tube
         averaged_profile = [mean(vals) for vals in profile_vals]
-        profiles_acc.append(averaged_profile)
+        averaged_wp = [mean(vals) for vals in wp_vals]
+        profiles_acc.append(
+            {
+                "connected_legacy": averaged_profile,
+                "wp": averaged_wp,
+                "w": avg_w_re_orient,
+                "p": avg_p_re_orient,
+            }
+        )
 
 
 def single_measurement_step_count(time_dirs, orientations, nd, Rs, Ts, flux_r_perp_max, polyakov_dirs_count=0):
@@ -704,6 +729,16 @@ def mean_measurement_items(items):
     m = len(items[0]["flux_profile_r_perp"])
     for j in range(m):
         out["flux_profile_r_perp"].append(mean([x["flux_profile_r_perp"][j] for x in items]))
+
+    # Average raw flux components if present (linear in the field, so the mean
+    # of <W P>, <W>, <P> across hits/blocks is the correct combined estimate).
+    if all("flux_profile_r_perp_raw" in x for x in items):
+        mr = len(items[0]["flux_profile_r_perp_raw"]["wp"])
+        out["flux_profile_r_perp_raw"] = {
+            "wp": [mean([x["flux_profile_r_perp_raw"]["wp"][j] for x in items]) for j in range(mr)],
+            "w": mean([x["flux_profile_r_perp_raw"]["w"] for x in items]),
+            "p": mean([x["flux_profile_r_perp_raw"]["p"] for x in items]),
+        }
 
     poly_keys = sorted(
         {
@@ -1250,15 +1285,33 @@ def main():
             re, im = mean_complex(v)
             loops[k] = {"re": re, "im": im}
     
-        # Aggregate flux profiles
+        # Aggregate flux profiles. Orientations now carry raw components so the
+        # ensemble-level ratio can be formed in postprocessing.
+        n_perp = flux_r_perp_max + 1
         if not flux_profiles_acc:
-            final_flux_profile = [0.0] * (flux_r_perp_max + 1)
+            final_flux_profile = [0.0] * n_perp
+            raw_wp = [0.0] * n_perp
+            raw_w = 0.0
+            raw_p = 0.0
         else:
             final_flux_profile = []
-            for j in range(flux_r_perp_max + 1):
-                final_flux_profile.append(mean([p[j] for p in flux_profiles_acc]))
-    
-        # Apply vacuum subtraction if needed (globally averaged profile)
+            for j in range(n_perp):
+                final_flux_profile.append(
+                    mean([p["connected_legacy"][j] for p in flux_profiles_acc])
+                )
+            # Average raw components over orientations. <W> and <P> are
+            # per-orientation scalars; the unweighted mean matches the
+            # orientation averaging applied to <W P>.
+            raw_wp = [
+                mean([p["wp"][j] for p in flux_profiles_acc]) for j in range(n_perp)
+            ]
+            raw_w = mean([p["w"] for p in flux_profiles_acc])
+            raw_p = mean([p["p"] for p in flux_profiles_acc])
+
+        # Apply vacuum subtraction if needed (globally averaged profile).
+        # NOTE: this per-config subtraction is retained on the legacy field
+        # only; the raw components below are emitted unsubtracted so that
+        # postprocessing controls vacuum handling exactly once.
         if (
             flux_vacuum_mode == "tail_mean"
             and flux_vacuum_tail > 0
@@ -1272,6 +1325,13 @@ def main():
             "plaquette": plaq,
             "loops": loops,
             "flux_profile_r_perp": final_flux_profile,
+            # Raw, unsubtracted components for ensemble-level ratio estimation:
+            # connected(r_perp) = <W P(r_perp)>/<W> - <P>, formed after binning.
+            "flux_profile_r_perp_raw": {
+                "wp": raw_wp,
+                "w": raw_w,
+                "p": raw_p,
+            },
             "polyakov_loops": polyakov_loops,
             "profiling": {
                 "loop_time": loop_time_total,
@@ -1697,6 +1757,7 @@ def main():
             "plaquette": measured["plaquette"],
             "loops": measured["loops"],
             "flux_profile_r_perp": measured["flux_profile_r_perp"],
+            "flux_profile_r_perp_raw": measured.get("flux_profile_r_perp_raw"),
             "polyakov_loops": measured.get("polyakov_loops", {}),
             "profiling": measured.get("profiling", {}),
         }

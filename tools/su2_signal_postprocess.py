@@ -116,6 +116,14 @@ def mean_measurement_items(items: Sequence[dict]) -> dict:
     for j in range(m):
         out["flux_profile_r_perp"].append(float(np.mean([x["flux_profile_r_perp"][j] for x in items])))
 
+    if all(isinstance(x.get("flux_profile_r_perp_raw"), dict) for x in items):
+        mr = len(items[0]["flux_profile_r_perp_raw"]["wp"])
+        out["flux_profile_r_perp_raw"] = {
+            "wp": [float(np.mean([x["flux_profile_r_perp_raw"]["wp"][j] for x in items])) for j in range(mr)],
+            "w": float(np.mean([x["flux_profile_r_perp_raw"]["w"] for x in items])),
+            "p": float(np.mean([x["flux_profile_r_perp_raw"]["p"] for x in items])),
+        }
+
     return out
 
 
@@ -365,7 +373,58 @@ def fit_potential_for_R(
 
 def flux_stats(binned: Sequence[dict], vacuum_tail: int) -> dict:
     if not binned:
-        return {"mean": [], "err": [], "n_bins": 0}
+        return {"mean": [], "err": [], "n_bins": 0, "estimator": "none"}
+
+    # Preferred path: raw components present -> form the connected correlator
+    # connected(r_perp) = <W P(r_perp)>/<W> - <P> at the ENSEMBLE level inside
+    # the jackknife. This removes the E[A/B] != E[A]/E[B] bias of the
+    # per-config ratio, which is largest exactly where <W> is noisy.
+    have_raw = all(isinstance(x.get("flux_profile_r_perp_raw"), dict) for x in binned)
+    if have_raw:
+        n = len(binned)
+        m = len(binned[0]["flux_profile_r_perp_raw"]["wp"])
+        wp = np.zeros((n, m), dtype=float)
+        w = np.zeros(n, dtype=float)
+        p = np.zeros(n, dtype=float)
+        for i, x in enumerate(binned):
+            raw = x["flux_profile_r_perp_raw"]
+            wp[i, :] = np.asarray(raw["wp"], dtype=float)
+            w[i] = float(raw["w"])
+            p[i] = float(raw["p"])
+
+        def connected_from(sum_wp, sum_w, sum_p, cnt):
+            mean_wp = sum_wp / cnt
+            mean_w = sum_w / cnt
+            mean_p = sum_p / cnt
+            if mean_w == 0.0:
+                return np.full(m, np.nan)
+            conn = mean_wp / mean_w - mean_p
+            if vacuum_tail > 0 and m >= vacuum_tail:
+                conn = conn - float(np.mean(conn[-vacuum_tail:]))
+            return conn
+
+        full = connected_from(wp.sum(0), w.sum(), p.sum(), n)
+        if n > 1:
+            jk = np.empty((n, m), dtype=float)
+            for leave in range(n):
+                jk[leave, :] = connected_from(
+                    wp.sum(0) - wp[leave],
+                    w.sum() - w[leave],
+                    p.sum() - p[leave],
+                    n - 1,
+                )
+            cov = make_cov_jackknife(jk)
+            err = np.sqrt(np.diag(cov))
+        else:
+            err = np.zeros(m, dtype=float)
+        return {
+            "mean": [float(x) for x in full],
+            "err": [float(x) for x in err],
+            "n_bins": n,
+            "estimator": "ensemble_ratio",
+        }
+
+    # Legacy path: only the per-config connected estimate is available.
     m = len(binned[0].get("flux_profile_r_perp", []))
     arr = np.zeros((len(binned), m), dtype=float)
     for i, x in enumerate(binned):
@@ -394,6 +453,7 @@ def flux_stats(binned: Sequence[dict], vacuum_tail: int) -> dict:
         "mean": [float(x) for x in mean_prof],
         "err": [float(x) for x in err],
         "n_bins": n,
+        "estimator": "per_config_ratio_legacy",
     }
 
 
