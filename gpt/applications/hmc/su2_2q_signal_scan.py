@@ -585,8 +585,19 @@ def measure_flux_profile_for_tdir(
     sampler,
     profiles_acc,
     progress_cb=None,
+    probe_field=None,
 ):
-    p_field = g.qcd.gauge.plaquette(U_use, field=True)
+    # The probe plaquette should be measured on the UNSMEARED field. Smearing
+    # the probe convolves the flux-tube profile with the smearing kernel
+    # (radius ~ sqrt(8*n_steps*rho) lattice units; ~3a at the 12x0.10 default),
+    # which broadens the apparent tube and suppresses its amplitude. Only the
+    # source Wilson-loop operator benefits from smeared links. Callers pass
+    # probe_field built from the unsmeared gauge field; the fallback below
+    # (probe built from U_use) reproduces the legacy smeared-probe behaviour.
+    if probe_field is not None:
+        p_field = probe_field
+    else:
+        p_field = g.qcd.gauge.plaquette(U_use, field=True)
     avg_p = sampler.mean(p_field)
 
     x_mid = flux_r // 2
@@ -1247,6 +1258,12 @@ def main():
         loop_time_total = 0.0
         flux_time_total = 0.0
 
+        # Probe plaquette is measured on the unsmeared field (see
+        # measure_flux_profile_for_tdir). Build it once and reuse across tdirs.
+        unsmeared_probe = None
+        if not skip_flux:
+            unsmeared_probe = g.qcd.gauge.plaquette(U_field, field=True)
+
         # Iterate one time-direction at a time to save memory
         for tdir, U_use in iter_measurement_fields(
             U_field, time_dirs, smear_steps, smear_ops, smear_spatial_only
@@ -1273,6 +1290,7 @@ def main():
                         sampler,
                         flux_profiles_acc,
                         progress_cb=progress_cb,
+                        probe_field=unsmeared_probe,
                     )
                     flux_time_total += time.time() - t0_flux
             # Free C++ lattice temporaries from smearing/loops/flux for this tdir
