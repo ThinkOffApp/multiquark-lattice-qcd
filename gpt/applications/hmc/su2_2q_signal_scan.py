@@ -1019,7 +1019,15 @@ def main():
     meas_rng = g.random(f"{seed}:meas")
     estimator_rng = g.random(f"{seed}:estimator")
     sampler = SiteSampler(grid, meas_rng, sample_sites)
-    U = g.qcd.gauge.unit(grid)
+    # g.qcd.gauge.unit defaults to SU(3) fundamental links and its
+    # params_convention does not accept an otype override, so the SU(2)
+    # gauge field must be constructed explicitly. Without this,
+    # su2_heat_bath silently performs SU(2)-subgroup (Cabibbo-Marinari)
+    # updates of SU(3) links and the ensemble is SU(3) at the given beta
+    # (verified: plaquette 0.1585 at beta=2.4 instead of the SU(2)
+    # literature value 0.6303).
+    su2_otype = g.ot_matrix_su_n_fundamental_group(2)
+    U = [g.identity(g.lattice(grid, su2_otype)) for _ in range(len(L))]
     Nd = len(U)
     runtime_backend = detect_runtime_backend()
     runtime_backend["pipeline"] = pipeline_label
