@@ -587,6 +587,26 @@
     .table-wrap {
       overflow-x: auto;
     }
+    #stickyStatus {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      display: none;
+      gap: 18px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      padding: 8px 20px;
+      background: rgba(7, 12, 23, 0.92);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+    #stickyStatus .ss-item { color: var(--muted); white-space: nowrap; }
+    #stickyStatus .ss-item b {
+      color: var(--text);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 600;
+    }
 
     .status-table {
       width: 100%;
@@ -775,10 +795,23 @@
 </head>
 
 <body>
+  <div id="stickyStatus">
+    <span class="ss-item">phase <b id="ssPhase">-</b></span>
+    <span class="ss-item">meas <b id="ssMeas">-</b></span>
+    <span class="ss-item">plaq <b id="ssPlaq">-</b></span>
+    <span class="ss-item">ETA <b id="ssEta">-</b></span>
+    <span class="ss-item">elapsed <b id="ssElapsed">-</b></span>
+  </div>
   <div class="wrap">
     <h1>SU(2) Measurement Dashboard</h1>
 
     <div class="controls">
+      <div style="margin-bottom: 8px;">
+        <label>Run picker (from server /api/runs)</label>
+        <select id="runPicker" style="width:100%; padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:#0f1627; color:var(--text);">
+          <option value="">manual paths below</option>
+        </select>
+      </div>
       <div class="grid-3">
         <div>
           <label>Progress JSON path</label>
@@ -7040,6 +7073,52 @@
         refresh();
       }
     }, pollMs);
+
+    // ── Sticky status bar + run picker (QoL) ─────────────────────────────
+    (function () {
+      const ss = document.getElementById("stickyStatus");
+      const txt = (id) => (document.getElementById(id)?.textContent || "").trim();
+      setInterval(() => {
+        const phase = txt("phaseBadge").replace(/^phase:\s*/, "") || "unknown";
+        document.getElementById("ssPhase").textContent = phase;
+        document.getElementById("ssMeas").textContent = txt("measPct") || "-";
+        document.getElementById("ssPlaq").textContent = txt("plaqVal") || "-";
+        document.getElementById("ssEta").textContent = txt("etaVal") || "-";
+        document.getElementById("ssElapsed").textContent = txt("elapsedVal") || "-";
+        // Only once real data is in and the inline metrics are off-screen.
+        const show = phase !== "unknown" && window.scrollY > 400;
+        ss.style.display = show ? "flex" : "none";
+      }, 1000);
+
+      const sel = document.getElementById("runPicker");
+      sel.addEventListener("change", () => {
+        if (!sel.value) return;
+        try {
+          const r = JSON.parse(sel.value);
+          document.getElementById("progressPath").value = r.p;
+          if (r.l) document.getElementById("livePath").value = r.l;
+          document.getElementById("reloadBtn").click();
+        } catch (e) { /* ignore malformed option */ }
+      });
+      (async () => {
+        try {
+          const token = (document.getElementById("authToken").value || "").trim();
+          const resp = await fetch(withApiBase("/api/runs"), {
+            headers: token ? { "X-Auth-Token": token } : {},
+          });
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const current = document.getElementById("progressPath").value.trim();
+          for (const r of data.runs || []) {
+            const o = document.createElement("option");
+            o.value = JSON.stringify({ p: r.progress, l: r.live });
+            o.textContent = r.label;
+            if (r.progress === current) o.selected = true;
+            sel.appendChild(o);
+          }
+        } catch (e) { /* picker is optional; manual paths still work */ }
+      })();
+    })();
   </script>
 </body>
 
