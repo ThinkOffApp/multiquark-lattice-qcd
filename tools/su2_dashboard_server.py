@@ -106,6 +106,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.handle_events(parsed)
             return
+        if parsed.path == "/api/runs":
+            if self.protect_results and not self.is_authorized(parsed=parsed):
+                self.send_unauthorized()
+                return
+            self.handle_list_runs()
+            return
         # Serve live_*.json with JSONL measurements merged in
         if parsed.path.startswith("/results/") and "/live_" in parsed.path and parsed.path.endswith(".json"):
             try:
@@ -141,6 +147,40 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(b'{"error":"not found"}')
+
+    def handle_list_runs(self):
+        """Enumerate progress_*.json under results/ so the dashboard can offer
+        a run picker instead of hand-typed paths."""
+        runs = []
+        results_root = self.root / "results"
+        if results_root.is_dir():
+            for prog in sorted(results_root.glob("*/progress_*.json")):
+                rel = prog.relative_to(self.root)
+                name = prog.name[len("progress_"):-len(".json")]
+                # Per-seed remeasure files clutter the list; keep the total.
+                if name.startswith("remeasure_") and name != "remeasure_total":
+                    continue
+                live = prog.parent / f"live_{name}.json"
+                if name == "remeasure_total":
+                    candidates = sorted(prog.parent.glob("live_*.json"))
+                    live = candidates[0] if candidates else live
+                entry = {
+                    "label": f"{prog.parent.name} / {name}",
+                    "progress": f"/{rel.as_posix()}",
+                    "live": f"/{(live.relative_to(self.root)).as_posix()}" if live.exists() else "",
+                }
+                try:
+                    entry["mtime"] = int(prog.stat().st_mtime)
+                except OSError:
+                    entry["mtime"] = 0
+                runs.append(entry)
+        runs.sort(key=lambda r: -r["mtime"])
+        body = json.dumps({"runs": runs}, separators=(",", ":")).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def get_tailscale_login(self) -> str:
         for key in (
