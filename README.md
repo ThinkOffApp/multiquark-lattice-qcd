@@ -6,7 +6,7 @@ This repository contains the active Grid+GPT workflow used for high-statistics l
 
 - [Scientific Program](#scientific-program)
 - [Methods and Physics Outputs](#methods-and-physics-outputs)
-- [2026 SU(2) Reproduction Check](#2026-su2-reproduction-check)
+- [Reproduction of the 1997 SU(2) Results](#reproduction-of-the-1997-su2-results)
 - [Live Run Dashboard](#live-run-dashboard)
 - [Measurement Geometry Viewer](#measurement-geometry-viewer)
 - [Selected Earlier SU(2) Papers](#selected-earlier-su2-papers)
@@ -35,7 +35,7 @@ $$
 
 and the dashboard shows the fitted physical parameters $(\sigma, e, V_0, \chi^2/\mathrm{dof})$ alongside the measured $V(R)$ points. Flux profiles are displayed as connected-field measurements $\Delta P(r_\perp)$, and plaquette autocorrelation is tracked via $\tau_{\mathrm{int}}$ estimators during the run.
 
-## 2026 SU(2) Reproduction Check
+## Reproduction of the 1997 SU(2) Results
 
 The corrected 2026 SU(2) pipeline was validated against the two-quark flux-tube
 run card from Pennanen, Green, and Michael, Phys. Rev. D **56**, 3903 (1997).
@@ -53,11 +53,21 @@ $R=2,3,4,6,8$.
 | Self-energy $V_0$ | 0.555 | 0.556 | Spot on |
 | Cornell fit quality $\chi^2/\mathrm{dof}$ | Not quoted in the run card summary | 0.97 | Clean fit |
 
+The string tension $\sigma a^2$ and lattice spacing are clean $\beta=2.4 \to \beta=2.4$
+comparisons (the published $\sigma a^2 \approx 0.0704$ follows from
+$a(\beta=2.4)=0.119$ fm with $\sqrt{\sigma}=440$ MeV). The Coulomb coefficient $e$
+and self-energy $V_0$ are shown against the published $\beta=2.5$ A₁g fit
+$V(R)=0.555+0.0343R-0.280/R$; they agree closely because both are only weakly
+coupling-dependent over this range.
+
 This check confirms that, after explicitly fixing the gauge-field construction to
-SU(2), the modern Grid+GPT measurement path reproduces the published static
-potential parameters from the 1990s work. The validated dataset is
-`pgm97-b2.4-16cube32`; it should be treated as the regression target for future
-CPU and Metal-GPU measurement kernels.
+SU(2) ([PR #18](https://github.com/ThinkOffApp/multiquark-lattice-qcd/pull/18)),
+the modern Grid+GPT measurement path reproduces the published static potential
+parameters from the 1990s work. Before that fix the scan generated **SU(3)**
+ensembles via the default link group, so earlier "SU(2)" datasets are mislabeled
+SU(3) and have been quarantined. The validated dataset `pgm97-b2.4-16cube32` is
+the canonical SU(2) baseline and the regression target for future CPU and
+Metal-GPU measurement kernels.
 
 Artifacts:
 - [loops, potential, and flux JSON](https://kvezyhwbkvpyndkaemsw.supabase.co/storage/v1/object/public/room-media/1781442011763-e79ffvbry-su2_2q_signal_pgm97-b2.4-16cube32.json)
