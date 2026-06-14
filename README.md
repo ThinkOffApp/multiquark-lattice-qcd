@@ -6,6 +6,7 @@ This repository contains the active Grid+GPT workflow used for high-statistics l
 
 - [Scientific Program](#scientific-program)
 - [Methods and Physics Outputs](#methods-and-physics-outputs)
+- [2026 SU(2) Reproduction Check](#2026-su2-reproduction-check)
 - [Live Run Dashboard](#live-run-dashboard)
 - [Measurement Geometry Viewer](#measurement-geometry-viewer)
 - [Selected Earlier SU(2) Papers](#selected-earlier-su2-papers)
@@ -33,6 +34,35 @@ V(R) = V_0 + \sigma R - \frac{e}{R},
 $$
 
 and the dashboard shows the fitted physical parameters $(\sigma, e, V_0, \chi^2/\mathrm{dof})$ alongside the measured $V(R)$ points. Flux profiles are displayed as connected-field measurements $\Delta P(r_\perp)$, and plaquette autocorrelation is tracked via $\tau_{\mathrm{int}}$ estimators during the run.
+
+## 2026 SU(2) Reproduction Check
+
+The corrected 2026 SU(2) pipeline was validated against the two-quark flux-tube
+run card from Pennanen, Green, and Michael, Phys. Rev. D **56**, 3903 (1997).
+The reproduction used genuine SU(2) gauge fields on a $16^3 \times 32$ lattice
+at $\beta=2.4$, with 200 production measurements and a Cornell fit over
+$R=2,3,4,6,8$.
+
+| Observable | Published 1990s value | 2026 reproduction | Agreement |
+|------------|------------------------|-------------------|-----------|
+| Gauge group and geometry | SU(2), $16^3 \times 32$, $\beta=2.4$ | SU(2), $16^3 \times 32$, $\beta=2.4$ | Matched run card |
+| Mean plaquette | SU(2) confined-phase benchmark | 0.62998 | Confirms genuine SU(2) ensemble |
+| Cornell string tension $\sigma a^2$ | ~0.0704 | 0.0727(13) | ~3%, 1.7 sigma |
+| Lattice spacing from $\sqrt{\sigma}=440$ MeV | 0.119 fm | 0.121 fm | ~1.5% |
+| Coulomb coefficient $e$ | 0.280 | 0.277 | ~1% |
+| Self-energy $V_0$ | 0.555 | 0.556 | Spot on |
+| Cornell fit quality $\chi^2/\mathrm{dof}$ | Not quoted in the run card summary | 0.97 | Clean fit |
+
+This check confirms that, after explicitly fixing the gauge-field construction to
+SU(2), the modern Grid+GPT measurement path reproduces the published static
+potential parameters from the 1990s work. The validated dataset is
+`pgm97-b2.4-16cube32`; it should be treated as the regression target for future
+CPU and Metal-GPU measurement kernels.
+
+Artifacts:
+- [loops, potential, and flux JSON](https://kvezyhwbkvpyndkaemsw.supabase.co/storage/v1/object/public/room-media/1781442011763-e79ffvbry-su2_2q_signal_pgm97-b2.4-16cube32.json)
+- [progress JSON](https://kvezyhwbkvpyndkaemsw.supabase.co/storage/v1/object/public/room-media/1781442012872-7gyidzsxa-progress_pgm97-b2.4-16cube32.json)
+- [live series JSONL](https://kvezyhwbkvpyndkaemsw.supabase.co/storage/v1/object/public/room-media/1781442014723-3ydbytwxb-live_pgm97-b2.4-16cube32.jsonl)
 
 ## Live Run Dashboard
 
