@@ -43,15 +43,15 @@ The reproduction used genuine SU(2) gauge fields on a $16^3 \times 32$ lattice
 at $\beta=2.4$, with 200 production measurements and a Cornell fit over
 $R=2,3,4,6,8$.
 
-| Observable | Published 1990s value | 2026 reproduction | Agreement |
-|------------|------------------------|-------------------|-----------|
+| Observable | Published 1990s value | 2026 reproduction with error | Agreement |
+|------------|------------------------|------------------------------|-----------|
 | Gauge group and geometry | SU(2), $16^3 \times 32$, $\beta=2.4$ | SU(2), $16^3 \times 32$, $\beta=2.4$ | Matched run card |
-| Mean plaquette | SU(2) confined-phase benchmark | $0.629983 \pm 0.000031$ | Confirms genuine SU(2) ensemble |
-| Cornell string tension $\sigma a^2$ | $\approx 0.0704$ published target | $0.0727 \pm 0.0013$ | ~3%, 1.7 sigma |
-| Lattice spacing from $\sqrt{\sigma}=440$ MeV | $0.119$ fm published target | $0.121 \pm 0.001$ fm | ~1.5% |
-| Coulomb coefficient $e$ | $0.280$ published target | $0.277 \pm 0.012$ | Agreement within current fit error |
-| Self-energy $V_0$ | $0.555$ published target | $0.556 \pm 0.008$ | Agreement within current fit error |
-| Cornell fit quality $\chi^2/\mathrm{dof}$ | Not quoted in the run card summary | 0.969 | Clean fit |
+| Mean plaquette | SU(2) confined-phase benchmark, no paper error quoted | 0.629983 ± 0.000031 | Confirms genuine SU(2) ensemble |
+| Cornell string tension $\sigma a^2$ | approx. 0.0704, no paper error quoted in run-card summary | 0.0727 ± 0.0013 | ~3%, 1.7 sigma |
+| Lattice spacing from $\sqrt{\sigma}=440$ MeV | 0.119 fm, no paper error quoted in run-card summary | 0.121 ± 0.001 fm | ~1.5% |
+| Coulomb coefficient $e$ | 0.280, no paper error quoted in run-card summary | 0.277 ± 0.012 | Agreement within current fit error |
+| Self-energy $V_0$ | 0.555, no paper error quoted in run-card summary | 0.556 ± 0.008 | Agreement within current fit error |
+| Cornell fit quality $\chi^2/\mathrm{dof}$ | Not quoted in the run-card summary | 0.969 | Clean fit |
 
 The string tension $\sigma a^2$ and lattice spacing are clean $\beta=2.4 \to \beta=2.4$
 comparisons (the published $\sigma a^2 \approx 0.0704$ follows from
