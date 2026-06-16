@@ -16,9 +16,17 @@ import os, subprocess, numpy as np, gpt as g
 HERE = os.path.dirname(os.path.abspath(__file__))
 TMP = "/tmp"
 MU, NU = 0, 1                       # one plane is enough to prove the path product
-LOOPS = [(1, 1), (2, 1), (2, 2), (3, 2), (3, 3), (4, 4)]
 
-L = 8                               # 8^4: room for loops up to ~4 without heavy wraparound
+# Lattice size and loop list are env-overridable so the same harness covers both
+# the quick 8^4 sweep and the large target-size pass (R=12,T=6) on a lattice big
+# enough that the loop does not wrap (ether's pre-production geometry check).
+L = int(os.environ.get("CW_L", "8"))
+_default_loops = "1x1,2x1,2x2,3x2,3x3,4x4"
+LOOPS = [tuple(int(v) for v in s.split("x")) for s in
+         os.environ.get("CW_LOOPS", _default_loops).split(",")]
+for (R, T) in LOOPS:                # guard against silent wraparound
+    if R >= L or T >= L:
+        print(f"WARNING: loop {R}x{T} >= lattice {L}, geometry will wrap")
 grid = g.grid([L, L, L, L], g.single)
 U = g.qcd.gauge.unit(grid)
 

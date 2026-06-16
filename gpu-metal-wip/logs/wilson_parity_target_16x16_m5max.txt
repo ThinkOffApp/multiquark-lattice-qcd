@@ -1,0 +1,13 @@
+# wilson_parity.py target-size pass — MacBook Apple M5 Max — 2026-06-16
+# 16^4 lattice (no wraparound for R,T<=12), CW_L=16 CW_LOOPS=1x1,8x8,12x6,12x12
+
+SU(3) Wilson-loop parity on [16, 16, 16, 16], 65536 sites, plane (0,1)
+  W(1,1) N= 4: CPU +0.00030973  GPU +0.00030973  max|d|ReTr 3.14e-07
+  W(8,8) N=32: CPU +0.00015360  GPU +0.00015360  max|d|ReTr 8.81e-07
+  W(12,6) N=36: CPU -0.00187717  GPU -0.00187717  max|d|ReTr 9.93e-07
+  W(12,12) N=48: CPU +0.00092064  GPU +0.00092064  max|d|ReTr 9.44e-07
+  GPU plaquette (1x1 loop, 6 planes) = 0.0004936306
+  gpt-native g.qcd.gauge.plaquette   = 0.0004936323
+  |GPU - gpt| plaquette anchor       = 1.700e-09
+  worst per-site |GPU-CPU| ReTr over all loops = 9.932e-07 (float32)
+RESULT: WILSON-LOOP PARITY PASS

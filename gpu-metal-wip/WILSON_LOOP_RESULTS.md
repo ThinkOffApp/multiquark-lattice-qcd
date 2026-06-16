@@ -93,3 +93,25 @@ Reproduce:
 cp gpu-metal-wip/su3_wilson_loop.metal /tmp/su3_wilson_loop.metal
 PYTHONPATH=gpt/lib/cgpt/build:gpt/lib python3.12 gpu-metal-wip/wilson_parity.py
 ```
+
+### Target-size pass (R=12,T=6) on 16^4 — no wraparound — PASS
+
+ether's pre-production check: pin physical Cshift geometry at the actual target
+loop sizes, on a lattice big enough that the loop does not wrap. `wilson_parity.py`
+takes `CW_L` / `CW_LOOPS` env overrides; log in `logs/wilson_parity_target_16x16_m5max.txt`:
+
+```
+  W(1,1)  N= 4  max|d|ReTr 3.14e-07
+  W(8,8)  N=32  max|d|ReTr 8.81e-07
+  W(12,6) N=36  max|d|ReTr 9.93e-07   <- ether's production target shape
+  W(12,12)N=48  max|d|ReTr 9.44e-07
+  gpt-native plaquette anchor |GPU-gpt| = 1.7e-9
+  worst per-site |GPU-CPU| ReTr = 9.932e-07 (float32)  -> PASS
+```
+
+16^4 lattice (R,T <= 12 do not wrap). Real-config Wilson-loop GPU measurement is
+now proven at production path length, not just R,T<=4. Reproduce:
+```bash
+CW_L=16 CW_LOOPS="1x1,8x8,12x6,12x12" \
+  PYTHONPATH=gpt/lib/cgpt/build:gpt/lib python3.12 gpu-metal-wip/wilson_parity.py
+```
