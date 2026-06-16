@@ -29,6 +29,85 @@ inline float4 multComplex(float4 a, float4 b) {
 }
 inline float4 permute_lanes(float4 a) { return a.zwxy; }
 
+inline float4 conjComplex(float4 a) { return float4(a.x, -a.y, a.z, -a.w); }
+
+inline SU3Matrix matMul(SU3Matrix A, SU3Matrix B) {
+    SU3Matrix C;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            float4 s = float4(0.0f);
+            for (int k = 0; k < 3; ++k) {
+                s += multComplex(A.data[i*3+k], B.data[k*3+j]);
+            }
+            C.data[i*3+j] = s;
+        }
+    }
+    return C;
+}
+
+inline SU3Matrix matMulDagger(SU3Matrix A, SU3Matrix B) {
+    SU3Matrix C;
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            float4 s = float4(0.0f);
+            for (int k = 0; k < 3; ++k) {
+                s += multComplex(A.data[i*3+k], conjComplex(B.data[j*3+k]));
+            }
+            C.data[i*3+j] = s;
+        }
+    }
+    return C;
+}
+
+inline float2 realTrace(SU3Matrix A) {
+    float4 t = A.data[0] + A.data[4] + A.data[8];
+    return float2(t.x, t.z);
+}
+
+inline SU3Matrix su3Identity() {
+    SU3Matrix I;
+    for (int n = 0; n < 9; ++n) I.data[n] = float4(0.0f);
+    I.data[0] = float4(1.0f, 0.0f, 1.0f, 0.0f);
+    I.data[4] = float4(1.0f, 0.0f, 1.0f, 0.0f);
+    I.data[8] = float4(1.0f, 0.0f, 1.0f, 0.0f);
+    return I;
+}
+
+// Pure-gauge measurement kernels. These are local arithmetic kernels: callers
+// pre-align neighbours with Grid Cshift/CovShift and pass one SU(3) matrix per
+// vector site. Output is ReTr for the two NEON SIMD lanes in each vector site.
+kernel void PlaquettePlane(
+    device const SU3Matrix* A [[buffer(0)]],
+    device const SU3Matrix* B [[buffer(1)]],
+    device const SU3Matrix* C [[buffer(2)]],
+    device const SU3Matrix* D [[buffer(3)]],
+    device float2* outReTr [[buffer(4)]],
+    constant uint32_t& nVSite [[buffer(5)]],
+    uint id [[thread_position_in_grid]])
+{
+    if (id >= nVSite) return;
+    SU3Matrix P = matMul(matMul(A[id], B[id]), matMulDagger(su3Identity(), C[id]));
+    P = matMulDagger(P, D[id]);
+    outReTr[id] = realTrace(P);
+}
+
+kernel void WilsonLoopPath(
+    device const SU3Matrix* links [[buffer(0)]],
+    device const uchar* dagger [[buffer(1)]],
+    device float2* outReTr [[buffer(2)]],
+    constant uint32_t& nLink [[buffer(3)]],
+    constant uint32_t& nVSite [[buffer(4)]],
+    uint id [[thread_position_in_grid]])
+{
+    if (id >= nVSite) return;
+    SU3Matrix acc = su3Identity();
+    for (uint k = 0; k < nLink; ++k) {
+        SU3Matrix Uk = links[k * nVSite + id];
+        acc = dagger[k] ? matMulDagger(acc, Uk) : matMul(acc, Uk);
+    }
+    outReTr[id] = realTrace(acc);
+}
+
 // SU(3) multiplies a 6-component Half Spinor
 inline SiteHalfSpinor multLink(SU3Matrix U, SiteHalfSpinor chi) {
     SiteHalfSpinor res;
