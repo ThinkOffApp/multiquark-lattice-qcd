@@ -44,6 +44,145 @@ public:
   typedef typename Gimpl::GaugeLinkField GaugeMat;
   typedef typename Gimpl::GaugeField GaugeLorentz;
 
+#ifdef GRID_METAL
+  static id<MTLComputePipelineState> metalGaugePipeline(NSString *functionName) {
+    static NSMutableDictionary *pipelines = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      pipelines = [[NSMutableDictionary alloc] init];
+    });
+
+    id<MTLComputePipelineState> cached = [pipelines objectForKey:functionName];
+    if (cached != nil) return cached;
+
+    NSError *error = nil;
+    NSString *libPath = @"default.metallib";
+    id<MTLLibrary> library = [theGridAcceleratorDevice newLibraryWithFile:libPath error:&error];
+    if (!library) {
+      NSLog(@"Failed to load %@: %@", libPath, error);
+      exit(1);
+    }
+    id<MTLFunction> function = [library newFunctionWithName:functionName];
+    if (!function) {
+      NSLog(@"Failed to load Metal function %@", functionName);
+      exit(1);
+    }
+    id<MTLComputePipelineState> pipeline =
+      [theGridAcceleratorDevice newComputePipelineStateWithFunction:function error:&error];
+    if (!pipeline) {
+      NSLog(@"Failed to create pipeline %@: %@", functionName, error);
+      exit(1);
+    }
+    [pipelines setObject:pipeline forKey:functionName];
+    return pipeline;
+  }
+
+  static RealD reduceMetalReTr(float *out, uint64_t nVSite) {
+    RealD sum = 0.0;
+    for (uint64_t s = 0; s < nVSite; ++s) {
+      sum += static_cast<RealD>(out[2*s + 0]);
+      sum += static_cast<RealD>(out[2*s + 1]);
+    }
+    return sum;
+  }
+
+  static void metalDispatchPlaquettePlane(float *out,
+                                          const GaugeMat &A,
+                                          const GaugeMat &B,
+                                          const GaugeMat &C,
+                                          const GaugeMat &D) {
+    uint32_t nVSite = static_cast<uint32_t>(A.Grid()->oSites());
+    auto A_v = A.View(AcceleratorRead);
+    auto B_v = B.View(AcceleratorRead);
+    auto C_v = C.View(AcceleratorRead);
+    auto D_v = D.View(AcceleratorRead);
+
+    id<MTLBuffer> mtl_A   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[A_v.getHostPointer()];
+    id<MTLBuffer> mtl_B   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[B_v.getHostPointer()];
+    id<MTLBuffer> mtl_C   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[C_v.getHostPointer()];
+    id<MTLBuffer> mtl_D   = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[D_v.getHostPointer()];
+    id<MTLBuffer> mtl_out = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[out];
+    if (!mtl_A || !mtl_B || !mtl_C || !mtl_D || !mtl_out) {
+      std::cout << GridLogError << "Metal plaquette dispatch missing registered buffer" << std::endl;
+      exit(1);
+    }
+
+    id<MTLComputePipelineState> pipeline = metalGaugePipeline(@"PlaquettePlane");
+    id<MTLCommandBuffer> commandBuffer = [theGridAcceleratorCommandQueue commandBuffer];
+    id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+    [encoder setComputePipelineState:pipeline];
+    [encoder setBuffer:mtl_A offset:0 atIndex:0];
+    [encoder setBuffer:mtl_B offset:0 atIndex:1];
+    [encoder setBuffer:mtl_C offset:0 atIndex:2];
+    [encoder setBuffer:mtl_D offset:0 atIndex:3];
+    [encoder setBuffer:mtl_out offset:0 atIndex:4];
+    [encoder setBytes:&nVSite length:sizeof(uint32_t) atIndex:5];
+    MTLSize gridSize = MTLSizeMake(nVSite, 1, 1);
+    NSUInteger tg = 256;
+    if (tg > pipeline.maxTotalThreadsPerThreadgroup) tg = pipeline.maxTotalThreadsPerThreadgroup;
+    if (tg > nVSite) tg = nVSite;
+    [encoder dispatchThreads:gridSize threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+    [encoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+
+    A_v.ViewClose();
+    B_v.ViewClose();
+    C_v.ViewClose();
+    D_v.ViewClose();
+  }
+
+  static void metalDispatchWilsonPath(float *out,
+                                      std::vector<GaugeMat> &path,
+                                      const std::vector<unsigned char> &dagger) {
+    assert(path.size() == dagger.size());
+    uint32_t nLink = static_cast<uint32_t>(path.size());
+    uint32_t nVSite = static_cast<uint32_t>(path[0].Grid()->oSites());
+    size_t matrixBytes = sizeof(typename GaugeMat::vector_object);
+    size_t fieldBytes = static_cast<size_t>(nVSite) * matrixBytes;
+    void *links = acceleratorAllocShared(static_cast<size_t>(nLink) * fieldBytes);
+    unsigned char *daggerBuf = static_cast<unsigned char*>(
+      acceleratorAllocShared(static_cast<size_t>(nLink) * sizeof(unsigned char)));
+    std::memcpy(daggerBuf, dagger.data(), static_cast<size_t>(nLink) * sizeof(unsigned char));
+
+    for (uint32_t k = 0; k < nLink; ++k) {
+      auto v = path[k].View(CpuRead);
+      std::memcpy(static_cast<char*>(links) + static_cast<size_t>(k) * fieldBytes,
+                  v.getHostPointer(), fieldBytes);
+      v.ViewClose();
+    }
+
+    id<MTLBuffer> mtl_links  = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[links];
+    id<MTLBuffer> mtl_dagger = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[daggerBuf];
+    id<MTLBuffer> mtl_out    = (__bridge id<MTLBuffer>)acceleratorMetalBufferMap[out];
+    if (!mtl_links || !mtl_dagger || !mtl_out) {
+      std::cout << GridLogError << "Metal Wilson-loop dispatch missing registered buffer" << std::endl;
+      exit(1);
+    }
+
+    id<MTLComputePipelineState> pipeline = metalGaugePipeline(@"WilsonLoopPath");
+    id<MTLCommandBuffer> commandBuffer = [theGridAcceleratorCommandQueue commandBuffer];
+    id<MTLComputeCommandEncoder> encoder = [commandBuffer computeCommandEncoder];
+    [encoder setComputePipelineState:pipeline];
+    [encoder setBuffer:mtl_links offset:0 atIndex:0];
+    [encoder setBuffer:mtl_dagger offset:0 atIndex:1];
+    [encoder setBuffer:mtl_out offset:0 atIndex:2];
+    [encoder setBytes:&nLink length:sizeof(uint32_t) atIndex:3];
+    [encoder setBytes:&nVSite length:sizeof(uint32_t) atIndex:4];
+    MTLSize gridSize = MTLSizeMake(nVSite, 1, 1);
+    NSUInteger tg = 256;
+    if (tg > pipeline.maxTotalThreadsPerThreadgroup) tg = pipeline.maxTotalThreadsPerThreadgroup;
+    if (tg > nVSite) tg = nVSite;
+    [encoder dispatchThreads:gridSize threadsPerThreadgroup:MTLSizeMake(tg, 1, 1)];
+    [encoder endEncoding];
+    [commandBuffer commit];
+    [commandBuffer waitUntilCompleted];
+
+    acceleratorFreeShared(links);
+    acceleratorFreeShared(daggerBuf);
+  }
+#endif
+
   //////////////////////////////////////////////////
   // directed plaquette oriented in mu,nu plane
   //////////////////////////////////////////////////
@@ -124,6 +263,42 @@ public:
     double faces = (1.0 * Nd * (Nd - 1)) / 2.0;
     return sumplaq / vol / faces / Nc; // Nd , Nc dependent... FIXME
   }
+
+#ifdef GRID_METAL
+  //////////////////////////////////////////////////
+  // Metal GPU average plaquette.
+  //
+  // This opt-in path uses Grid Cshift on the host side to align the four links
+  // in each plane, dispatches one local Metal path-product kernel per plane,
+  // and reduces ReTr on the CPU. It intentionally does not replace the default
+  // CPU path until parity and timing have been validated by callers.
+  //////////////////////////////////////////////////
+  static RealD avgPlaquetteMetal(const GaugeLorentz &Umu) {
+    std::vector<GaugeMat> U(Nd, Umu.Grid());
+    for (int mu = 0; mu < Nd; mu++) {
+      U[mu] = PeekIndex<LorentzIndex>(Umu, mu);
+    }
+
+    uint64_t nVSite = Umu.Grid()->oSites();
+    float *out = static_cast<float*>(acceleratorAllocShared(nVSite * 2 * sizeof(float)));
+    RealD sumplaq = 0.0;
+    for (int mu = 0; mu < Nd; mu++) {
+      for (int nu = mu + 1; nu < Nd; nu++) {
+        GaugeMat A = U[mu];
+        GaugeMat B = Cshift(U[nu], mu, 1);
+        GaugeMat C = Cshift(U[mu], nu, 1);
+        GaugeMat D = U[nu];
+        metalDispatchPlaquettePlane(out, A, B, C, D);
+        sumplaq += reduceMetalReTr(out, nVSite);
+      }
+    }
+    acceleratorFreeShared(out);
+
+    double vol = Umu.Grid()->gSites();
+    double faces = (1.0 * Nd * (Nd - 1)) / 2.0;
+    return sumplaq / vol / faces / Nc;
+  }
+#endif
 
   //////////////////////////////////////////////////
   // sum over all spatial planes of plaquette
@@ -1518,6 +1693,69 @@ public:
     Real faces = 1.0 * ndim * (ndim - 1);
     return sumWl / vol / faces / Nc; // Nc dependent... FIXME
   }
+
+#ifdef GRID_METAL
+  //////////////////////////////////////////////////
+  // Metal GPU average Wilson loop across all oriented planes.
+  //
+  // The path geometry mirrors the validated Python parity harness:
+  //   +mu Rmu links, +nu Rnu links, then the -mu and -nu return edges as
+  //   daggered pre-aligned links. The Metal kernel does only local matrix
+  //   products; all physical shifts are explicit Grid Cshift calls here.
+  //////////////////////////////////////////////////
+  static Real avgWilsonLoopMetal(const GaugeLorentz &Umu,
+                                 const int R1, const int R2) {
+    std::vector<GaugeMat> U(Nd, Umu.Grid());
+    for (int mu = 0; mu < Umu.Grid()->_ndimension; mu++) {
+      U[mu] = PeekIndex<LorentzIndex>(Umu, mu);
+    }
+
+    uint64_t nVSite = Umu.Grid()->oSites();
+    float *out = static_cast<float*>(acceleratorAllocShared(nVSite * 2 * sizeof(float)));
+    Real sumWl = 0.0;
+    int ndim = Umu.Grid()->_ndimension;
+
+    auto accumulatePlane = [&](int Rmu, int Rnu, int mu, int nu) {
+      std::vector<GaugeMat> path;
+      std::vector<unsigned char> dagger;
+      path.reserve(2 * Rmu + 2 * Rnu);
+      dagger.reserve(2 * Rmu + 2 * Rnu);
+
+      for (int i = 0; i < Rmu; ++i) {
+        path.push_back(Cshift(U[mu], mu, i));
+        dagger.push_back(0);
+      }
+      for (int j = 0; j < Rnu; ++j) {
+        path.push_back(Cshift(Cshift(U[nu], mu, Rmu), nu, j));
+        dagger.push_back(0);
+      }
+      for (int i = Rmu - 1; i >= 0; --i) {
+        path.push_back(Cshift(Cshift(U[mu], mu, i), nu, Rnu));
+        dagger.push_back(1);
+      }
+      for (int j = Rnu - 1; j >= 0; --j) {
+        path.push_back(Cshift(U[nu], nu, j));
+        dagger.push_back(1);
+      }
+
+      metalDispatchWilsonPath(out, path, dagger);
+      sumWl += reduceMetalReTr(out, nVSite);
+    };
+
+    for (int mu = 1; mu < ndim; mu++) {
+      for (int nu = 0; nu < mu; nu++) {
+        accumulatePlane(R1, R2, mu, nu);
+        accumulatePlane(R2, R1, mu, nu);
+      }
+    }
+
+    acceleratorFreeShared(out);
+    Real vol = Umu.Grid()->gSites();
+    Real faces = 1.0 * ndim * (ndim - 1);
+    return sumWl / vol / faces / Nc;
+  }
+#endif
+
   //////////////////////////////////////////////////
   // average over all x,y,z,t and over all planes of timelike Wilson loop
   //////////////////////////////////////////////////
