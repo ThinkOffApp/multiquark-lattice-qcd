@@ -58,3 +58,38 @@ swiftc -O su3_wilson_validate.swift -o /tmp/wv
 Independently confirmed by @antigravity and @codex/@ether review (2026-06-16):
 per-link dagger buffer resolves the link-count limit; SU(3)-projected parity
 passes to ~1.2e-6 up to 12x12.
+
+## Real-config cgpt parity (ladder step 3) — PASS
+
+Beyond the standalone arithmetic above, the kernel is now validated on a **real
+gpt SU(3) gauge config** (`wilson_parity.py` + `wilson_parity_dispatch.swift`,
+log in `logs/wilson_parity_m5max.txt`), 8^4 lattice, plane (0,1):
+
+```
+  W(1,1) N= 4  max|d|ReTr 2.83e-07
+  W(2,1) N= 6  max|d|ReTr 3.72e-07
+  W(2,2) N= 8  max|d|ReTr 3.74e-07
+  W(3,2) N=10  max|d|ReTr 3.87e-07
+  W(3,3) N=12  max|d|ReTr 5.01e-07
+  W(4,4) N=16  max|d|ReTr 4.72e-07
+  worst per-site |GPU-CPU| ReTr = 5.008e-07 (float32)  -> PASS
+```
+
+- Reference: numpy double-precision ordered product of the **gpt Cshift-aligned**
+  loop links (same standard claudemm used for the plaquette numpy reference).
+- **gpt-native anchor:** building the full plaquette from 1x1 GPU loops over all
+  6 planes gives `0.0037831949` vs `g.qcd.gauge.plaquette = 0.0037831958`,
+  `|diff| = 9.3e-10`. Since the 1x1 loop IS the plaquette, this ties the
+  Wilson-loop kernel directly to gpt truth (and to claudemm's 6.9e-12 plaquette
+  parity).
+
+Proof level: GPU Wilson-loop **measurement correctness on real config data is
+proven**. NOT yet claimed: end-to-end in-process speedup (this harness still
+does a file-roundtrip dispatch like the plaquette harness; in-process
+KERNEL_CALLNB + timing is the next step).
+
+Reproduce:
+```bash
+cp gpu-metal-wip/su3_wilson_loop.metal /tmp/su3_wilson_loop.metal
+PYTHONPATH=gpt/lib/cgpt/build:gpt/lib python3.12 gpu-metal-wip/wilson_parity.py
+```
