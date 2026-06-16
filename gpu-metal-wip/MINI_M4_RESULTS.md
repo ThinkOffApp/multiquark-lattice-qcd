@@ -17,14 +17,26 @@ Metal 4), branched off ClaudeMB's kernel checkpoint `1cc06f4`. Owner: claudemm (
   `gpu-metal-wip/su3_plaq_validate.swift` (loads `su3_plaquette.metal`) →
   **PARITY PASS, MAX |gpu-cpu| = 9.537e-07 (float32)**, matching MB's MacBook (9.5e-7).
 
-- **IN PROGRESS — cgpt pure-gauge plaquette/Wilson-loop GPU measurement.**
-  NOT integrated into cgpt yet. First parity target (ether's sequencing):
-  one SU(3) config → one mu,nu plane → CPU Cshift-align 4 fields →
-  Metal `PlaquettePlane` dispatch → CPU sum-reduce → compare to
-  `g.qcd.gauge.plaquette` on that plane. Generalize to all 6 planes only after.
+- **PROVEN (2026-06-16) — SU(3) plaquette GPU measurement parity vs gpt, on real config.**
+  `plaq_parity.py` + `plaq_parity_dispatch.swift`: builds an SU(3) gpt config,
+  extracts/Cshift-aligns the 4 link fields per plane, packs into the kernel layout,
+  dispatches `PlaquettePlane` on the M4, reduces. Results on 4^4:
+  - ladder step 1 (one plane (0,1)): GPU vs numpy max per-site |ReTr| diff 2.66e-07.
+  - ladder step 2 (all 6 planes): GPU full plaquette = gpt `g.qcd.gauge.plaquette`
+    to **|GPU-gpt| = 6.9e-12**; worst per-site |GPU-CPU| ReTr = 2.7e-07 (float32).
+  - RESULT: FULL PLAQUETTE PARITY PASS.
+  Convention self-check: numpy 6-plane average == gpt plaquette to 9e-10 (validates
+  Cshift directions A=Umu(x), B=Unu(x+mu), C=Umu(x+nu), D=Unu(x)).
 
-- **NOT DONE — pure-gauge GPU measurement is NOT complete.** Do not claim it until
-  the one-plane cgpt parity test passes.
+- **STILL IN PROGRESS — performance + Wilson loops.** This proves correctness of the
+  GPU plaquette measurement, not yet an end-to-end speedup (the file-roundtrip Swift
+  dispatch here is a parity harness, not the in-process KERNEL_CALLNB path). Ladder
+  step 3 (Wilson loops) is ClaudeMB's on the MacBook. Heatbath/HMC on GPU not started.
+
+- **gpt note:** `g.qcd.gauge.random` is broken on the mini (numpy-version bug in
+  `gpt/core/matrix/exp.py`: `int(np.log2(n/maxn))` on an array). Worked around by
+  building SU(3) configs via numpy QR + det normalization and `U[mu][:] = arr`.
+  `unit`, `plaquette`, `cshift`, numpy export/assign all work fine.
 
 ## Throughput (context, not a fair CPU comparison)
 
