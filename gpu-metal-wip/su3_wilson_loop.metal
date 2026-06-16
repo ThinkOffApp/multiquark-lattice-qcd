@@ -63,12 +63,15 @@ inline SU3Matrix identity() {
 
 // Ordered path product around an arbitrary loop. `links` holds nLink
 // pre-aligned SU(3) fields packed as links[k*nVSite + id], in path order.
-// daggerMask bit k set => link k enters as U^dag (the return edges).
+// `dagger` is a per-link flag (dagger[k] != 0 => link k enters as U^dag, the
+// return edges). A per-link buffer, not a bitmask: a rectangular loop has
+// 2R+2T links and production shapes (e.g. R=12,T=6 -> 36 links) exceed the
+// 32 bits a uint mask could hold.
 kernel void WilsonLoopPath(
     device const SU3Matrix* links   [[buffer(0)]],
     device float2*          outReTr [[buffer(1)]],
     constant uint32_t&      nLink   [[buffer(2)]],
-    constant uint32_t&      daggerMask [[buffer(3)]],
+    device const uchar*     dagger  [[buffer(3)]],
     constant uint32_t&      nVSite  [[buffer(4)]],
     uint id [[thread_position_in_grid]])
 {
@@ -76,8 +79,8 @@ kernel void WilsonLoopPath(
     SU3Matrix acc = identity();
     for (uint k = 0; k < nLink; ++k) {
         SU3Matrix Uk = links[k * nVSite + id];
-        if (daggerMask & (1u << k)) acc = mm_dag(acc, Uk);
-        else                        acc = mm(acc, Uk);
+        if (dagger[k]) acc = mm_dag(acc, Uk);
+        else           acc = mm(acc, Uk);
     }
     outReTr[id] = reTrace(acc);
 }
