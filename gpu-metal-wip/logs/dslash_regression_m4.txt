@@ -1,0 +1,62 @@
+AcceleratorMetalInit: ================================================
+AcceleratorMetalInit: Selected device is Apple M4
+AcceleratorMetalInit: Unified Memory is Active
+AcceleratorMetalInit: ================================================
+SharedMemoryNone: SharedMemoryAllocate 1073741824 GPU implementation 
+0SharedMemoryNone:  SharedMemoryNone.cc acceleratorAllocDevice 1073741824bytes at 0x300000000 for comms buffers 
+
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|_ |  |  |  |  |  |  |  |  |  |  |  | _|__
+__|_                                    _|__
+__|_   GGGG    RRRR    III    DDDD      _|__
+__|_  G        R   R    I     D   D     _|__
+__|_  G        R   R    I     D    D    _|__
+__|_  G  GG    RRRR     I     D    D    _|__
+__|_  G   G    R  R     I     D   D     _|__
+__|_   GGGG    R   R   III    DDDD      _|__
+__|_                                    _|__
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+__|__|__|__|__|__|__|__|__|__|__|__|__|__|__
+  |  |  |  |  |  |  |  |  |  |  |  |  |  |  
+
+
+Copyright (C) 2015 Peter Boyle, Azusa Yamaguchi, Guido Cossu, Antonin Portelli and other authors
+
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+Current Grid git commit hash=030c55d014b9c8b096ab6f9db021d1c0dd73b26a: (HEAD -> docs/pgm97-reproduction) clean
+
+Grid : Message : ================================================ 
+Grid : Message : MPI is initialised and logging filters activated 
+Grid : Message : ================================================ 
+Grid : Message : This rank is running on host Petruss-Mac-mini.local at local time 2026-06-16 04:10:31
+Grid : Message : Requested 1073741824 byte stencil comms buffers 
+Grid : Message : MemoryManager::Init() setting up
+Grid : Message : MemoryManager::Init() cache pool for recent host   allocations: SMALL 8 LARGE 2 HUGE 0
+Grid : Message : MemoryManager::Init() cache pool for recent device allocations: SMALL 16 LARGE 8 Huge 0
+Grid : Message : MemoryManager::Init() cache pool for recent shared allocations: SMALL 16 LARGE 8 Huge 0
+Grid : Message : MemoryManager::Init() Unified memory space
+Grid : Message : 0.813000 s : ============================================================
+  Metal Wilson Dslash regression test (8^4)
+============================================================
+Grid : Message : 0.179980 s : [PASS] Hermiticity (WilsonImplF): |<phi|D|chi> - conj(<chi|Ddag|phi>)| / |lhs| measured=8.45292756e-08 tol=0.0001
+Grid : Message : 0.323760 s : [PASS] Deo+Doe=D consistency (WilsonImplF): ||D - (Meo+Moe)|| measured=0 tol=1e-05
+Grid : Message : 0.470190 s : [PASS] Determinism (WilsonImplF): ||Dhop(src) - Dhop(src)|| measured=0 tol=0
+Grid : Message : 0.683510 s : [PASS] Hermiticity (WilsonImplD): |<phi|D|chi> - conj(<chi|Ddag|phi>)| / |lhs| measured=3.15511025e-16 tol=1e-12
+Grid : Message : 0.892970 s : [PASS] Deo+Doe=D consistency (WilsonImplD): ||D - (Meo+Moe)|| measured=0 tol=1e-10
+Grid : Message : 0.109301 s : [PASS] Determinism (WilsonImplD): ||Dhop(src) - Dhop(src)|| measured=0 tol=0
+Grid : Message : 0.132823 s : [PASS] Float vs Double cross-check: relative ||D_F(src) - D_D(src)|| measured=8.90086461e-08 tol=5e-05
+Grid : Message : 0.132866 s : ============================================================
+  Result: ALL PASSED (0 failures)
+============================================================
+Grid : Message : 0.132875 s : *******************************************
+Grid : Message : 0.132877 s : ******* Grid Finalize                ******
+Grid : Message : 0.132879 s : *******************************************
