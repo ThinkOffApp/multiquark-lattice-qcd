@@ -1,0 +1,4 @@
+vSite 0 lane 0: gpu=-1.57257 cpu=-1.57257 err=0.00e+00
+vSite 0 lane 1: gpu=0.54715 cpu=0.54715 err=1.19e-07
+MAX |gpu-cpu| over sampled sites = 9.537e-07 (float32)
+PARITY PASS

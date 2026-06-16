@@ -1,0 +1,12 @@
+# gauge_inproc_bench.py — MacBook Apple M5 Max — 2026-06-16
+# in-process Metal dispatch via Swift C-ABI dylib + ctypes (no subprocess, no file roundtrip)
+
+In-process GPU gauge measurement on [16, 16, 16, 16], 65536 sites
+  GPU in-process plaquette = 0.0004936306
+  CPU numpy plaquette      = 0.0004936306
+  gpt-native plaquette     = 0.0004936323
+  |GPU - gpt| = 1.700e-09   |GPU - CPU| = 3.127e-11
+  in-process GPU:    32.93 ms/plaquette
+  CPU numpy     :    40.45 ms/plaquette
+  speedup       :   1.23x  (pack overhead included in GPU time)
+RESULT: IN-PROCESS GPU MEASUREMENT OK

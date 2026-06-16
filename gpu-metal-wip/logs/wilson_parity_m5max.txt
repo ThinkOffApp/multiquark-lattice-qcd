@@ -1,0 +1,15 @@
+# wilson_parity.py run — MacBook Apple M5 Max — 2026-06-16
+# (Grid/GPT init banner trimmed; this is the result block)
+
+SU(3) Wilson-loop parity on [8, 8, 8, 8], 4096 sites, plane (0,1)
+  W(1,1) N= 4: CPU +0.00067945  GPU +0.00067945  max|d|ReTr 2.83e-07
+  W(2,1) N= 6: CPU +0.00145194  GPU +0.00145194  max|d|ReTr 3.72e-07
+  W(2,2) N= 8: CPU -0.00009456  GPU -0.00009456  max|d|ReTr 3.74e-07
+  W(3,2) N=10: CPU -0.00049104  GPU -0.00049104  max|d|ReTr 3.87e-07
+  W(3,3) N=12: CPU -0.00434239  GPU -0.00434239  max|d|ReTr 5.01e-07
+  W(4,4) N=16: CPU +0.00911818  GPU +0.00911818  max|d|ReTr 4.72e-07
+  GPU plaquette (1x1 loop, 6 planes) = 0.0037831949
+  gpt-native g.qcd.gauge.plaquette   = 0.0037831958
+  |GPU - gpt| plaquette anchor       = 9.309e-10
+  worst per-site |GPU-CPU| ReTr over all loops = 5.008e-07 (float32)
+RESULT: WILSON-LOOP PARITY PASS
