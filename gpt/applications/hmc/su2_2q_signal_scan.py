@@ -1002,6 +1002,7 @@ def main():
     progress_every = max(1, g.default.get_int("--progress-every", 20))
     progress_substep_min_interval = max(0.05, g.default.get_float("--progress-substep-min-interval-sec", 0.2))
     resume = g.default.get_int("--resume", 1) != 0
+    max_meas_per_run = g.default.get_int("--max-meas-per-run", 0)
     resume_force = g.default.get_int("--resume-force", 0) != 0
     skip_flux = g.default.get_int("--skip_flux", 0) != 0
     max_lag = max(10, g.default.get_int("--autocorr-max-lag", 200))
@@ -1316,8 +1317,14 @@ def main():
                         probe_field=unsmeared_probe,
                     )
                     flux_time_total += time.time() - t0_flux
-            # Free C++ lattice temporaries from smearing/loops/flux for this tdir
+            # Free C++ lattice temporaries from smearing/loops/flux for this tdir.
+            # clear_gpt_caches: the loop/flux stencil caches grow by tens of GB
+            # over one 24^4 measurement (4 tdirs x all R,T,orientation tags);
+            # clearing per tdir caps peak RSS at ~one tdir's working set
+            # (observed 90+ GB without this, which OOM-killed the runs and
+            # crashed the machine on Jul 5-6 2026).
             del U_use
+            clear_gpt_caches()
             gc.collect()
 
         # Aggregate loops
@@ -1870,6 +1877,20 @@ def main():
         if save_cfg_every > 0 and ((i + 1) % save_cfg_every) == 0:
             cfg_file = os.path.join(cfg_dir, f"cfg_{seed}_{i+1:05d}.cfg")
             g.save(cfg_file, U)
+
+        # Leak containment: Grid/gpt C++ memory grows across measurements even
+        # with per-tdir cache clearing (macOS compressor filled to ~76 GB and
+        # memorystatus SIGKILLed the run twice on Jul 6 2026 while RSS showed
+        # only ~28 GB). Every measurement is checkpointed, so exiting cleanly
+        # every N measurements and letting the supervisor (tools/su2_run_loop.sh)
+        # resume bounds the footprint with ~40 s restart overhead.
+        meas_this_run = (i + 1) - meas_start
+        if max_meas_per_run > 0 and meas_this_run >= max_meas_per_run and (i + 1) < nmeas:
+            g.message(
+                f"max-meas-per-run={max_meas_per_run} reached "
+                f"({meas_this_run} measurements this process); exiting for clean resume."
+            )
+            break
 
     if stop_requested:
         write_live()
