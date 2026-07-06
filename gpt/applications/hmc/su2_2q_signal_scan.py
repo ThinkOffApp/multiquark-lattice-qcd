@@ -1584,6 +1584,7 @@ def main():
     therm_log_every = max(1, ntherm // 10)
     therm_done = therm_start
     meas_done = meas_start
+    early_exit_for_restart = False
     last_substep_progress_write = 0.0
     for i in range(therm_start, ntherm):
         substate = {"done": 0, "total": max(1, 2 * len(all_mu_dirs))}
@@ -1890,6 +1891,7 @@ def main():
                 f"max-meas-per-run={max_meas_per_run} reached "
                 f"({meas_this_run} measurements this process); exiting for clean resume."
             )
+            early_exit_for_restart = True
             break
 
     if stop_requested:
@@ -1915,6 +1917,34 @@ def main():
         )
         save_checkpoint("interrupted", therm_done, meas_done)
         g.message("Interrupted; checkpoint saved.")
+        return
+
+    if early_exit_for_restart:
+        # Clean supervised-restart exit (leak containment). Do NOT fall through
+        # to the completion block below: on Jul 6 2026 that wrote a bogus
+        # "complete/200" checkpoint + final-results file from 6 measurements.
+        write_live()
+        write_json(
+            progress_file,
+            make_progress_payload(
+                seed=seed,
+                out_dir=out_dir,
+                phase="production",
+                ntherm=ntherm,
+                nmeas=nmeas,
+                therm_done=ntherm,
+                meas_done=meas_done,
+                sweeps_done=sweeps_done,
+                total_sweeps=total_sweeps,
+                elapsed_sec=time.time() - run_start,
+                last_plaquette=last_plaquette,
+                last_loop_re=last_loop_re,
+                last_flux0=last_flux0,
+                done=False,
+            ),
+        )
+        save_checkpoint("production", ntherm, meas_done)
+        g.message("Exiting for supervised restart; checkpoint saved.")
         return
 
     plaq_series = [m["plaquette"] for m in measurements]
