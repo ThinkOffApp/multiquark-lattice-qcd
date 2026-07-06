@@ -1430,10 +1430,23 @@ def main():
                         if progress_cb is not None:
                             progress_cb("multihit_temporal_sweeps", 1)
                 hits.append(single_measurement(U_hit, progress_cb=progress_cb))
+                # Clear stencil/transport caches AND run gc between every
+                # estimator sub-measurement, not just per-tdir. With 8x2
+                # averaging this loop runs 16x per stored config; without the
+                # clear here the caches + Grid buffers accumulate across the 16
+                # passes and macOS compresses the cold pages until memorystatus
+                # SIGKILLs the process (Jul 6 2026).
+                clear_gpt_caches()
                 gc.collect()
 
+            del U_hit
             blocks.append(mean_measurement_items(hits))
+            clear_gpt_caches()
+            gc.collect()
 
+        del U_block
+        clear_gpt_caches()
+        gc.collect()
         return mean_measurement_items(blocks)
 
     if resume and os.path.exists(checkpoint_file) and os.path.exists(checkpoint_cfg_file):
