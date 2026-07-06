@@ -396,9 +396,24 @@ def make_progress_payload(
     return payload
 
 
+# When set (--gauge-gpu 1), pure-gauge heatbath sweeps run on the Metal GPU
+# via gpu-metal-wip/su2_hb_gpu.py: the field is packed to a GPU-resident
+# quaternion buffer, one full sweep (2 parities x mu_dirs) is dispatched as
+# Metal kernels, and the result is unpacked back into the gpt lattices so
+# measurements/checkpoints see an always-current field. Validated against
+# gpt's su2_heat_bath: staple parity 1.8e-06 (float32), independent chains
+# agree at 1.2 sigma on 8^4 beta=2.4 (gpu-metal-wip/su2_hb_validate.py).
+GPU_GEN = None
+
+
 def one_sweep(U_field, hb, action, mask, mask_rb, mu_dirs, step_cb=None):
     step_idx = 0
     step_total = max(1, 2 * len(mu_dirs))
+    if GPU_GEN is not None:
+        GPU_GEN.sweep(U_field, 1, float(action.beta), mu_dirs)
+        if step_cb is not None:
+            step_cb(step_total, step_total)
+        return
     for cb in [g.even, g.odd]:
         mask[:] = 0
         mask_rb.checkerboard(cb)
@@ -1515,6 +1530,27 @@ def main():
         meas_start = 0
         checkpoint_every = 0
         save_cfg_every = 0
+
+    gauge_gpu = g.default.get_int("--gauge-gpu", 0) != 0
+    if gauge_gpu:
+        import hashlib
+
+        wip_dir = os.path.normpath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "gpu-metal-wip")
+        )
+        if wip_dir not in sys.path:
+            sys.path.insert(0, wip_dir)
+        from su2_hb_gpu import su2_gpu_generator
+
+        gen_seed = int.from_bytes(hashlib.sha256(f"{seed}:su2gen".encode()).digest()[:8], "little")
+        global GPU_GEN
+        GPU_GEN = su2_gpu_generator(U, seed=gen_seed, sweep_counter=sweeps_done)
+        RUN_COMPUTE_META["gauge_compute"] = "gpu-metal-heatbath"
+        RUN_COMPUTE_META["gauge_gpu_device"] = GPU_GEN.device_name
+        g.message(
+            f"Pure-gauge heatbath sweeps on GPU: {GPU_GEN.device_name} "
+            f"(rng seed {gen_seed}, sweep_counter start {sweeps_done})"
+        )
 
     write_live()
 

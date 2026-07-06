@@ -87,6 +87,14 @@ if [[ ! -f "$CGPT_SOURCE" ]]; then
 fi
 source "$CGPT_SOURCE"
 
+# cgpt is built against the cpython-312 ABI; a bare python3 (e.g. the system
+# 3.9 after a reboot resets PATH) imports a stale/incompatible cgpt.
+PYTHON_BIN="${SU2_PYTHON:-python3.12}"
+if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
+  echo "python interpreter '$PYTHON_BIN' not found (set SU2_PYTHON)"
+  exit 6
+fi
+
 export OMP_NUM_THREADS="${OMP_NUM_THREADS:-1}"
 export OPENBLAS_NUM_THREADS="${OPENBLAS_NUM_THREADS:-1}"
 export MKL_NUM_THREADS="${MKL_NUM_THREADS:-1}"
@@ -99,7 +107,7 @@ if [[ "$PIPELINE" == "gpu" ]]; then
 fi
 
 if [[ "$PIPELINE" == "gpu" ]]; then
-  probe_out="$(python3 - <<'PY'
+  probe_out="$("$PYTHON_BIN" - <<'PY'
 import gpt as g
 try:
     info = g.mem_info() or {}
@@ -120,7 +128,7 @@ R_VALUES="${SU2_R_VALUES:-1,2,3,4,6,8,12}"
 T_VALUES="${SU2_T_VALUES:-1,2,3,4,5,6}"
 
 cmd=(
-  python3 applications/hmc/su2_2q_signal_scan.py
+  "$PYTHON_BIN" applications/hmc/su2_2q_signal_scan.py
   --seed "$SEED"
   --out "$OUT_DIR"
   --L "${SU2_LATTICE:-24,24,24,24}"
