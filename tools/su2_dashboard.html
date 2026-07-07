@@ -3767,7 +3767,7 @@
             ctx.beginPath();
             ctx.rect(padL, padT, iw, ih);
             ctx.clip();
-            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.16)";
+            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.26)";
             ctx.beginPath();
             bandPts.forEach((p, i) => {
               const x = mapX(p.x);
@@ -3780,6 +3780,21 @@
             }
             ctx.closePath();
             ctx.fill();
+            // Edge lines keep a tight band visible even when the 1σ width
+            // shrinks below a couple of pixels (high-stats runs).
+            ctx.strokeStyle = opts.bandEdgeColor || "rgba(82, 173, 255, 0.6)";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 4]);
+            for (const sign of [1, -1]) {
+              ctx.beginPath();
+              bandPts.forEach((p, i) => {
+                const x = mapX(p.x);
+                const y = mapY(p.y + sign * p.e);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              });
+              ctx.stroke();
+            }
+            ctx.setLineDash([]);
             ctx.restore();
             bandDrawn = true;
           }
@@ -5895,7 +5910,6 @@
         drawOpts.fitWidth = 2;
         if (typeof fit.fitErrFn === "function") {
           drawOpts.fitErrFn = fit.fitErrFn;
-          drawOpts.bandColor = "rgba(82, 173, 255, 0.16)";
         }
       }
       const vDraw = drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
