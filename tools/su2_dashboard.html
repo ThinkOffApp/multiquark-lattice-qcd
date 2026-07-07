@@ -3674,6 +3674,7 @@
     }
 
     function drawXYError(canvasId, xs, ys, es, color = "#f38ba8", opts = {}) {
+      let bandDrawn = false;
       const c = document.getElementById(canvasId);
       const ctx = c.getContext("2d");
       const w = c.width, h = c.height;
@@ -3701,14 +3702,14 @@
         } else {
           ctx.fillText("Not enough V(R) points yet", 18, 28);
         }
-        if (extraPts.length === 0) return;
+        if (extraPts.length === 0) return { bandDrawn };
       }
       if (pts.length === 0 && extraPts.length > 0) {
         // Use provisional points as the plotting anchor when no primary points are available.
         for (const p of extraPts) pts.push({ x: p.x, y: p.y, e: p.e });
       }
       if (pts.length < 1) {
-        return;
+        return { bandDrawn };
       }
 
       const allPlotPts = [...pts, ...extraPts];
@@ -3746,6 +3747,7 @@
       }
 
       const fitFn = typeof opts.fitFn === "function" ? opts.fitFn : null;
+      const fitErrFn = typeof opts.fitErrFn === "function" ? opts.fitErrFn : null;
       if (fitFn) {
         const fitPts = [];
         const span = Math.max(1, 4 * pts.length);
@@ -3753,6 +3755,34 @@
           const x = minX + (i / span) * (maxX - minX);
           const y = fitFn(x);
           if (Number.isFinite(y)) fitPts.push({ x, y });
+        }
+        if (fitErrFn && fitPts.length >= 2) {
+          const bandPts = fitPts
+            .map((p) => ({ x: p.x, y: p.y, e: Number(fitErrFn(p.x)) }))
+            .filter((p) => Number.isFinite(p.e) && p.e >= 0);
+          if (bandPts.length >= 2) {
+            // Clip to the plot rect: the band may diverge (e.g. ~1/R near R->0)
+            // and must not stretch the y-scale chosen from the data points.
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(padL, padT, iw, ih);
+            ctx.clip();
+            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.16)";
+            ctx.beginPath();
+            bandPts.forEach((p, i) => {
+              const x = mapX(p.x);
+              const y = mapY(p.y + p.e);
+              if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            for (let i = bandPts.length - 1; i >= 0; i -= 1) {
+              const p = bandPts[i];
+              ctx.lineTo(mapX(p.x), mapY(p.y - p.e));
+            }
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+            bandDrawn = true;
+          }
         }
         if (fitPts.length >= 2) {
           ctx.strokeStyle = opts.fitColor || "rgba(82, 173, 255, 0.92)";
@@ -3818,6 +3848,7 @@
       });
       ctx.fillText(minY.toExponential(3), 6, h - 8);
       ctx.fillText(maxY.toExponential(3), 6, 16);
+      return { bandDrawn };
     }
 
     function drawXYLine(canvasId, xs, ys, opts = {}) {
@@ -4581,8 +4612,9 @@
       };
     }
 
-    function fmtPM(v, e, digits = 6) {
+    function fmtPM(v, e, digits = 6, singular = false) {
       const vv = Number.isFinite(v) ? v.toFixed(digits) : "-";
+      if (singular) return `${vv} ± n/a (singular cov)`;
       const ee = Number.isFinite(e) ? e.toFixed(digits) : "-";
       return `${vv} ± ${ee}`;
     }
@@ -4657,14 +4689,16 @@
       const chi2dof = Number(fit?.chi2dof);
       const poorChi2 = Number.isFinite(chi2dof) && chi2dof > 4.0;
       const lowStats = Number(pot?.ncfg) < 16;
+      const covSingular = !!fit?.covSingular;
 
       const details = [];
       if (lowStats) details.push(`low stats (N=${pot?.ncfg || 0})`);
       if (poorChi2) details.push(`Cornell χ²/dof=${chi2dof.toFixed(2)}`);
+      if (covSingular) details.push("singular fit covariance (parameter errors n/a)");
       if (nTFits > 0 && fracMixed >= 0.5) details.push(`mixed-sign T-fits ${nMixed}/${nTFits}`);
       if (nTFits > 0 && fracInflated >= 0.5) details.push(`inflated sem ${nInflated}/${nTFits}`);
 
-      const reliable = !lowStats && !poorChi2 && fracMixed < 0.5 && fracInflated < 0.5;
+      const reliable = !lowStats && !poorChi2 && !covSingular && fracMixed < 0.5 && fracInflated < 0.5;
       if (reliable) return { reliable: true, level: "green", reason: "stable", details };
       return {
         reliable: false,
@@ -4786,9 +4820,24 @@
       }
       const dof = pts.length - 3;
       const cov = invert3(M);
+      const covOk = !!cov && [0, 1, 2].every(
+        (i) => Number.isFinite(cov[i][i]) && cov[i][i] >= 0,
+      );
       const errV0 = cov && Number.isFinite(cov[0][0]) ? Math.sqrt(Math.max(0, cov[0][0])) : NaN;
       const errSigma = cov && Number.isFinite(cov[1][1]) ? Math.sqrt(Math.max(0, cov[1][1])) : NaN;
       const errE = cov && Number.isFinite(cov[2][2]) ? Math.sqrt(Math.max(0, cov[2][2])) : NaN;
+      // 1σ error of V(R) from full parameter covariance: var = g·Cov·g, g = dV/dp = [1, R, -1/R]
+      const fitErrFn = covOk
+        ? (R) => {
+          if (!(Number.isFinite(R) && R > 0)) return NaN;
+          const g = [1.0, R, -1.0 / R];
+          let v = 0.0;
+          for (let i = 0; i < 3; i += 1) {
+            for (let j = 0; j < 3; j += 1) v += g[i] * cov[i][j] * g[j];
+          }
+          return v > 0 ? Math.sqrt(v) : 0.0;
+        }
+        : null;
 
       return {
         V0,
@@ -4797,11 +4846,14 @@
         errV0,
         errSigma,
         errE,
+        cov,
+        covSingular: !covOk,
         chi2,
         dof,
         chi2dof: dof > 0 ? (chi2 / dof) : NaN,
         n: pts.length,
         fitFn: (R) => V0 + sigma * R - e / R,
+        fitErrFn,
       };
     }
 
@@ -4848,8 +4900,23 @@
       }
       const dof = pts.length - 2;
       const cov = invert2(M);
+      const covOk = !!cov && [0, 1].every(
+        (i) => Number.isFinite(cov[i][i]) && cov[i][i] >= 0,
+      );
       const errV0 = cov && Number.isFinite(cov[0][0]) ? Math.sqrt(Math.max(0, cov[0][0])) : NaN;
       const errSigma = cov && Number.isFinite(cov[1][1]) ? Math.sqrt(Math.max(0, cov[1][1])) : NaN;
+      // 1σ error of V(R) with e fixed: var = g·Cov·g, g = dV/dp = [1, R]
+      const fitErrFn = covOk
+        ? (R) => {
+          if (!(Number.isFinite(R) && R > 0)) return NaN;
+          const g = [1.0, R];
+          let v = 0.0;
+          for (let i = 0; i < 2; i += 1) {
+            for (let j = 0; j < 2; j += 1) v += g[i] * cov[i][j] * g[j];
+          }
+          return v > 0 ? Math.sqrt(v) : 0.0;
+        }
+        : null;
       return {
         V0,
         sigma,
@@ -4857,6 +4924,8 @@
         errV0,
         errSigma,
         errE: 0.0,
+        cov,
+        covSingular: !covOk,
         chi2,
         dof,
         chi2dof: dof > 0 ? (chi2 / dof) : NaN,
@@ -4864,6 +4933,7 @@
         k: 2,
         aic: chi2 + 2 * 2,
         fitFn: (R) => V0 + sigma * R - eFixed / R,
+        fitErrFn,
       };
     }
 
@@ -5823,8 +5893,12 @@
         drawOpts.fitFn = fit.fitFn;
         drawOpts.fitColor = "rgba(82, 173, 255, 0.95)";
         drawOpts.fitWidth = 2;
+        if (typeof fit.fitErrFn === "function") {
+          drawOpts.fitErrFn = fit.fitErrFn;
+          drawOpts.bandColor = "rgba(82, 173, 255, 0.16)";
+        }
       }
-      drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
+      const vDraw = drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
       const modeText = pot.mode === "legacy_filter"
         ? "legacy filtered per-sample log ratio"
         : (pot.selection === "per_r_t_log_fit"
@@ -5847,6 +5921,9 @@
           `V(R) from -ln[W(R,${pot.t1})/W(R,${pot.t0})], N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
         document.getElementById("vAxes").textContent =
           `x: R (lattice units), y: V(R) = -ln[W(R,${pot.t1})/W(R,${pot.t0})]${extraPts.length > 0 ? ` | provisional gray points=${extraPts.length} (not used in fit)` : ""}`;
+      }
+      if (vDraw?.bandDrawn) {
+        document.getElementById("vAxes").textContent += " | shaded band = ±1σ from Cornell fit covariance";
       }
 
       const vrRows = [];
@@ -6026,15 +6103,15 @@
         },
         {
           param: "σ",
-          lattice: fmtPM(fit.sigma, fit.errSigma, 6),
-          physical: hasAFm ? `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6)} GeV²` : "set a(fm)",
+          lattice: fmtPM(fit.sigma, fit.errSigma, 6, fit.covSingular),
+          physical: hasAFm ? `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6, fit.covSingular)} GeV²` : "set a(fm)",
           reference: "Dimensionless a√σ comparison only",
           agreementLevel: sigmaAgreement.level,
           agreementText: sigmaAgreement.text,
         },
         {
           param: "a√σ",
-          lattice: fmtPM(aSqrtSigma, errASqrtSigma, 6),
+          lattice: fmtPM(aSqrtSigma, errASqrtSigma, 6, fit.covSingular),
           physical: hasAFm ? `ref≈${fmtMaybe(aSqrtSigmaRef, 6)} (from 440 MeV)` : "set a(fm)",
           reference: "dimensionless scaling check",
           agreementLevel: aSqrtSigmaAgreement.level,
@@ -6043,14 +6120,14 @@
         {
           param: "√σ",
           lattice: "-",
-          physical: hasAFm ? `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1)} MeV` : "set a(fm)",
+          physical: hasAFm ? `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1, fit.covSingular)} MeV` : "set a(fm)",
           reference: "Dimensionless a√σ comparison only",
           agreementLevel: sqrtSigmaAgreement.level,
           agreementText: sqrtSigmaAgreement.text,
         },
         {
           param: "e",
-          lattice: fmtPM(fit.e, fit.errE, 6),
+          lattice: fmtPM(fit.e, fit.errE, 6, fit.covSingular),
           physical: "-",
           reference: `Lüscher π/12=${eRef.toFixed(6)} | Δ=${fmtMaybe(eDelta, 6)}${Number.isFinite(ePull) ? ` (${fmtMaybe(ePull, 2)}σ)` : ""}`,
           agreementLevel: eAgreement.level,
@@ -6058,8 +6135,8 @@
         },
         {
           param: "R_c/a",
-          lattice: fmtPM(rc, errRc, 4),
-          physical: hasAFm && Number.isFinite(rc) ? fmtPM(rc * aFm, Number.isFinite(errRc) ? errRc * aFm : NaN, 4) + " fm" : "-",
+          lattice: fmtPM(rc, errRc, 4, fit.covSingular),
+          physical: hasAFm && Number.isFinite(rc) ? fmtPM(rc * aFm, Number.isFinite(errRc) ? errRc * aFm : NaN, 4, fit.covSingular) + " fm" : "-",
           reference: "R_c = sqrt(e/sigma), with V(R)=V0+sigma*R-e/R",
           agreementLevel: "na",
           agreementText: "n/a",
@@ -6090,8 +6167,8 @@
         },
         {
           param: "V₀",
-          lattice: fmtPM(fit.V0, fit.errV0, 6),
-          physical: hasAFm ? `${fmtPM(v0GeV, v0GeVErr, 6)} GeV` : "set a(fm)",
+          lattice: fmtPM(fit.V0, fit.errV0, 6, fit.covSingular),
+          physical: hasAFm ? `${fmtPM(v0GeV, v0GeVErr, 6, fit.covSingular)} GeV` : "set a(fm)",
           reference: "additive constant",
           agreementLevel: "na",
           agreementText: "n/a",
@@ -6107,7 +6184,7 @@
         {
           param: "Fixed e=π/12 test",
           lattice: fitFixed
-            ? `free χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(3) : "-"}, fixed=${Number.isFinite(fitFixed.chi2dof) ? fitFixed.chi2dof.toFixed(3) : "-"}`
+            ? `σ=${fmtPM(fitFixed.sigma, fitFixed.errSigma, 6, fitFixed.covSingular)}, V₀=${fmtPM(fitFixed.V0, fitFixed.errV0, 6, fitFixed.covSingular)} | free χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(3) : "-"}, fixed=${Number.isFinite(fitFixed.chi2dof) ? fitFixed.chi2dof.toFixed(3) : "-"}`
             : "fixed fit unavailable",
           physical: Number.isFinite(deltaAIC) ? `ΔAIC=${deltaAIC.toFixed(3)} (fixed-free)` : "-",
           reference: "AIC comparison with fixed Lüscher term",
@@ -6121,15 +6198,15 @@
         ? (fit.sigma / fit.errSigma)
         : NaN;
       let vLevel = "red";
-      let vText = `Cornell fit weak: σ=${fmtPM(fit.sigma, fit.errSigma, 4)}, χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
+      let vText = `Cornell fit weak: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)}, χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
       if (fit.sigma > 0 && Number.isFinite(sigmaPull) && sigmaPull >= 3.0 && Number.isFinite(fit.chi2dof) && fit.chi2dof <= 3.0) {
         vLevel = "green";
-        vText = `Confining signal detected: σ=${fmtPM(fit.sigma, fit.errSigma, 4)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${fit.chi2dof.toFixed(2)}.`;
+        vText = `Confining signal detected: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${fit.chi2dof.toFixed(2)}.`;
       } else if (fit.sigma > 0 && Number.isFinite(sigmaPull) && sigmaPull >= 1.5) {
         vLevel = "yellow";
-        vText = `Confining trend forming: σ=${fmtPM(fit.sigma, fit.errSigma, 4)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
+        vText = `Confining trend forming: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
       } else if (fit.sigma <= 0) {
-        vText = `Non-confining fit at current stats: σ=${fmtPM(fit.sigma, fit.errSigma, 4)}.`;
+        vText = `Non-confining fit at current stats: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)}.`;
       }
       if (!potentialStability.reliable) {
         vLevel = potentialStability.level || "yellow";
@@ -6142,7 +6219,7 @@
       potentialCompareRows.push({
         domain: "Potential",
         observable: "e in V(R)=V0+sigma*R-e/R",
-        measured: fmtPM(fit.e, fit.errE, 6),
+        measured: fmtPM(fit.e, fit.errE, 6, fit.covSingular),
         target: `π/12 = ${eRef.toFixed(6)}`,
         refs: ["luscher_1981"],
         agreementLevel: eAgreement.level,
@@ -6152,7 +6229,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "sigma in V(R)=V0+sigma*R-e/R",
-          measured: `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6)} GeV²`,
+          measured: `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6, fit.covSingular)} GeV²`,
           target: `${fmtPM(sigmaRefGeV2, sigmaRefGeV2Err, 6)} GeV² (SU(3) benchmark)`,
           refs: ["necco_sommer_2002"],
           agreementLevel: sigmaAgreement.level,
@@ -6163,7 +6240,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "√σ",
-          measured: `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1)} MeV`,
+          measured: `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1, fit.covSingular)} MeV`,
           target: `${fmtPM(sqrtSigmaRefMeV, sqrtSigmaRefMeVErr, 1)} MeV (SU(3) benchmark)`,
           refs: ["necco_sommer_2002"],
           agreementLevel: sqrtSigmaAgreement.level,
@@ -6174,7 +6251,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "a√σ",
-          measured: fmtPM(aSqrtSigma, errASqrtSigma, 6),
+          measured: fmtPM(aSqrtSigma, errASqrtSigma, 6, fit.covSingular),
           target: fmtPM(aSqrtSigmaRef, aSqrtSigmaRefErr, 6),
           refs: ["necco_sommer_2002"],
           agreementLevel: aSqrtSigmaAgreement.level,
