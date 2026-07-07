@@ -574,15 +574,21 @@
 
             }
 
-            // Probe direction arrows from center
+            // Probe direction arrows from center. These must lie INSIDE the
+            // kept 1/24 wedge (dx+dy>=0, dx>=dy, dy+dz>=0, dy>=dz), otherwise
+            // the arrows point into the symmetry-removed region and probes
+            // sampled along them miss the stored fundamental domain. The
+            // in-wedge representatives (verified against the full T_d orbit):
+            // vertex (1,1,-1) = toward Q2(d,d,0); edge midpoint (1,0,0) =
+            // Q2-Q3 edge; face center (1,1,1) = Q2Q3Q4 face.
             if (symStepVal >= 3) {
-                // Vertex direction: (-1,-1,-1)
                 const arrowLen = D / 2;
-                scene.add(makeLine(tetCenter, [tetCenter[0] - arrowLen, tetCenter[1] - arrowLen, tetCenter[2] - arrowLen], 0xff4444, 2));
-                // Edge midpoint: (0,0,-1)
-                scene.add(makeLine(tetCenter, [tetCenter[0], tetCenter[1], tetCenter[2] - arrowLen], 0x44ff44, 2));
-                // Face center: (1,-1,-1)
-                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] - arrowLen, tetCenter[2] - arrowLen], 0x4444ff, 2));
+                // Vertex direction: (1,1,-1)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] + arrowLen, tetCenter[2] - arrowLen], 0xff4444, 2));
+                // Edge midpoint: (1,0,0)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1], tetCenter[2]], 0x44ff44, 2));
+                // Face center: (1,1,1)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] + arrowLen, tetCenter[2] + arrowLen], 0x4444ff, 2));
             }
 
             return { scene, count: keptCount, outsideKept, total: totalCount, target: new THREE.Vector3(D / 2, D / 2, D / 2), stepLabel: stepLabels[symStepVal] };

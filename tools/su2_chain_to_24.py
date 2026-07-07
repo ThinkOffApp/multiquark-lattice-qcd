@@ -84,8 +84,12 @@ def build_job(seed, next_seed, ckpt, out_dir: Path):
         str(flux_t),
         "--flux-rperp-max",
         str(flux_r_perp_max),
+        # 0 = do not dump per-measurement configs. Each 24^4 config is
+        # ~96 MB (single) / ~191 MB (double); at save-every-1 a 4-seed x200
+        # chain writes 76-153 GB and fills the disk mid-run. Resume works via
+        # the bounded checkpoint_<seed>.cfg (fixed name, overwritten).
         "--save-cfg-every",
-        "1",
+        "0",
         "--checkpoint-every",
         "20",
         "--resume",

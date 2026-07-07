@@ -1316,13 +1316,29 @@
       <div class="chart-card">
         <div class="row">
           <div class="metric-title">Selected Wilson Loop (Re)</div>
-          <div class="hint" id="loopKeyLabel">key: -</div>
+          <div class="hint">
+            R <select id="rSelector" title="Shared R for both the Wilson-loop and plateau panels"></select>
+            <label title="Plot log10 |Re W| — an exponentially small loop reads as a line instead of sitting on zero"><input
+                type="checkbox" id="loopLogY" style="vertical-align: middle;"> log y</label>
+            <span id="loopKeyLabel">key: -</span>
+          </div>
         </div>
         <canvas id="loopCanvas" width="560" height="220"></canvas>
         <div class="hint" id="loopAxes">x: measurement index, y: running mean of Re W(R,T) for selected key</div>
         <div id="loopSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
             class="signal-text">Waiting for loop history...</span></div>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="row">
+        <div class="metric-title">Effective Potential Plateau — V_eff(R,T) for selected R</div>
+        <div class="hint" id="plateauLabel">R: -</div>
+      </div>
+      <canvas id="plateauCanvas" width="1140" height="260"></canvas>
+      <div class="hint" id="plateauAxes">x: T (lattice units), y: V_eff(R,T)=−ln[W(R,T+1)/W(R,T)]; blue line + shaded band = fitted plateau ±1σ (the V(R) point this R contributes)</div>
+      <div id="plateauSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+          class="signal-text">Waiting for effective-mass plateau...</span></div>
     </div>
 
     <div class="chart-card">
@@ -1418,6 +1434,9 @@
     const defaultAFm = 0.119;
     let paused = false;
     let loopKey = null;
+    let selectedR = null;         // shared R for the Wilson-loop + plateau panels
+    let rSelectorFilled = "";     // signature of Rs currently in the selector
+    let lastLive = null;          // last live payload, for instant re-render on R change
     let eventSource = null;
     let usingStream = false;
     let lastStreamAt = 0;
@@ -3674,6 +3693,7 @@
     }
 
     function drawXYError(canvasId, xs, ys, es, color = "#f38ba8", opts = {}) {
+      let bandDrawn = false;
       const c = document.getElementById(canvasId);
       const ctx = c.getContext("2d");
       const w = c.width, h = c.height;
@@ -3701,14 +3721,14 @@
         } else {
           ctx.fillText("Not enough V(R) points yet", 18, 28);
         }
-        if (extraPts.length === 0) return;
+        if (extraPts.length === 0) return { bandDrawn };
       }
       if (pts.length === 0 && extraPts.length > 0) {
         // Use provisional points as the plotting anchor when no primary points are available.
         for (const p of extraPts) pts.push({ x: p.x, y: p.y, e: p.e });
       }
       if (pts.length < 1) {
-        return;
+        return { bandDrawn };
       }
 
       const allPlotPts = [...pts, ...extraPts];
@@ -3746,6 +3766,7 @@
       }
 
       const fitFn = typeof opts.fitFn === "function" ? opts.fitFn : null;
+      const fitErrFn = typeof opts.fitErrFn === "function" ? opts.fitErrFn : null;
       if (fitFn) {
         const fitPts = [];
         const span = Math.max(1, 4 * pts.length);
@@ -3753,6 +3774,49 @@
           const x = minX + (i / span) * (maxX - minX);
           const y = fitFn(x);
           if (Number.isFinite(y)) fitPts.push({ x, y });
+        }
+        if (fitErrFn && fitPts.length >= 2) {
+          const bandPts = fitPts
+            .map((p) => ({ x: p.x, y: p.y, e: Number(fitErrFn(p.x)) }))
+            .filter((p) => Number.isFinite(p.e) && p.e >= 0);
+          if (bandPts.length >= 2) {
+            // Clip to the plot rect: the band may diverge (e.g. ~1/R near R->0)
+            // and must not stretch the y-scale chosen from the data points.
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(padL, padT, iw, ih);
+            ctx.clip();
+            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.26)";
+            ctx.beginPath();
+            bandPts.forEach((p, i) => {
+              const x = mapX(p.x);
+              const y = mapY(p.y + p.e);
+              if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            for (let i = bandPts.length - 1; i >= 0; i -= 1) {
+              const p = bandPts[i];
+              ctx.lineTo(mapX(p.x), mapY(p.y - p.e));
+            }
+            ctx.closePath();
+            ctx.fill();
+            // Edge lines keep a tight band visible even when the 1σ width
+            // shrinks below a couple of pixels (high-stats runs).
+            ctx.strokeStyle = opts.bandEdgeColor || "rgba(82, 173, 255, 0.6)";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 4]);
+            for (const sign of [1, -1]) {
+              ctx.beginPath();
+              bandPts.forEach((p, i) => {
+                const x = mapX(p.x);
+                const y = mapY(p.y + sign * p.e);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              });
+              ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.restore();
+            bandDrawn = true;
+          }
         }
         if (fitPts.length >= 2) {
           ctx.strokeStyle = opts.fitColor || "rgba(82, 173, 255, 0.92)";
@@ -3818,6 +3882,7 @@
       });
       ctx.fillText(minY.toExponential(3), 6, h - 8);
       ctx.fillText(maxY.toExponential(3), 6, 16);
+      return { bandDrawn };
     }
 
     function drawXYLine(canvasId, xs, ys, opts = {}) {
@@ -4581,8 +4646,9 @@
       };
     }
 
-    function fmtPM(v, e, digits = 6) {
+    function fmtPM(v, e, digits = 6, singular = false) {
       const vv = Number.isFinite(v) ? v.toFixed(digits) : "-";
+      if (singular) return `${vv} ± n/a (singular cov)`;
       const ee = Number.isFinite(e) ? e.toFixed(digits) : "-";
       return `${vv} ± ${ee}`;
     }
@@ -4657,14 +4723,16 @@
       const chi2dof = Number(fit?.chi2dof);
       const poorChi2 = Number.isFinite(chi2dof) && chi2dof > 4.0;
       const lowStats = Number(pot?.ncfg) < 16;
+      const covSingular = !!fit?.covSingular;
 
       const details = [];
       if (lowStats) details.push(`low stats (N=${pot?.ncfg || 0})`);
       if (poorChi2) details.push(`Cornell χ²/dof=${chi2dof.toFixed(2)}`);
+      if (covSingular) details.push("singular fit covariance (parameter errors n/a)");
       if (nTFits > 0 && fracMixed >= 0.5) details.push(`mixed-sign T-fits ${nMixed}/${nTFits}`);
       if (nTFits > 0 && fracInflated >= 0.5) details.push(`inflated sem ${nInflated}/${nTFits}`);
 
-      const reliable = !lowStats && !poorChi2 && fracMixed < 0.5 && fracInflated < 0.5;
+      const reliable = !lowStats && !poorChi2 && !covSingular && fracMixed < 0.5 && fracInflated < 0.5;
       if (reliable) return { reliable: true, level: "green", reason: "stable", details };
       return {
         reliable: false,
@@ -4786,9 +4854,24 @@
       }
       const dof = pts.length - 3;
       const cov = invert3(M);
+      const covOk = !!cov && [0, 1, 2].every(
+        (i) => Number.isFinite(cov[i][i]) && cov[i][i] >= 0,
+      );
       const errV0 = cov && Number.isFinite(cov[0][0]) ? Math.sqrt(Math.max(0, cov[0][0])) : NaN;
       const errSigma = cov && Number.isFinite(cov[1][1]) ? Math.sqrt(Math.max(0, cov[1][1])) : NaN;
       const errE = cov && Number.isFinite(cov[2][2]) ? Math.sqrt(Math.max(0, cov[2][2])) : NaN;
+      // 1σ error of V(R) from full parameter covariance: var = g·Cov·g, g = dV/dp = [1, R, -1/R]
+      const fitErrFn = covOk
+        ? (R) => {
+          if (!(Number.isFinite(R) && R > 0)) return NaN;
+          const g = [1.0, R, -1.0 / R];
+          let v = 0.0;
+          for (let i = 0; i < 3; i += 1) {
+            for (let j = 0; j < 3; j += 1) v += g[i] * cov[i][j] * g[j];
+          }
+          return v > 0 ? Math.sqrt(v) : 0.0;
+        }
+        : null;
 
       return {
         V0,
@@ -4797,11 +4880,14 @@
         errV0,
         errSigma,
         errE,
+        cov,
+        covSingular: !covOk,
         chi2,
         dof,
         chi2dof: dof > 0 ? (chi2 / dof) : NaN,
         n: pts.length,
         fitFn: (R) => V0 + sigma * R - e / R,
+        fitErrFn,
       };
     }
 
@@ -4848,8 +4934,23 @@
       }
       const dof = pts.length - 2;
       const cov = invert2(M);
+      const covOk = !!cov && [0, 1].every(
+        (i) => Number.isFinite(cov[i][i]) && cov[i][i] >= 0,
+      );
       const errV0 = cov && Number.isFinite(cov[0][0]) ? Math.sqrt(Math.max(0, cov[0][0])) : NaN;
       const errSigma = cov && Number.isFinite(cov[1][1]) ? Math.sqrt(Math.max(0, cov[1][1])) : NaN;
+      // 1σ error of V(R) with e fixed: var = g·Cov·g, g = dV/dp = [1, R]
+      const fitErrFn = covOk
+        ? (R) => {
+          if (!(Number.isFinite(R) && R > 0)) return NaN;
+          const g = [1.0, R];
+          let v = 0.0;
+          for (let i = 0; i < 2; i += 1) {
+            for (let j = 0; j < 2; j += 1) v += g[i] * cov[i][j] * g[j];
+          }
+          return v > 0 ? Math.sqrt(v) : 0.0;
+        }
+        : null;
       return {
         V0,
         sigma,
@@ -4857,6 +4958,8 @@
         errV0,
         errSigma,
         errE: 0.0,
+        cov,
+        covSingular: !covOk,
         chi2,
         dof,
         chi2dof: dof > 0 ? (chi2 / dof) : NaN,
@@ -4864,6 +4967,7 @@
         k: 2,
         aic: chi2 + 2 * 2,
         fitFn: (R) => V0 + sigma * R - eFixed / R,
+        fitErrFn,
       };
     }
 
@@ -5823,8 +5927,11 @@
         drawOpts.fitFn = fit.fitFn;
         drawOpts.fitColor = "rgba(82, 173, 255, 0.95)";
         drawOpts.fitWidth = 2;
+        if (typeof fit.fitErrFn === "function") {
+          drawOpts.fitErrFn = fit.fitErrFn;
+        }
       }
-      drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
+      const vDraw = drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
       const modeText = pot.mode === "legacy_filter"
         ? "legacy filtered per-sample log ratio"
         : (pot.selection === "per_r_t_log_fit"
@@ -5847,6 +5954,9 @@
           `V(R) from -ln[W(R,${pot.t1})/W(R,${pot.t0})], N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
         document.getElementById("vAxes").textContent =
           `x: R (lattice units), y: V(R) = -ln[W(R,${pot.t1})/W(R,${pot.t0})]${extraPts.length > 0 ? ` | provisional gray points=${extraPts.length} (not used in fit)` : ""}`;
+      }
+      if (vDraw?.bandDrawn) {
+        document.getElementById("vAxes").textContent += " | shaded band = ±1σ from Cornell fit covariance";
       }
 
       const vrRows = [];
@@ -6026,15 +6136,15 @@
         },
         {
           param: "σ",
-          lattice: fmtPM(fit.sigma, fit.errSigma, 6),
-          physical: hasAFm ? `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6)} GeV²` : "set a(fm)",
+          lattice: fmtPM(fit.sigma, fit.errSigma, 6, fit.covSingular),
+          physical: hasAFm ? `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6, fit.covSingular)} GeV²` : "set a(fm)",
           reference: "Dimensionless a√σ comparison only",
           agreementLevel: sigmaAgreement.level,
           agreementText: sigmaAgreement.text,
         },
         {
           param: "a√σ",
-          lattice: fmtPM(aSqrtSigma, errASqrtSigma, 6),
+          lattice: fmtPM(aSqrtSigma, errASqrtSigma, 6, fit.covSingular),
           physical: hasAFm ? `ref≈${fmtMaybe(aSqrtSigmaRef, 6)} (from 440 MeV)` : "set a(fm)",
           reference: "dimensionless scaling check",
           agreementLevel: aSqrtSigmaAgreement.level,
@@ -6043,14 +6153,14 @@
         {
           param: "√σ",
           lattice: "-",
-          physical: hasAFm ? `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1)} MeV` : "set a(fm)",
+          physical: hasAFm ? `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1, fit.covSingular)} MeV` : "set a(fm)",
           reference: "Dimensionless a√σ comparison only",
           agreementLevel: sqrtSigmaAgreement.level,
           agreementText: sqrtSigmaAgreement.text,
         },
         {
           param: "e",
-          lattice: fmtPM(fit.e, fit.errE, 6),
+          lattice: fmtPM(fit.e, fit.errE, 6, fit.covSingular),
           physical: "-",
           reference: `Lüscher π/12=${eRef.toFixed(6)} | Δ=${fmtMaybe(eDelta, 6)}${Number.isFinite(ePull) ? ` (${fmtMaybe(ePull, 2)}σ)` : ""}`,
           agreementLevel: eAgreement.level,
@@ -6058,8 +6168,8 @@
         },
         {
           param: "R_c/a",
-          lattice: fmtPM(rc, errRc, 4),
-          physical: hasAFm && Number.isFinite(rc) ? fmtPM(rc * aFm, Number.isFinite(errRc) ? errRc * aFm : NaN, 4) + " fm" : "-",
+          lattice: fmtPM(rc, errRc, 4, fit.covSingular),
+          physical: hasAFm && Number.isFinite(rc) ? fmtPM(rc * aFm, Number.isFinite(errRc) ? errRc * aFm : NaN, 4, fit.covSingular) + " fm" : "-",
           reference: "R_c = sqrt(e/sigma), with V(R)=V0+sigma*R-e/R",
           agreementLevel: "na",
           agreementText: "n/a",
@@ -6090,8 +6200,8 @@
         },
         {
           param: "V₀",
-          lattice: fmtPM(fit.V0, fit.errV0, 6),
-          physical: hasAFm ? `${fmtPM(v0GeV, v0GeVErr, 6)} GeV` : "set a(fm)",
+          lattice: fmtPM(fit.V0, fit.errV0, 6, fit.covSingular),
+          physical: hasAFm ? `${fmtPM(v0GeV, v0GeVErr, 6, fit.covSingular)} GeV` : "set a(fm)",
           reference: "additive constant",
           agreementLevel: "na",
           agreementText: "n/a",
@@ -6107,7 +6217,7 @@
         {
           param: "Fixed e=π/12 test",
           lattice: fitFixed
-            ? `free χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(3) : "-"}, fixed=${Number.isFinite(fitFixed.chi2dof) ? fitFixed.chi2dof.toFixed(3) : "-"}`
+            ? `σ=${fmtPM(fitFixed.sigma, fitFixed.errSigma, 6, fitFixed.covSingular)}, V₀=${fmtPM(fitFixed.V0, fitFixed.errV0, 6, fitFixed.covSingular)} | free χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(3) : "-"}, fixed=${Number.isFinite(fitFixed.chi2dof) ? fitFixed.chi2dof.toFixed(3) : "-"}`
             : "fixed fit unavailable",
           physical: Number.isFinite(deltaAIC) ? `ΔAIC=${deltaAIC.toFixed(3)} (fixed-free)` : "-",
           reference: "AIC comparison with fixed Lüscher term",
@@ -6121,15 +6231,15 @@
         ? (fit.sigma / fit.errSigma)
         : NaN;
       let vLevel = "red";
-      let vText = `Cornell fit weak: σ=${fmtPM(fit.sigma, fit.errSigma, 4)}, χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
+      let vText = `Cornell fit weak: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)}, χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
       if (fit.sigma > 0 && Number.isFinite(sigmaPull) && sigmaPull >= 3.0 && Number.isFinite(fit.chi2dof) && fit.chi2dof <= 3.0) {
         vLevel = "green";
-        vText = `Confining signal detected: σ=${fmtPM(fit.sigma, fit.errSigma, 4)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${fit.chi2dof.toFixed(2)}.`;
+        vText = `Confining signal detected: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${fit.chi2dof.toFixed(2)}.`;
       } else if (fit.sigma > 0 && Number.isFinite(sigmaPull) && sigmaPull >= 1.5) {
         vLevel = "yellow";
-        vText = `Confining trend forming: σ=${fmtPM(fit.sigma, fit.errSigma, 4)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
+        vText = `Confining trend forming: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)} (${sigmaPull.toFixed(1)}σ), χ²/dof=${Number.isFinite(fit.chi2dof) ? fit.chi2dof.toFixed(2) : "-"}.`;
       } else if (fit.sigma <= 0) {
-        vText = `Non-confining fit at current stats: σ=${fmtPM(fit.sigma, fit.errSigma, 4)}.`;
+        vText = `Non-confining fit at current stats: σ=${fmtPM(fit.sigma, fit.errSigma, 4, fit.covSingular)}.`;
       }
       if (!potentialStability.reliable) {
         vLevel = potentialStability.level || "yellow";
@@ -6142,7 +6252,7 @@
       potentialCompareRows.push({
         domain: "Potential",
         observable: "e in V(R)=V0+sigma*R-e/R",
-        measured: fmtPM(fit.e, fit.errE, 6),
+        measured: fmtPM(fit.e, fit.errE, 6, fit.covSingular),
         target: `π/12 = ${eRef.toFixed(6)}`,
         refs: ["luscher_1981"],
         agreementLevel: eAgreement.level,
@@ -6152,7 +6262,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "sigma in V(R)=V0+sigma*R-e/R",
-          measured: `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6)} GeV²`,
+          measured: `${fmtPM(sigmaGeV2, sigmaGeV2Err, 6, fit.covSingular)} GeV²`,
           target: `${fmtPM(sigmaRefGeV2, sigmaRefGeV2Err, 6)} GeV² (SU(3) benchmark)`,
           refs: ["necco_sommer_2002"],
           agreementLevel: sigmaAgreement.level,
@@ -6163,7 +6273,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "√σ",
-          measured: `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1)} MeV`,
+          measured: `${fmtPM(sqrtSigmaMeV, sqrtSigmaMeVErr, 1, fit.covSingular)} MeV`,
           target: `${fmtPM(sqrtSigmaRefMeV, sqrtSigmaRefMeVErr, 1)} MeV (SU(3) benchmark)`,
           refs: ["necco_sommer_2002"],
           agreementLevel: sqrtSigmaAgreement.level,
@@ -6174,7 +6284,7 @@
         potentialCompareRows.push({
           domain: "Potential",
           observable: "a√σ",
-          measured: fmtPM(aSqrtSigma, errASqrtSigma, 6),
+          measured: fmtPM(aSqrtSigma, errASqrtSigma, 6, fit.covSingular),
           target: fmtPM(aSqrtSigmaRef, aSqrtSigmaRefErr, 6),
           refs: ["necco_sommer_2002"],
           agreementLevel: aSqrtSigmaAgreement.level,
@@ -6541,9 +6651,91 @@
       refreshThreadStatusTable(false);
     }
 
+    // V_eff(R,T) = -ln[W(R,T+1)/W(R,T)] for each adjacent T-pair at fixed R,
+    // reusing the same all-sample jackknife pair estimator the V(R) fit uses.
+    function computeVeffSeriesForR(ms, R, Ts) {
+      const out = [];
+      for (let i = 0; i + 1 < Ts.length; i += 1) {
+        const t0 = Ts[i];
+        const t1 = Ts[i + 1];
+        const st = allSampleRatioJackknifePairStats(ms, `R${R}_T${t0}`, `R${R}_T${t1}`, t1 - t0);
+        if (!st) continue;
+        const mean = Number(st.mean);
+        const sem = Number(st.sem);
+        if (Number.isFinite(mean) && Number.isFinite(sem) && sem >= 0) {
+          out.push({ t: t0, mean, sem });
+        }
+      }
+      return out;
+    }
+
+    // Draw the effective-potential plateau panel for the shared selectedR.
+    function renderPlateauPanel(ms, Rs, Ts) {
+      const rsWithData = Rs.filter((R) =>
+        ms.length > 0 && ms[0].loops && Object.keys(ms[0].loops).some((k) => k.startsWith(`R${R}_T`))
+      );
+      // populate the shared selector once per Rs-set change
+      const sig = rsWithData.join(",");
+      const sel = document.getElementById("rSelector");
+      if (sel && sig !== rSelectorFilled) {
+        sel.innerHTML = "";
+        for (const R of rsWithData) {
+          const o = document.createElement("option");
+          o.value = String(R);
+          o.textContent = `R=${R}`;
+          sel.appendChild(o);
+        }
+        rSelectorFilled = sig;
+      }
+      // default / validate selectedR
+      if (selectedR == null || !rsWithData.includes(Number(selectedR))) {
+        const fluxR = Number(currentMeta?.flux_r);
+        selectedR = rsWithData.includes(fluxR) ? fluxR : (rsWithData[0] ?? null);
+      }
+      if (sel && selectedR != null) sel.value = String(selectedR);
+
+      const R = Number(selectedR);
+      document.getElementById("plateauLabel").textContent = `R: ${Number.isFinite(R) ? R : "-"}`;
+      if (!Number.isFinite(R)) {
+        drawXYError("plateauCanvas", [], [], []);
+        setSignalNote("plateauSignal", "na", "No R with Wilson-loop data yet.");
+        return;
+      }
+
+      const series = computeVeffSeriesForR(ms, R, Ts);
+      const fit = fitPotentialFromLoopMeansInT(ms, R, Ts);
+      const xs = series.map((p) => p.t);
+      const ys = series.map((p) => p.mean);
+      const es = series.map((p) => p.sem);
+
+      const opts = {};
+      if (fit && Number.isFinite(fit.mean)) {
+        opts.fitFn = () => fit.mean;
+        if (Number.isFinite(fit.sem) && fit.sem >= 0) opts.fitErrFn = () => fit.sem;
+        opts.fitColor = "rgba(82, 173, 255, 0.92)";
+        opts.bandColor = "rgba(82, 173, 255, 0.20)";
+      }
+      drawXYError("plateauCanvas", xs, ys, es, "#f38ba8", opts);
+      document.getElementById("plateauAxes").textContent =
+        `x: T (lattice units), y: V_eff(R=${R},T)=−ln[W(R,T+1)/W(R,T)]; blue line + shaded band = fitted plateau ±1σ (the V(R=${R}) point)`;
+
+      if (!fit || !Number.isFinite(fit.mean)) {
+        setSignalNote("plateauSignal", "na", `Not enough T-points to fit a plateau at R=${R} yet (need ≥2 adjacent T-pairs).`);
+      } else {
+        const chi = Number(fit.chi2dof);
+        let level = "green";
+        if (fit.signMode === "mixed" || (Number.isFinite(chi) && chi > 4.0)) level = "red";
+        else if (Number.isFinite(chi) && chi > 2.0) level = "yellow";
+        const chiTxt = Number.isFinite(chi) ? chi.toFixed(2) : "-";
+        setSignalNote("plateauSignal", level,
+          `V(R=${R}) = ${fmtPM(fit.mean, fit.sem, 6)} from ${fit.plateauRef || "plateau fit"} · χ²/dof=${chiTxt}`);
+      }
+    }
+
     function renderLive(live, livePathHint = null) {
       const livePath = normalizePath(livePathHint || document.getElementById("livePath")?.value || "");
       live = applyCachedMeasurements(livePath, live);
+      lastLive = live;
       currentMeta = live && live.meta ? live.meta : null;
       if (currentMeta) {
         document.getElementById("paramL").textContent = fmtList(currentMeta.L);
@@ -6570,7 +6762,7 @@
       currentMeasurements = ms;
       const last = ms.length > 0 ? ms[ms.length - 1] : null;
       const dataSig = `${ms.length}:${last?.idx ?? -1}:${last?.cfg_idx ?? -1}:${last?.plaquette ?? "na"}:${currentMeta?.timestamp_utc ?? ""}`;
-      const renderSig = `${dataSig}:${document.getElementById("fluxDisplayMode").value}:${document.getElementById("fluxTailN").value}:${isLegacyFilterEnabled() ? 1 : 0}:${loopKey || ""}`;
+      const renderSig = `${dataSig}:${document.getElementById("fluxDisplayMode").value}:${document.getElementById("fluxTailN").value}:${isLegacyFilterEnabled() ? 1 : 0}:${loopKey || ""}:${selectedR ?? ""}:${document.getElementById("loopLogY")?.checked ? 1 : 0}`;
       if (renderSig === lastRenderSignature) return;
       lastRenderSignature = renderSig;
 
@@ -6612,6 +6804,23 @@
         setSignalNote("plaqSignal", plaqLevel, plaqText);
       }
 
+      // Shared R selector drives the loop key: keep the same R as the plateau
+      // panel, choosing the flux_t slice for that R if present, else its largest T.
+      if (selectedR != null && ms.length > 0 && ms[0].loops) {
+        const tPref = Number(live?.meta?.flux_t);
+        let chosenT = null;
+        if (`R${selectedR}_T${tPref}` in ms[0].loops) {
+          chosenT = tPref;
+        } else {
+          const tsForR = Object.keys(ms[0].loops)
+            .filter((k) => k.startsWith(`R${selectedR}_T`))
+            .map((k) => Number(k.split("_T")[1]))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b);
+          chosenT = tsForR.length ? tsForR[tsForR.length - 1] : null;
+        }
+        if (chosenT != null) loopKey = `R${selectedR}_T${chosenT}`;
+      }
       if (!loopKey && live && live.meta && live.meta.flux_r && live.meta.flux_t) {
         loopKey = `R${live.meta.flux_r}_T${live.meta.flux_t}`;
       }
@@ -6624,15 +6833,38 @@
         `x: measurement index, y: running mean of Re ${loopKey || "W(R,T)"}`;
       const loopVals = loopKey ? ms.map(x => (x.loops?.[loopKey]?.re ?? 0)) : [];
       const loopStats = runningMeanSem(loopVals);
-      drawSeries("loopCanvas", loopStats.mean, "#52adff", {
-        bandLow: loopStats.low,
-        bandHigh: loopStats.high,
-        bandColor: "rgba(82, 173, 255, 0.22)",
-        includeZero: true,
-        drawZeroLine: true,
-        xStartLabel: 1,
-        xEndLabel: loopStats.mean.length
-      });
+      const loopLogY = !!document.getElementById("loopLogY")?.checked;
+      if (loopLogY) {
+        // log10 |Re W|: an exponentially small loop reads as a line instead of
+        // sitting on zero. Clamp at the smallest positive |v| so sign flips /
+        // zeros (early noise) can't produce -Infinity; no SEM band in log mode
+        // (running-mean bands can cross zero, where log is undefined).
+        const absVals = loopStats.mean.map((v) => Math.abs(Number(v)));
+        const floor = Math.min(...absVals.filter((v) => Number.isFinite(v) && v > 0));
+        if (Number.isFinite(floor) && floor > 0) {
+          const logVals = absVals.map((v) => Math.log10(Math.max(v, floor)));
+          drawSeries("loopCanvas", logVals, "#52adff", {
+            xStartLabel: 1,
+            xEndLabel: logVals.length
+          });
+          document.getElementById("loopAxes").textContent =
+            `x: measurement index, y: log10 |running mean Re ${loopKey || "W(R,T)"}| (clamped at ${floor.toExponential(1)})`;
+        } else {
+          drawSeries("loopCanvas", [], "#52adff");
+          document.getElementById("loopAxes").textContent =
+            `x: measurement index, y: log10 |Re ${loopKey || "W(R,T)"}| — no nonzero samples yet`;
+        }
+      } else {
+        drawSeries("loopCanvas", loopStats.mean, "#52adff", {
+          bandLow: loopStats.low,
+          bandHigh: loopStats.high,
+          bandColor: "rgba(82, 173, 255, 0.22)",
+          includeZero: true,
+          drawZeroLine: true,
+          xStartLabel: 1,
+          xEndLabel: loopStats.mean.length
+        });
+      }
       const loopValsFinite = loopVals.map((x) => toFiniteNumber(x, NaN)).filter(Number.isFinite);
       if (!loopKey || loopValsFinite.length < 8) {
         setSignalNote("loopSignal", "na", `Need more loop samples for ${loopKey || "selected key"} (N=${loopValsFinite.length}).`);
@@ -6659,6 +6891,19 @@
           loopText = `${loopKey}: signal emerging, <ReW>=${fmtPM(st?.mean, st?.sem, 6)}, SNR=${snr.toFixed(2)}.`;
         }
         setSignalNote("loopSignal", loopLevel, loopText);
+      }
+
+      // Effective-potential plateau panel (shares selectedR with the loop panel).
+      {
+        const plateauRs = Array.isArray(currentMeta?.R)
+          ? currentMeta.R.map(Number).filter(Number.isFinite) : [];
+        const plateauTs = Array.isArray(currentMeta?.T)
+          ? currentMeta.T.map(Number).filter(Number.isFinite).sort((a, b) => a - b) : [];
+        try {
+          renderPlateauPanel(ms, plateauRs, plateauTs);
+        } catch (e) {
+          setSignalNote("plateauSignal", "na", `Plateau panel error: ${e.message}`);
+        }
       }
 
       const fluxView = buildFluxDisplaySeries(ms, currentMeta);
@@ -6953,6 +7198,19 @@
       if (!paused) startStream();
     });
 
+    document.getElementById("rSelector").addEventListener("change", (ev) => {
+      const v = Number(ev.target.value);
+      if (Number.isFinite(v)) {
+        selectedR = v;
+        loopKey = null; // force loopKey to re-derive from the new selectedR
+        if (lastLive) renderLive(lastLive);
+      }
+    });
+
+    document.getElementById("loopLogY").addEventListener("change", () => {
+      if (lastLive) renderLive(lastLive);
+    });
+
     document.getElementById("toggleBtn").addEventListener("click", () => {
       paused = !paused;
       document.getElementById("toggleBtn").textContent = paused ? "Resume" : "Pause";
@@ -7115,6 +7373,28 @@
             o.textContent = r.label;
             if (r.progress === current) o.selected = true;
             sel.appendChild(o);
+          }
+          // No run named in the URL and the default progress path missing on
+          // this server -> auto-select the newest run instead of a blank page.
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.get("seed") && !urlParams.get("progress")) {
+            let defaultOk = false;
+            try {
+              const head = await fetch(normalizePath(current), { method: "HEAD" });
+              defaultOk = head.ok;
+            } catch (e) { defaultOk = false; }
+            const runs = (data.runs || [])
+              .filter((r) => r && r.progress)
+              .sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0));
+            if (!defaultOk && runs.length > 0) {
+              const newest = runs[0];
+              document.getElementById("progressPath").value = newest.progress;
+              if (newest.live) document.getElementById("livePath").value = newest.live;
+              for (const o of sel.options) {
+                try { o.selected = JSON.parse(o.value || "{}").p === newest.progress; } catch (e) { /* keep */ }
+              }
+              document.getElementById("reloadBtn").click();
+            }
           }
         } catch (e) { /* picker is optional; manual paths still work */ }
       })();

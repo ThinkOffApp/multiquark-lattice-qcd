@@ -37,6 +37,39 @@ def clear_gpt_caches():
     default_staple_cache.clear()
     default_exp_cache.clear()
 
+    # The cshift plan cache (gpt.core.foundation.lattice.cshift_plans) was NOT
+    # cleared here — it caches a comm plan per (otype, grid, checkerboard, dir,
+    # offset). It is BOUNDED (str(grid) is dimension-based, offsets span R/T/
+    # r_perp), so it is not the unbounded per-substep leak, but on 24^4 each
+    # plan can hold a full-lattice halo buffer, so leaving it uncleared pins a
+    # few GB across a measurement. Clear it with the rest.
+    try:
+        from gpt.core.foundation.lattice import cshift_plans
+        cshift_plans.clear()
+    except Exception:
+        pass
+
+
+def maybe_mem_report(tag):
+    """Env-gated live-lattice census. Set SU2_MEM_REPORT=1 to print, per call,
+    every gpt-tracked lattice with its creation stack (via gpt.mem_report).
+
+    This is the diagnostic for the residual ~17MB/substep growth seen at 24^4
+    full-volume (which is NOT per-step churn — that is fixed — and NOT in the
+    Python accumulators, which hold only scalars). If the report's live-lattice
+    total CLIMBS across tdirs, the grower is a retained gpt lattice and its
+    creation stack names the exact line. If the report stays FLAT while RSS
+    climbs, the retention is below gpt — a cgpt/Grid mempool that never shrinks
+    — and the fix belongs in Grid allocator config, not this script.
+    """
+    if os.environ.get("SU2_MEM_REPORT", "") not in ("1", "true", "yes"):
+        return
+    try:
+        g.message(f"[mem_report] {tag}")
+        g.mem_report(details=False)
+    except Exception as e:
+        g.message(f"[mem_report] {tag} failed: {e}")
+
 
 def parse_list_int(value):
     return [int(x.strip()) for x in value.split(",") if x.strip()]
@@ -396,9 +429,24 @@ def make_progress_payload(
     return payload
 
 
+# When set (--gauge-gpu 1), pure-gauge heatbath sweeps run on the Metal GPU
+# via gpu-metal-wip/su2_hb_gpu.py: the field is packed to a GPU-resident
+# quaternion buffer, one full sweep (2 parities x mu_dirs) is dispatched as
+# Metal kernels, and the result is unpacked back into the gpt lattices so
+# measurements/checkpoints see an always-current field. Validated against
+# gpt's su2_heat_bath: staple parity 1.8e-06 (float32), independent chains
+# agree at 1.2 sigma on 8^4 beta=2.4 (gpu-metal-wip/su2_hb_validate.py).
+GPU_GEN = None
+
+
 def one_sweep(U_field, hb, action, mask, mask_rb, mu_dirs, step_cb=None):
     step_idx = 0
     step_total = max(1, 2 * len(mu_dirs))
+    if GPU_GEN is not None:
+        GPU_GEN.sweep(U_field, 1, float(action.beta), mu_dirs)
+        if step_cb is not None:
+            step_cb(step_total, step_total)
+        return
     for cb in [g.even, g.odd]:
         mask[:] = 0
         mask_rb.checkerboard(cb)
@@ -443,76 +491,135 @@ def iter_measurement_fields(U, time_dirs, smear_steps, smear_ops, smear_spatial_
             yield tdir, U_sm
 
 
-def wilson_loop_field(U, mu, L_mu, nu, L_nu):
-    """Return Tr[W(R,T)] as a lattice complex field (one value per site)."""
-    nd = len(U)
-    W = g.copy(U[mu])
-    for i in range(1, L_mu):
-        W = g(W * g.cshift(U[mu], mu, i))
-    for j in range(L_nu):
-        tmp = U[nu]
-        for d in range(nd):
-            s = (L_mu if d == mu else 0) + (j if d == nu else 0)
-            if s != 0:
-                tmp = g.cshift(tmp, d, s)
-        W = g(W * tmp)
-    for i in range(L_mu - 1, -1, -1):
-        tmp = g.adj(U[mu])
-        for d in range(nd):
-            s = (i if d == mu else 0) + (L_nu if d == nu else 0)
-            if s != 0:
-                tmp = g.cshift(tmp, d, s)
-        W = g(W * tmp)
-    for j in range(L_nu - 1, 0, -1):
-        W = g(W * g.cshift(g.adj(U[nu]), nu, j))
-    W = g(W * g.adj(U[nu]))
-    ndim = U[0].otype.shape[0]
-    return g(g.trace(W) / ndim)
+# ---------------------------------------------------------------------------
+# Memory-stable lattice workspace
+#
+# Every `g(expr)` / fresh-destination `g.cshift` allocates a full-lattice
+# field (~96-191 MB on 24^4 SU(3)); one 2x1-estimator measurement performs
+# thousands of such alloc/free cycles across the loop + flux functions.
+# Python frees the objects, but the churn retains/fragments memory below the
+# Python layer: the macOS compressor grows ~5 GB per single_measurement and
+# recovers only at process exit — gc.collect(), gpt cache clears and
+# GRID_ALLOC_NCACHE=0 all fail to reclaim it (measured on the 9101 run).
+# Reusing one fixed set of buffers makes steady-state per-measurement
+# allocation zero. Cost: ~5 matrix + 4 complex fields held for the process
+# lifetime (~1 GB on 24^4 SU(3) double) instead of unbounded growth.
+# ---------------------------------------------------------------------------
+
+class _LatticeWorkspace:
+    def __init__(self, template):
+        # matrix-typed: ping-pong accumulators, shift chain pair, adjoint hold
+        self.Wa = g.lattice(template)
+        self.Wb = g.lattice(template)
+        self.Ta = g.lattice(template)
+        self.Tb = g.lattice(template)
+        self.Adj = g.lattice(template)
+        # complex singlets: trace output, loop-field output (kept separate so
+        # a wilson_loop_trace call cannot clobber a live wilson_loop_field
+        # result), shift chain pair, product buffer
+        self.tr = g.complex(template.grid)
+        self.wf = g.complex(template.grid)
+        self.Ca = g.complex(template.grid)
+        self.Cb = g.complex(template.grid)
+        self.Cp = g.complex(template.grid)
 
 
-def wilson_loop_trace(U, mu, L_mu, nu, L_nu):
-    """Compute Tr[W(R,T)] averaged over the lattice using only g.cshift.
+_WORKSPACES = {}
 
-    Builds the closed rectangular path step-by-step so that at most two
-    full-lattice matrix fields are alive at any time (~40 MB for SU(2)
-    double on 24^4), avoiding the ~1 GB+ stencil allocations of
-    g.qcd.gauge.rectangle / parallel_transport_matrix.
+
+def _workspace(template):
+    key = id(template.grid)
+    ws = _WORKSPACES.get(key)
+    if ws is None:
+        ws = _LatticeWorkspace(template)
+        _WORKSPACES[key] = ws
+    return ws
+
+
+def _loop_matrix(U, mu, L_mu, nu, L_nu, ws):
+    """Closed R x T rectangle product, entirely inside ws buffers.
+
+    Identical leg order and shift decomposition to the historical
+    implementation, but every intermediate lands in a preallocated buffer.
+    Returns the ws matrix buffer holding W — valid until the next
+    _loop_matrix call on the same workspace.
     """
     nd = len(U)
+    state = {"W": ws.Wa, "spare": ws.Wb}
+    g.copy(state["W"], U[mu])
+
+    def mul(tmp):
+        g.eval(state["spare"], state["W"] * tmp)
+        state["W"], state["spare"] = state["spare"], state["W"]
+
+    def shifted_into(src, shift):
+        # chained cshift over dims (ascending, as before) via Ta/Tb ping-pong
+        cur, other = ws.Ta, ws.Tb
+        first = True
+        for d in range(nd):
+            s = shift[d]
+            if s != 0:
+                if first:
+                    g.cshift(cur, src, d, s)
+                    first = False
+                else:
+                    g.cshift(other, cur, d, s)
+                    cur, other = other, cur
+        return src if first else cur
+
     # Forward mu: L_mu steps
-    W = g.copy(U[mu])
     for i in range(1, L_mu):
-        W = g(W * g.cshift(U[mu], mu, i))
+        g.cshift(ws.Ta, U[mu], mu, i)
+        mul(ws.Ta)
     # Forward nu: L_nu steps
     for j in range(L_nu):
         shift = [0] * nd
         shift[mu] = L_mu
         shift[nu] = j
-        u_shifted = W  # will be overwritten
-        # Multi-dim shift via chained cshift
-        tmp = U[nu]
-        for d in range(nd):
-            if shift[d] != 0:
-                tmp = g.cshift(tmp, d, shift[d])
-        W = g(W * tmp)
-    # Backward mu: L_mu steps
+        mul(shifted_into(U[nu], shift))
+    # Backward mu: L_mu steps (adjoint held once in ws.Adj)
+    g.eval(ws.Adj, g.adj(U[mu]))
     for i in range(L_mu - 1, -1, -1):
         shift = [0] * nd
         shift[mu] = i
         shift[nu] = L_nu
-        tmp = g.adj(U[mu])
-        for d in range(nd):
-            if shift[d] != 0:
-                tmp = g.cshift(tmp, d, shift[d])
-        W = g(W * tmp)
+        mul(shifted_into(ws.Adj, shift))
     # Backward nu: L_nu steps
+    g.eval(ws.Adj, g.adj(U[nu]))
     for j in range(L_nu - 1, 0, -1):
-        tmp = g.cshift(g.adj(U[nu]), nu, j)
-        W = g(W * tmp)
-    W = g(W * g.adj(U[nu]))
+        g.cshift(ws.Ta, ws.Adj, nu, j)
+        mul(ws.Ta)
+    mul(ws.Adj)
+    return state["W"]
+
+
+def wilson_loop_field(U, mu, L_mu, nu, L_nu):
+    """Return Tr[W(R,T)] as a lattice complex field (one value per site).
+
+    NOTE: returns a shared workspace buffer — the result is valid until the
+    next wilson_loop_field/wilson_loop_trace call on the same grid.
+    """
+    ws = _workspace(U[0])
+    W = _loop_matrix(U, mu, L_mu, nu, L_nu, ws)
+    ndim = U[0].otype.shape[0]
+    g.eval(ws.wf, g.trace(W) / ndim)
+    return ws.wf
+
+
+def wilson_loop_trace(U, mu, L_mu, nu, L_nu):
+    """Compute Tr[W(R,T)] averaged over the lattice using only g.cshift.
+
+    Builds the closed rectangular path step-by-step inside the shared
+    preallocated workspace (see _LatticeWorkspace) so that per-call heap
+    allocation is zero after warmup — the previous fresh-lattice-per-step
+    variant retained ~5 GB per measurement below the Python layer.
+    """
+    ws = _workspace(U[0])
+    W = _loop_matrix(U, mu, L_mu, nu, L_nu, ws)
     # Trace and volume average
     ndim = U[0].otype.shape[0]
-    tr = g.sum(g.trace(W))
+    g.eval(ws.tr, g.trace(W))
+    tr = g.sum(ws.tr)
     return tr / W.grid.gsites / ndim
 
 
@@ -660,9 +767,20 @@ def measure_flux_profile_for_tdir(
         # Legacy per-config connected estimate (kept for back-compat output).
         profile_vals = [[] for _ in range(flux_r_perp_max + 1)]
 
+        ws = _workspace(U_use[0])
         for s_key, r_indices in shift_map.items():
-            p_shift = shifted(p_field, s_key)
-            wp = sampler.mean(w_field * p_shift)
+            # chained cshift of the (complex) probe field via workspace
+            # ping-pong buffers instead of a fresh lattice per hop
+            cur, other = ws.Ca, ws.Cb
+            src = p_field
+            for mu_s, s in enumerate(s_key):
+                if s != 0:
+                    g.cshift(cur, src, mu_s, s)
+                    src = cur
+                    cur, other = other, cur
+            p_shift = src
+            g.eval(ws.Cp, w_field * p_shift)
+            wp = sampler.mean(ws.Cp)
             wp_re = float(wp.real)
             connected = (wp / avg_w) - avg_p
             val = float(connected.real)
@@ -982,11 +1100,14 @@ def main():
 
     a_fm = g.default.get_float("--a-fm", 0.0)
     sample_sites = g.default.get_int("--sample-sites", 0)
-    save_cfg_every = g.default.get_int("--save-cfg-every", 1)
+    # Default 0: per-measurement config dumps are opt-in. At the old default
+    # of 1 a 24^4 chain writes ~96-191 MB per measurement and fills the disk.
+    save_cfg_every = g.default.get_int("--save-cfg-every", 0)
     checkpoint_every = g.default.get_int("--checkpoint-every", 20)
     progress_every = max(1, g.default.get_int("--progress-every", 20))
     progress_substep_min_interval = max(0.05, g.default.get_float("--progress-substep-min-interval-sec", 0.2))
     resume = g.default.get_int("--resume", 1) != 0
+    max_meas_per_run = g.default.get_int("--max-meas-per-run", 0)
     resume_force = g.default.get_int("--resume-force", 0) != 0
     skip_flux = g.default.get_int("--skip_flux", 0) != 0
     max_lag = max(10, g.default.get_int("--autocorr-max-lag", 200))
@@ -1301,9 +1422,17 @@ def main():
                         probe_field=unsmeared_probe,
                     )
                     flux_time_total += time.time() - t0_flux
-            # Free C++ lattice temporaries from smearing/loops/flux for this tdir
+            # Free C++ lattice temporaries from smearing/loops/flux for this tdir.
+            # clear_gpt_caches: the loop/flux stencil caches grow by tens of GB
+            # over one 24^4 measurement (4 tdirs x all R,T,orientation tags);
+            # clearing per tdir caps peak RSS at ~one tdir's working set
+            # (observed 90+ GB without this, which OOM-killed the runs and
+            # crashed the machine on Jul 5-6 2026).
             del U_use
+            maybe_mem_report(f"tdir={tdir} pre-clear")
+            clear_gpt_caches()
             gc.collect()
+            maybe_mem_report(f"tdir={tdir} post-clear")
 
         # Aggregate loops
         loops = {}
@@ -1408,10 +1537,23 @@ def main():
                         if progress_cb is not None:
                             progress_cb("multihit_temporal_sweeps", 1)
                 hits.append(single_measurement(U_hit, progress_cb=progress_cb))
+                # Clear stencil/transport caches AND run gc between every
+                # estimator sub-measurement, not just per-tdir. With 8x2
+                # averaging this loop runs 16x per stored config; without the
+                # clear here the caches + Grid buffers accumulate across the 16
+                # passes and macOS compresses the cold pages until memorystatus
+                # SIGKILLs the process (Jul 6 2026).
+                clear_gpt_caches()
                 gc.collect()
 
+            del U_hit
             blocks.append(mean_measurement_items(hits))
+            clear_gpt_caches()
+            gc.collect()
 
+        del U_block
+        clear_gpt_caches()
+        gc.collect()
         return mean_measurement_items(blocks)
 
     if resume and os.path.exists(checkpoint_file) and os.path.exists(checkpoint_cfg_file):
@@ -1516,6 +1658,27 @@ def main():
         checkpoint_every = 0
         save_cfg_every = 0
 
+    gauge_gpu = g.default.get_int("--gauge-gpu", 0) != 0
+    if gauge_gpu:
+        import hashlib
+
+        wip_dir = os.path.normpath(
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "gpu-metal-wip")
+        )
+        if wip_dir not in sys.path:
+            sys.path.insert(0, wip_dir)
+        from su2_hb_gpu import su2_gpu_generator
+
+        gen_seed = int.from_bytes(hashlib.sha256(f"{seed}:su2gen".encode()).digest()[:8], "little")
+        global GPU_GEN
+        GPU_GEN = su2_gpu_generator(U, seed=gen_seed, sweep_counter=sweeps_done)
+        RUN_COMPUTE_META["gauge_compute"] = "gpu-metal-heatbath"
+        RUN_COMPUTE_META["gauge_gpu_device"] = GPU_GEN.device_name
+        g.message(
+            f"Pure-gauge heatbath sweeps on GPU: {GPU_GEN.device_name} "
+            f"(rng seed {gen_seed}, sweep_counter start {sweeps_done})"
+        )
+
     write_live()
 
     write_json(
@@ -1541,6 +1704,7 @@ def main():
     therm_log_every = max(1, ntherm // 10)
     therm_done = therm_start
     meas_done = meas_start
+    early_exit_for_restart = False
     last_substep_progress_write = 0.0
     for i in range(therm_start, ntherm):
         substate = {"done": 0, "total": max(1, 2 * len(all_mu_dirs))}
@@ -1835,6 +1999,21 @@ def main():
             cfg_file = os.path.join(cfg_dir, f"cfg_{seed}_{i+1:05d}.cfg")
             g.save(cfg_file, U)
 
+        # Leak containment: Grid/gpt C++ memory grows across measurements even
+        # with per-tdir cache clearing (macOS compressor filled to ~76 GB and
+        # memorystatus SIGKILLed the run twice on Jul 6 2026 while RSS showed
+        # only ~28 GB). Every measurement is checkpointed, so exiting cleanly
+        # every N measurements and letting the supervisor (tools/su2_run_loop.sh)
+        # resume bounds the footprint with ~40 s restart overhead.
+        meas_this_run = (i + 1) - meas_start
+        if max_meas_per_run > 0 and meas_this_run >= max_meas_per_run and (i + 1) < nmeas:
+            g.message(
+                f"max-meas-per-run={max_meas_per_run} reached "
+                f"({meas_this_run} measurements this process); exiting for clean resume."
+            )
+            early_exit_for_restart = True
+            break
+
     if stop_requested:
         write_live()
         write_json(
@@ -1858,6 +2037,34 @@ def main():
         )
         save_checkpoint("interrupted", therm_done, meas_done)
         g.message("Interrupted; checkpoint saved.")
+        return
+
+    if early_exit_for_restart:
+        # Clean supervised-restart exit (leak containment). Do NOT fall through
+        # to the completion block below: on Jul 6 2026 that wrote a bogus
+        # "complete/200" checkpoint + final-results file from 6 measurements.
+        write_live()
+        write_json(
+            progress_file,
+            make_progress_payload(
+                seed=seed,
+                out_dir=out_dir,
+                phase="production",
+                ntherm=ntherm,
+                nmeas=nmeas,
+                therm_done=ntherm,
+                meas_done=meas_done,
+                sweeps_done=sweeps_done,
+                total_sweeps=total_sweeps,
+                elapsed_sec=time.time() - run_start,
+                last_plaquette=last_plaquette,
+                last_loop_re=last_loop_re,
+                last_flux0=last_flux0,
+                done=False,
+            ),
+        )
+        save_checkpoint("production", ntherm, meas_done)
+        g.message("Exiting for supervised restart; checkpoint saved.")
         return
 
     plaq_series = [m["plaquette"] for m in measurements]
