@@ -16,7 +16,7 @@
 #    with this program; if not, write to the Free Software Foundation, Inc.,
 #    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
-import resource, gpt, cgpt, os
+import resource, gpt, cgpt, os, sys
 
 
 class accelerator:
@@ -43,7 +43,10 @@ def mem_host_available():
 def mem_info():
     return {
         **{
-            "maxrss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024.0,
+            # ru_maxrss is kilobytes on Linux but BYTES on macOS (getrusage(2)),
+            # so the blanket *1024 inflated Darwin RSS 1024x in mem_report.
+            "maxrss": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+            * (1.0 if sys.platform == "darwin" else 1024.0),
             "host_available": mem_host_available(),
         },
         **cgpt.util_mem(),
