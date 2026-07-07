@@ -1,7 +1,7 @@
 # 4Q + Off-Axis Measurement Extension — Specification
 
-Status: DRAFT for review (requested by Petrus 2026-07-07: square R=2–8,
-tetrahedron with similar R's, off-axis 2Q). Gauge group: **SU(2)** throughout —
+Status: ACCEPTED by Petrus 2026-07-07 (decisions in §7); technical review by
+claudeMB pending on this PR. Gauge group: **SU(2)** throughout —
 same as the existing production pipeline and the PGM program this extends.
 Target lattice: 24⁴ at β=2.4 (dev runs on 16⁴/8⁴), on the existing
 generation → measurement → live-dashboard chain.
@@ -109,10 +109,21 @@ per-measurement envelope; flux phases dominate cost and get the 16×/24×
 wedge reduction. Run tiering follows the leak situation (2x1 now, 8x2 when
 the reuse-pool/census-v3 or process-split lands).
 
-## 7. Open questions for Petrus
+## 7. Decisions (Petrus, 2026-07-07, thinkoff-development)
 
-1. Off-axis classes: are (n,n,0), (n,n,n), (2n,n,0) the right set, or match
-   the exact list from the PGM papers?
-2. Square pairings: include the third (diagonal) pairing as a 3×3 matrix, or
-   keep PGM's 2×2?
-3. Priority: off-axis 2Q first (P1) or straight to square 4Q?
+1. **Off-axis classes: use the exact PGM set.** P1 starts by extracting the
+   off-axis separation class list from the PGM paper tables and encoding it as
+   the canonical `OFF_AXIS_CLASSES` constant (with a doc pointer to the source
+   table); the (n,n,0)/(n,n,n)/(2n,n,0) list in §2 is a placeholder until that
+   extraction and is replaced, not merged with it.
+2. **Square pairings: keep PGM's 2×2 basis.** No third (diagonal) pairing; the
+   omission stays a documented limitation as in §3.2.
+3. **Scope: all of it.** On-axis 2Q (existing) + off-axis 2Q + square + tetra
+   are all in scope — the P1→P4 order in §5 is a landing sequence, not a
+   selection.
+4. **GPU-resident throughout** ("implement all the listed measurements using
+   gpu fully"): every new measurement inner loop — staircase/connector path
+   products, 4Q contour traces, multilevel sub-averages — runs on the GPU
+   (Metal), same as the existing plaquette/Wilson-loop kernels. CPU is
+   orchestration, GEVP (closed-form 2×2), fits, and I/O only. The 8⁴ parity
+   gates in §5 compare GPU results against the slow CPU reference.
