@@ -37,6 +37,39 @@ def clear_gpt_caches():
     default_staple_cache.clear()
     default_exp_cache.clear()
 
+    # The cshift plan cache (gpt.core.foundation.lattice.cshift_plans) was NOT
+    # cleared here — it caches a comm plan per (otype, grid, checkerboard, dir,
+    # offset). It is BOUNDED (str(grid) is dimension-based, offsets span R/T/
+    # r_perp), so it is not the unbounded per-substep leak, but on 24^4 each
+    # plan can hold a full-lattice halo buffer, so leaving it uncleared pins a
+    # few GB across a measurement. Clear it with the rest.
+    try:
+        from gpt.core.foundation.lattice import cshift_plans
+        cshift_plans.clear()
+    except Exception:
+        pass
+
+
+def maybe_mem_report(tag):
+    """Env-gated live-lattice census. Set SU2_MEM_REPORT=1 to print, per call,
+    every gpt-tracked lattice with its creation stack (via gpt.mem_report).
+
+    This is the diagnostic for the residual ~17MB/substep growth seen at 24^4
+    full-volume (which is NOT per-step churn — that is fixed — and NOT in the
+    Python accumulators, which hold only scalars). If the report's live-lattice
+    total CLIMBS across tdirs, the grower is a retained gpt lattice and its
+    creation stack names the exact line. If the report stays FLAT while RSS
+    climbs, the retention is below gpt — a cgpt/Grid mempool that never shrinks
+    — and the fix belongs in Grid allocator config, not this script.
+    """
+    if os.environ.get("SU2_MEM_REPORT", "") not in ("1", "true", "yes"):
+        return
+    try:
+        g.message(f"[mem_report] {tag}")
+        g.mem_report(details=False)
+    except Exception as e:
+        g.message(f"[mem_report] {tag} failed: {e}")
+
 
 def parse_list_int(value):
     return [int(x.strip()) for x in value.split(",") if x.strip()]
@@ -1396,8 +1429,10 @@ def main():
             # (observed 90+ GB without this, which OOM-killed the runs and
             # crashed the machine on Jul 5-6 2026).
             del U_use
+            maybe_mem_report(f"tdir={tdir} pre-clear")
             clear_gpt_caches()
             gc.collect()
+            maybe_mem_report(f"tdir={tdir} post-clear")
 
         # Aggregate loops
         loops = {}
