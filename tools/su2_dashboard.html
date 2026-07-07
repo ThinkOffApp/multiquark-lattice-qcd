@@ -1316,13 +1316,27 @@
       <div class="chart-card">
         <div class="row">
           <div class="metric-title">Selected Wilson Loop (Re)</div>
-          <div class="hint" id="loopKeyLabel">key: -</div>
+          <div class="hint">
+            R <select id="rSelector" title="Shared R for both the Wilson-loop and plateau panels"></select>
+            <span id="loopKeyLabel">key: -</span>
+          </div>
         </div>
         <canvas id="loopCanvas" width="560" height="220"></canvas>
         <div class="hint" id="loopAxes">x: measurement index, y: running mean of Re W(R,T) for selected key</div>
         <div id="loopSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
             class="signal-text">Waiting for loop history...</span></div>
       </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="row">
+        <div class="metric-title">Effective Potential Plateau — V_eff(R,T) for selected R</div>
+        <div class="hint" id="plateauLabel">R: -</div>
+      </div>
+      <canvas id="plateauCanvas" width="1140" height="260"></canvas>
+      <div class="hint" id="plateauAxes">x: T (lattice units), y: V_eff(R,T)=−ln[W(R,T+1)/W(R,T)]; blue line + shaded band = fitted plateau ±1σ (the V(R) point this R contributes)</div>
+      <div id="plateauSignal" class="signal-note"><span class="agreement-pill agreement-na">n/a</span><span
+          class="signal-text">Waiting for effective-mass plateau...</span></div>
     </div>
 
     <div class="chart-card">
@@ -1418,6 +1432,9 @@
     const defaultAFm = 0.119;
     let paused = false;
     let loopKey = null;
+    let selectedR = null;         // shared R for the Wilson-loop + plateau panels
+    let rSelectorFilled = "";     // signature of Rs currently in the selector
+    let lastLive = null;          // last live payload, for instant re-render on R change
     let eventSource = null;
     let usingStream = false;
     let lastStreamAt = 0;
@@ -3767,7 +3784,7 @@
             ctx.beginPath();
             ctx.rect(padL, padT, iw, ih);
             ctx.clip();
-            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.16)";
+            ctx.fillStyle = opts.bandColor || "rgba(82, 173, 255, 0.26)";
             ctx.beginPath();
             bandPts.forEach((p, i) => {
               const x = mapX(p.x);
@@ -3780,6 +3797,21 @@
             }
             ctx.closePath();
             ctx.fill();
+            // Edge lines keep a tight band visible even when the 1σ width
+            // shrinks below a couple of pixels (high-stats runs).
+            ctx.strokeStyle = opts.bandEdgeColor || "rgba(82, 173, 255, 0.6)";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 4]);
+            for (const sign of [1, -1]) {
+              ctx.beginPath();
+              bandPts.forEach((p, i) => {
+                const x = mapX(p.x);
+                const y = mapY(p.y + sign * p.e);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+              });
+              ctx.stroke();
+            }
+            ctx.setLineDash([]);
             ctx.restore();
             bandDrawn = true;
           }
@@ -5895,7 +5927,6 @@
         drawOpts.fitWidth = 2;
         if (typeof fit.fitErrFn === "function") {
           drawOpts.fitErrFn = fit.fitErrFn;
-          drawOpts.bandColor = "rgba(82, 173, 255, 0.16)";
         }
       }
       const vDraw = drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
@@ -6618,9 +6649,91 @@
       refreshThreadStatusTable(false);
     }
 
+    // V_eff(R,T) = -ln[W(R,T+1)/W(R,T)] for each adjacent T-pair at fixed R,
+    // reusing the same all-sample jackknife pair estimator the V(R) fit uses.
+    function computeVeffSeriesForR(ms, R, Ts) {
+      const out = [];
+      for (let i = 0; i + 1 < Ts.length; i += 1) {
+        const t0 = Ts[i];
+        const t1 = Ts[i + 1];
+        const st = allSampleRatioJackknifePairStats(ms, `R${R}_T${t0}`, `R${R}_T${t1}`, t1 - t0);
+        if (!st) continue;
+        const mean = Number(st.mean);
+        const sem = Number(st.sem);
+        if (Number.isFinite(mean) && Number.isFinite(sem) && sem >= 0) {
+          out.push({ t: t0, mean, sem });
+        }
+      }
+      return out;
+    }
+
+    // Draw the effective-potential plateau panel for the shared selectedR.
+    function renderPlateauPanel(ms, Rs, Ts) {
+      const rsWithData = Rs.filter((R) =>
+        ms.length > 0 && ms[0].loops && Object.keys(ms[0].loops).some((k) => k.startsWith(`R${R}_T`))
+      );
+      // populate the shared selector once per Rs-set change
+      const sig = rsWithData.join(",");
+      const sel = document.getElementById("rSelector");
+      if (sel && sig !== rSelectorFilled) {
+        sel.innerHTML = "";
+        for (const R of rsWithData) {
+          const o = document.createElement("option");
+          o.value = String(R);
+          o.textContent = `R=${R}`;
+          sel.appendChild(o);
+        }
+        rSelectorFilled = sig;
+      }
+      // default / validate selectedR
+      if (selectedR == null || !rsWithData.includes(Number(selectedR))) {
+        const fluxR = Number(currentMeta?.flux_r);
+        selectedR = rsWithData.includes(fluxR) ? fluxR : (rsWithData[0] ?? null);
+      }
+      if (sel && selectedR != null) sel.value = String(selectedR);
+
+      const R = Number(selectedR);
+      document.getElementById("plateauLabel").textContent = `R: ${Number.isFinite(R) ? R : "-"}`;
+      if (!Number.isFinite(R)) {
+        drawXYError("plateauCanvas", [], [], []);
+        setSignalNote("plateauSignal", "na", "No R with Wilson-loop data yet.");
+        return;
+      }
+
+      const series = computeVeffSeriesForR(ms, R, Ts);
+      const fit = fitPotentialFromLoopMeansInT(ms, R, Ts);
+      const xs = series.map((p) => p.t);
+      const ys = series.map((p) => p.mean);
+      const es = series.map((p) => p.sem);
+
+      const opts = {};
+      if (fit && Number.isFinite(fit.mean)) {
+        opts.fitFn = () => fit.mean;
+        if (Number.isFinite(fit.sem) && fit.sem >= 0) opts.fitErrFn = () => fit.sem;
+        opts.fitColor = "rgba(82, 173, 255, 0.92)";
+        opts.bandColor = "rgba(82, 173, 255, 0.20)";
+      }
+      drawXYError("plateauCanvas", xs, ys, es, "#f38ba8", opts);
+      document.getElementById("plateauAxes").textContent =
+        `x: T (lattice units), y: V_eff(R=${R},T)=−ln[W(R,T+1)/W(R,T)]; blue line + shaded band = fitted plateau ±1σ (the V(R=${R}) point)`;
+
+      if (!fit || !Number.isFinite(fit.mean)) {
+        setSignalNote("plateauSignal", "na", `Not enough T-points to fit a plateau at R=${R} yet (need ≥2 adjacent T-pairs).`);
+      } else {
+        const chi = Number(fit.chi2dof);
+        let level = "green";
+        if (fit.signMode === "mixed" || (Number.isFinite(chi) && chi > 4.0)) level = "red";
+        else if (Number.isFinite(chi) && chi > 2.0) level = "yellow";
+        const chiTxt = Number.isFinite(chi) ? chi.toFixed(2) : "-";
+        setSignalNote("plateauSignal", level,
+          `V(R=${R}) = ${fmtPM(fit.mean, fit.sem, 6)} from ${fit.plateauRef || "plateau fit"} · χ²/dof=${chiTxt}`);
+      }
+    }
+
     function renderLive(live, livePathHint = null) {
       const livePath = normalizePath(livePathHint || document.getElementById("livePath")?.value || "");
       live = applyCachedMeasurements(livePath, live);
+      lastLive = live;
       currentMeta = live && live.meta ? live.meta : null;
       if (currentMeta) {
         document.getElementById("paramL").textContent = fmtList(currentMeta.L);
@@ -6689,6 +6802,23 @@
         setSignalNote("plaqSignal", plaqLevel, plaqText);
       }
 
+      // Shared R selector drives the loop key: keep the same R as the plateau
+      // panel, choosing the flux_t slice for that R if present, else its largest T.
+      if (selectedR != null && ms.length > 0 && ms[0].loops) {
+        const tPref = Number(live?.meta?.flux_t);
+        let chosenT = null;
+        if (`R${selectedR}_T${tPref}` in ms[0].loops) {
+          chosenT = tPref;
+        } else {
+          const tsForR = Object.keys(ms[0].loops)
+            .filter((k) => k.startsWith(`R${selectedR}_T`))
+            .map((k) => Number(k.split("_T")[1]))
+            .filter(Number.isFinite)
+            .sort((a, b) => a - b);
+          chosenT = tsForR.length ? tsForR[tsForR.length - 1] : null;
+        }
+        if (chosenT != null) loopKey = `R${selectedR}_T${chosenT}`;
+      }
       if (!loopKey && live && live.meta && live.meta.flux_r && live.meta.flux_t) {
         loopKey = `R${live.meta.flux_r}_T${live.meta.flux_t}`;
       }
@@ -6736,6 +6866,19 @@
           loopText = `${loopKey}: signal emerging, <ReW>=${fmtPM(st?.mean, st?.sem, 6)}, SNR=${snr.toFixed(2)}.`;
         }
         setSignalNote("loopSignal", loopLevel, loopText);
+      }
+
+      // Effective-potential plateau panel (shares selectedR with the loop panel).
+      {
+        const plateauRs = Array.isArray(currentMeta?.R)
+          ? currentMeta.R.map(Number).filter(Number.isFinite) : [];
+        const plateauTs = Array.isArray(currentMeta?.T)
+          ? currentMeta.T.map(Number).filter(Number.isFinite).sort((a, b) => a - b) : [];
+        try {
+          renderPlateauPanel(ms, plateauRs, plateauTs);
+        } catch (e) {
+          setSignalNote("plateauSignal", "na", `Plateau panel error: ${e.message}`);
+        }
       }
 
       const fluxView = buildFluxDisplaySeries(ms, currentMeta);
@@ -7030,6 +7173,15 @@
       if (!paused) startStream();
     });
 
+    document.getElementById("rSelector").addEventListener("change", (ev) => {
+      const v = Number(ev.target.value);
+      if (Number.isFinite(v)) {
+        selectedR = v;
+        loopKey = null; // force loopKey to re-derive from the new selectedR
+        if (lastLive) renderLive(lastLive);
+      }
+    });
+
     document.getElementById("toggleBtn").addEventListener("click", () => {
       paused = !paused;
       document.getElementById("toggleBtn").textContent = paused ? "Resume" : "Pause";
@@ -7192,6 +7344,28 @@
             o.textContent = r.label;
             if (r.progress === current) o.selected = true;
             sel.appendChild(o);
+          }
+          // No run named in the URL and the default progress path missing on
+          // this server -> auto-select the newest run instead of a blank page.
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.get("seed") && !urlParams.get("progress")) {
+            let defaultOk = false;
+            try {
+              const head = await fetch(normalizePath(current), { method: "HEAD" });
+              defaultOk = head.ok;
+            } catch (e) { defaultOk = false; }
+            const runs = (data.runs || [])
+              .filter((r) => r && r.progress)
+              .sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0));
+            if (!defaultOk && runs.length > 0) {
+              const newest = runs[0];
+              document.getElementById("progressPath").value = newest.progress;
+              if (newest.live) document.getElementById("livePath").value = newest.live;
+              for (const o of sel.options) {
+                try { o.selected = JSON.parse(o.value || "{}").p === newest.progress; } catch (e) { /* keep */ }
+              }
+              document.getElementById("reloadBtn").click();
+            }
           }
         } catch (e) { /* picker is optional; manual paths still work */ }
       })();
