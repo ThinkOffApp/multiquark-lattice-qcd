@@ -1318,6 +1318,8 @@
           <div class="metric-title">Selected Wilson Loop (Re)</div>
           <div class="hint">
             R <select id="rSelector" title="Shared R for both the Wilson-loop and plateau panels"></select>
+            <label title="Plot log10 |Re W| — an exponentially small loop reads as a line instead of sitting on zero"><input
+                type="checkbox" id="loopLogY" style="vertical-align: middle;"> log y</label>
             <span id="loopKeyLabel">key: -</span>
           </div>
         </div>
@@ -6760,7 +6762,7 @@
       currentMeasurements = ms;
       const last = ms.length > 0 ? ms[ms.length - 1] : null;
       const dataSig = `${ms.length}:${last?.idx ?? -1}:${last?.cfg_idx ?? -1}:${last?.plaquette ?? "na"}:${currentMeta?.timestamp_utc ?? ""}`;
-      const renderSig = `${dataSig}:${document.getElementById("fluxDisplayMode").value}:${document.getElementById("fluxTailN").value}:${isLegacyFilterEnabled() ? 1 : 0}:${loopKey || ""}`;
+      const renderSig = `${dataSig}:${document.getElementById("fluxDisplayMode").value}:${document.getElementById("fluxTailN").value}:${isLegacyFilterEnabled() ? 1 : 0}:${loopKey || ""}:${selectedR ?? ""}:${document.getElementById("loopLogY")?.checked ? 1 : 0}`;
       if (renderSig === lastRenderSignature) return;
       lastRenderSignature = renderSig;
 
@@ -6831,15 +6833,38 @@
         `x: measurement index, y: running mean of Re ${loopKey || "W(R,T)"}`;
       const loopVals = loopKey ? ms.map(x => (x.loops?.[loopKey]?.re ?? 0)) : [];
       const loopStats = runningMeanSem(loopVals);
-      drawSeries("loopCanvas", loopStats.mean, "#52adff", {
-        bandLow: loopStats.low,
-        bandHigh: loopStats.high,
-        bandColor: "rgba(82, 173, 255, 0.22)",
-        includeZero: true,
-        drawZeroLine: true,
-        xStartLabel: 1,
-        xEndLabel: loopStats.mean.length
-      });
+      const loopLogY = !!document.getElementById("loopLogY")?.checked;
+      if (loopLogY) {
+        // log10 |Re W|: an exponentially small loop reads as a line instead of
+        // sitting on zero. Clamp at the smallest positive |v| so sign flips /
+        // zeros (early noise) can't produce -Infinity; no SEM band in log mode
+        // (running-mean bands can cross zero, where log is undefined).
+        const absVals = loopStats.mean.map((v) => Math.abs(Number(v)));
+        const floor = Math.min(...absVals.filter((v) => Number.isFinite(v) && v > 0));
+        if (Number.isFinite(floor) && floor > 0) {
+          const logVals = absVals.map((v) => Math.log10(Math.max(v, floor)));
+          drawSeries("loopCanvas", logVals, "#52adff", {
+            xStartLabel: 1,
+            xEndLabel: logVals.length
+          });
+          document.getElementById("loopAxes").textContent =
+            `x: measurement index, y: log10 |running mean Re ${loopKey || "W(R,T)"}| (clamped at ${floor.toExponential(1)})`;
+        } else {
+          drawSeries("loopCanvas", [], "#52adff");
+          document.getElementById("loopAxes").textContent =
+            `x: measurement index, y: log10 |Re ${loopKey || "W(R,T)"}| — no nonzero samples yet`;
+        }
+      } else {
+        drawSeries("loopCanvas", loopStats.mean, "#52adff", {
+          bandLow: loopStats.low,
+          bandHigh: loopStats.high,
+          bandColor: "rgba(82, 173, 255, 0.22)",
+          includeZero: true,
+          drawZeroLine: true,
+          xStartLabel: 1,
+          xEndLabel: loopStats.mean.length
+        });
+      }
       const loopValsFinite = loopVals.map((x) => toFiniteNumber(x, NaN)).filter(Number.isFinite);
       if (!loopKey || loopValsFinite.length < 8) {
         setSignalNote("loopSignal", "na", `Need more loop samples for ${loopKey || "selected key"} (N=${loopValsFinite.length}).`);
@@ -7180,6 +7205,10 @@
         loopKey = null; // force loopKey to re-derive from the new selectedR
         if (lastLive) renderLive(lastLive);
       }
+    });
+
+    document.getElementById("loopLogY").addEventListener("change", () => {
+      if (lastLive) renderLive(lastLive);
     });
 
     document.getElementById("toggleBtn").addEventListener("click", () => {
