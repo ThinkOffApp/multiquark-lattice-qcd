@@ -575,6 +575,8 @@ inline void acceleratorPin(void *ptr,unsigned long bytes)
 NAMESPACE_END(Grid);
 #include <map>
 #include <mutex>
+#include <vector>
+#include <cstdlib>
 #include <Metal/Metal.h>
 #include <Foundation/Foundation.h>
 #include <dispatch/dispatch.h>
@@ -608,8 +610,43 @@ accelerator_inline int acceleratorSIMTlane(int Nsimd) { return 0; }
 
 typedef int acceleratorEvent_t;
 
+// Opt-in reuse pool for Metal buffers (GRID_METAL_BUFFER_REUSE=1).
+// Rationale: alloc/free churn of same-sized MTLBuffers goes through the Metal
+// driver's own page allocator, whose internal caching can retain cold pages
+// unboundedly (observed as monotonic compressed-footprint growth at 24^4 even
+// with MemoryManager's device cache bounded). Recycling freed buffers by exact
+// size keeps the buffer count at the working-set peak and stops driver churn.
+// Retained buffers are capped per size class (GRID_METAL_BUFFER_REUSE_MAX,
+// default 32); overflow releases to Metal as before.
+inline bool acceleratorMetalReuseEnabled(void) {
+  static const bool on = (getenv("GRID_METAL_BUFFER_REUSE") != NULL);
+  return on;
+}
+inline size_t acceleratorMetalReuseMax(void) {
+  static const size_t mx = getenv("GRID_METAL_BUFFER_REUSE_MAX")
+    ? (size_t)atoll(getenv("GRID_METAL_BUFFER_REUSE_MAX")) : 32;
+  return mx;
+}
+inline std::map<size_t, std::vector<void*>> &acceleratorMetalFreeList(void) {
+  static std::map<size_t, std::vector<void*>> freelist; // guarded by acceleratorMetalBufferMapMutex
+  return freelist;
+}
+
 inline void *acceleratorAllocShared(size_t bytes) {
   if (bytes == 0) return NULL;
+  if (acceleratorMetalReuseEnabled()) {
+    std::lock_guard<std::mutex> lk(acceleratorMetalBufferMapMutex);
+    auto &fl = acceleratorMetalFreeList();
+    auto it = fl.find(bytes);
+    if (it != fl.end() && !it->second.empty()) {
+      void *retained = it->second.back();
+      it->second.pop_back();
+      id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)retained;
+      void *ptr = [buffer contents];
+      acceleratorMetalBufferMap[ptr] = retained; // still retained from free time
+      return ptr;
+    }
+  }
   id<MTLBuffer> buffer = [theGridAcceleratorDevice newBufferWithLength:bytes options:MTLResourceStorageModeShared];
   void *ptr = [buffer contents];
   {
@@ -626,6 +663,15 @@ inline void acceleratorFreeShared(void *ptr) {
   std::lock_guard<std::mutex> lk(acceleratorMetalBufferMapMutex);
   auto it = acceleratorMetalBufferMap.find(ptr);
   if (it != acceleratorMetalBufferMap.end()) {
+    if (acceleratorMetalReuseEnabled()) {
+      id<MTLBuffer> buffer = (__bridge id<MTLBuffer>)it->second;
+      auto &slot = acceleratorMetalFreeList()[[buffer length]];
+      if (slot.size() < acceleratorMetalReuseMax()) {
+        slot.push_back(it->second); // keep the CFBridgingRetain reference alive
+        acceleratorMetalBufferMap.erase(it);
+        return;
+      }
+    }
     id<MTLBuffer> buffer = (id<MTLBuffer>)CFBridgingRelease(it->second);
     buffer = nil; // ARC releases it
     acceleratorMetalBufferMap.erase(it);
