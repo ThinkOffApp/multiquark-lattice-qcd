@@ -779,6 +779,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return out
 
     def handle_events(self, parsed):
+        # Dead-client guard: without a socket timeout, a vanished peer (sleeping
+        # laptop, dropped VPN) leaves this thread blocked in wfile.write holding
+        # a multi-MB payload while the browser's EventSource reconnect spawns
+        # another thread — threads + pinned buffers accumulate for the whole
+        # run. A timeout makes the write raise and the thread exit.
+        try:
+            self.connection.settimeout(30)
+        except Exception:
+            pass
         qs = parse_qs(parsed.query)
         progress_arg = qs.get("progress", ["/results/su2_signal_scan/progress_petrus-su2-signal.json"])[0]
         live_arg = qs.get("live", ["/results/su2_signal_scan/live_petrus-su2-signal.json"])[0]

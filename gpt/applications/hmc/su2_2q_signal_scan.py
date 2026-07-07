@@ -458,76 +458,135 @@ def iter_measurement_fields(U, time_dirs, smear_steps, smear_ops, smear_spatial_
             yield tdir, U_sm
 
 
-def wilson_loop_field(U, mu, L_mu, nu, L_nu):
-    """Return Tr[W(R,T)] as a lattice complex field (one value per site)."""
-    nd = len(U)
-    W = g.copy(U[mu])
-    for i in range(1, L_mu):
-        W = g(W * g.cshift(U[mu], mu, i))
-    for j in range(L_nu):
-        tmp = U[nu]
-        for d in range(nd):
-            s = (L_mu if d == mu else 0) + (j if d == nu else 0)
-            if s != 0:
-                tmp = g.cshift(tmp, d, s)
-        W = g(W * tmp)
-    for i in range(L_mu - 1, -1, -1):
-        tmp = g.adj(U[mu])
-        for d in range(nd):
-            s = (i if d == mu else 0) + (L_nu if d == nu else 0)
-            if s != 0:
-                tmp = g.cshift(tmp, d, s)
-        W = g(W * tmp)
-    for j in range(L_nu - 1, 0, -1):
-        W = g(W * g.cshift(g.adj(U[nu]), nu, j))
-    W = g(W * g.adj(U[nu]))
-    ndim = U[0].otype.shape[0]
-    return g(g.trace(W) / ndim)
+# ---------------------------------------------------------------------------
+# Memory-stable lattice workspace
+#
+# Every `g(expr)` / fresh-destination `g.cshift` allocates a full-lattice
+# field (~96-191 MB on 24^4 SU(3)); one 2x1-estimator measurement performs
+# thousands of such alloc/free cycles across the loop + flux functions.
+# Python frees the objects, but the churn retains/fragments memory below the
+# Python layer: the macOS compressor grows ~5 GB per single_measurement and
+# recovers only at process exit — gc.collect(), gpt cache clears and
+# GRID_ALLOC_NCACHE=0 all fail to reclaim it (measured on the 9101 run).
+# Reusing one fixed set of buffers makes steady-state per-measurement
+# allocation zero. Cost: ~5 matrix + 4 complex fields held for the process
+# lifetime (~1 GB on 24^4 SU(3) double) instead of unbounded growth.
+# ---------------------------------------------------------------------------
+
+class _LatticeWorkspace:
+    def __init__(self, template):
+        # matrix-typed: ping-pong accumulators, shift chain pair, adjoint hold
+        self.Wa = g.lattice(template)
+        self.Wb = g.lattice(template)
+        self.Ta = g.lattice(template)
+        self.Tb = g.lattice(template)
+        self.Adj = g.lattice(template)
+        # complex singlets: trace output, loop-field output (kept separate so
+        # a wilson_loop_trace call cannot clobber a live wilson_loop_field
+        # result), shift chain pair, product buffer
+        self.tr = g.complex(template.grid)
+        self.wf = g.complex(template.grid)
+        self.Ca = g.complex(template.grid)
+        self.Cb = g.complex(template.grid)
+        self.Cp = g.complex(template.grid)
 
 
-def wilson_loop_trace(U, mu, L_mu, nu, L_nu):
-    """Compute Tr[W(R,T)] averaged over the lattice using only g.cshift.
+_WORKSPACES = {}
 
-    Builds the closed rectangular path step-by-step so that at most two
-    full-lattice matrix fields are alive at any time (~40 MB for SU(2)
-    double on 24^4), avoiding the ~1 GB+ stencil allocations of
-    g.qcd.gauge.rectangle / parallel_transport_matrix.
+
+def _workspace(template):
+    key = id(template.grid)
+    ws = _WORKSPACES.get(key)
+    if ws is None:
+        ws = _LatticeWorkspace(template)
+        _WORKSPACES[key] = ws
+    return ws
+
+
+def _loop_matrix(U, mu, L_mu, nu, L_nu, ws):
+    """Closed R x T rectangle product, entirely inside ws buffers.
+
+    Identical leg order and shift decomposition to the historical
+    implementation, but every intermediate lands in a preallocated buffer.
+    Returns the ws matrix buffer holding W — valid until the next
+    _loop_matrix call on the same workspace.
     """
     nd = len(U)
+    state = {"W": ws.Wa, "spare": ws.Wb}
+    g.copy(state["W"], U[mu])
+
+    def mul(tmp):
+        g.eval(state["spare"], state["W"] * tmp)
+        state["W"], state["spare"] = state["spare"], state["W"]
+
+    def shifted_into(src, shift):
+        # chained cshift over dims (ascending, as before) via Ta/Tb ping-pong
+        cur, other = ws.Ta, ws.Tb
+        first = True
+        for d in range(nd):
+            s = shift[d]
+            if s != 0:
+                if first:
+                    g.cshift(cur, src, d, s)
+                    first = False
+                else:
+                    g.cshift(other, cur, d, s)
+                    cur, other = other, cur
+        return src if first else cur
+
     # Forward mu: L_mu steps
-    W = g.copy(U[mu])
     for i in range(1, L_mu):
-        W = g(W * g.cshift(U[mu], mu, i))
+        g.cshift(ws.Ta, U[mu], mu, i)
+        mul(ws.Ta)
     # Forward nu: L_nu steps
     for j in range(L_nu):
         shift = [0] * nd
         shift[mu] = L_mu
         shift[nu] = j
-        u_shifted = W  # will be overwritten
-        # Multi-dim shift via chained cshift
-        tmp = U[nu]
-        for d in range(nd):
-            if shift[d] != 0:
-                tmp = g.cshift(tmp, d, shift[d])
-        W = g(W * tmp)
-    # Backward mu: L_mu steps
+        mul(shifted_into(U[nu], shift))
+    # Backward mu: L_mu steps (adjoint held once in ws.Adj)
+    g.eval(ws.Adj, g.adj(U[mu]))
     for i in range(L_mu - 1, -1, -1):
         shift = [0] * nd
         shift[mu] = i
         shift[nu] = L_nu
-        tmp = g.adj(U[mu])
-        for d in range(nd):
-            if shift[d] != 0:
-                tmp = g.cshift(tmp, d, shift[d])
-        W = g(W * tmp)
+        mul(shifted_into(ws.Adj, shift))
     # Backward nu: L_nu steps
+    g.eval(ws.Adj, g.adj(U[nu]))
     for j in range(L_nu - 1, 0, -1):
-        tmp = g.cshift(g.adj(U[nu]), nu, j)
-        W = g(W * tmp)
-    W = g(W * g.adj(U[nu]))
+        g.cshift(ws.Ta, ws.Adj, nu, j)
+        mul(ws.Ta)
+    mul(ws.Adj)
+    return state["W"]
+
+
+def wilson_loop_field(U, mu, L_mu, nu, L_nu):
+    """Return Tr[W(R,T)] as a lattice complex field (one value per site).
+
+    NOTE: returns a shared workspace buffer — the result is valid until the
+    next wilson_loop_field/wilson_loop_trace call on the same grid.
+    """
+    ws = _workspace(U[0])
+    W = _loop_matrix(U, mu, L_mu, nu, L_nu, ws)
+    ndim = U[0].otype.shape[0]
+    g.eval(ws.wf, g.trace(W) / ndim)
+    return ws.wf
+
+
+def wilson_loop_trace(U, mu, L_mu, nu, L_nu):
+    """Compute Tr[W(R,T)] averaged over the lattice using only g.cshift.
+
+    Builds the closed rectangular path step-by-step inside the shared
+    preallocated workspace (see _LatticeWorkspace) so that per-call heap
+    allocation is zero after warmup — the previous fresh-lattice-per-step
+    variant retained ~5 GB per measurement below the Python layer.
+    """
+    ws = _workspace(U[0])
+    W = _loop_matrix(U, mu, L_mu, nu, L_nu, ws)
     # Trace and volume average
     ndim = U[0].otype.shape[0]
-    tr = g.sum(g.trace(W))
+    g.eval(ws.tr, g.trace(W))
+    tr = g.sum(ws.tr)
     return tr / W.grid.gsites / ndim
 
 
@@ -675,9 +734,20 @@ def measure_flux_profile_for_tdir(
         # Legacy per-config connected estimate (kept for back-compat output).
         profile_vals = [[] for _ in range(flux_r_perp_max + 1)]
 
+        ws = _workspace(U_use[0])
         for s_key, r_indices in shift_map.items():
-            p_shift = shifted(p_field, s_key)
-            wp = sampler.mean(w_field * p_shift)
+            # chained cshift of the (complex) probe field via workspace
+            # ping-pong buffers instead of a fresh lattice per hop
+            cur, other = ws.Ca, ws.Cb
+            src = p_field
+            for mu_s, s in enumerate(s_key):
+                if s != 0:
+                    g.cshift(cur, src, mu_s, s)
+                    src = cur
+                    cur, other = other, cur
+            p_shift = src
+            g.eval(ws.Cp, w_field * p_shift)
+            wp = sampler.mean(ws.Cp)
             wp_re = float(wp.real)
             connected = (wp / avg_w) - avg_p
             val = float(connected.real)
@@ -997,7 +1067,9 @@ def main():
 
     a_fm = g.default.get_float("--a-fm", 0.0)
     sample_sites = g.default.get_int("--sample-sites", 0)
-    save_cfg_every = g.default.get_int("--save-cfg-every", 1)
+    # Default 0: per-measurement config dumps are opt-in. At the old default
+    # of 1 a 24^4 chain writes ~96-191 MB per measurement and fills the disk.
+    save_cfg_every = g.default.get_int("--save-cfg-every", 0)
     checkpoint_every = g.default.get_int("--checkpoint-every", 20)
     progress_every = max(1, g.default.get_int("--progress-every", 20))
     progress_substep_min_interval = max(0.05, g.default.get_float("--progress-substep-min-interval-sec", 0.2))
