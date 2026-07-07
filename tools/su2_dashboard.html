@@ -7193,6 +7193,28 @@
             if (r.progress === current) o.selected = true;
             sel.appendChild(o);
           }
+          // No run named in the URL and the default progress path missing on
+          // this server -> auto-select the newest run instead of a blank page.
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.get("seed") && !urlParams.get("progress")) {
+            let defaultOk = false;
+            try {
+              const head = await fetch(normalizePath(current), { method: "HEAD" });
+              defaultOk = head.ok;
+            } catch (e) { defaultOk = false; }
+            const runs = (data.runs || [])
+              .filter((r) => r && r.progress)
+              .sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0));
+            if (!defaultOk && runs.length > 0) {
+              const newest = runs[0];
+              document.getElementById("progressPath").value = newest.progress;
+              if (newest.live) document.getElementById("livePath").value = newest.live;
+              for (const o of sel.options) {
+                try { o.selected = JSON.parse(o.value || "{}").p === newest.progress; } catch (e) { /* keep */ }
+              }
+              document.getElementById("reloadBtn").click();
+            }
+          }
         } catch (e) { /* picker is optional; manual paths still work */ }
       })();
     })();
