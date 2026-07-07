@@ -23,7 +23,7 @@ generation → measurement → live-dashboard chain.
 
 | Geometry | Positions | Scan | Point group | Reduction |
 |---|---|---|---|---|
-| off-axis 2Q | 0 → R⃗ for R⃗ classes (n,n,0), (n,n,n), (2n,n,0) | \|R\| ≤ ~8.5 | axial C₂ᵥ-type | orbit-avg |
+| off-axis 2Q | 0 → R⃗ for the canonical PGM class list (§8) | \|R\| ≤ ~8.5 | axial C₂ᵥ-type | orbit-avg |
 | square | (0,0,0),(d,0,0),(0,d,0),(d,d,0) | d = 2…8 | D₄h (order 16) | 1/16 |
 | tetra | (0,0,0),(d,d,0),(d,0,d),(0,d,d) | d = 2…6 | T_d (order 24) | 1/24 |
 
@@ -41,14 +41,25 @@ reduction helper must return `(site, weight)` pairs and a unit test must check
 ## 3. Operators
 
 ### 3.1 Off-axis 2Q
-Wilson loop with spatial legs built as canonical staircase paths
-(e.g. R⃗=(2,1,0): x,x,y — fixed lexicographic step order so the operator is
-well-defined and identical across translations). Same smearing (12-step
-spatial), same T set {1…6}, same V_eff plateau extraction as on-axis.
-Cubic-orbit averaging: measure all distinct orientations of each R⃗ class per
-time direction (e.g. (n,n,0): 12 orientations ÷ path-reversal symmetry) and
-average before the T-fit — same statistical role that time-direction
-averaging plays today.
+Wilson loop with spatial legs built as **PGM symmetrized paths** (corrected
+2026-07-08 — the earlier draft said "canonical staircase, fixed lexicographic
+order"; the PGM papers did not use a single staircase):
+
+- **Planar (x,y,0)**: equal-weight average of the two L-shaped routes,
+  P(x,y) = ½[P(a) + P(b)] (hep-lat/9404004 §3.1 fig. 2; identical statement
+  in hep-lat/9508002 §2).
+- **3D (x,y,z)**: symmetric cuboid-edge combination
+  P(x,y,z) = ⅓[P(x)P(yz) + P(y)P(xz) + P(z)P(xy)], each planar factor itself
+  the ½(a+b) L-average — effectively the 6 symmetric routes along cuboid
+  edges (hep-lat/9404004 §3.1; UKQCD hep-lat/9209007 used the same 2-/6-route
+  symmetric sums).
+
+Symmetrization keeps the operator invariant under the coordinate
+interchanges that fix R⃗ and improves ground-state overlap over any single
+staircase. Same smearing (12-step spatial), same T set {1…6}, same V_eff
+plateau extraction as on-axis. Cubic-orbit averaging on top: measure all
+distinct orientations of each R⃗ class per time direction and average before
+the T-fit — same statistical role that time-direction averaging plays today.
 
 ### 3.2 4Q correlation matrix (PGM formalism)
 Four static quarks admit two independent pairings into SU(2) singlets:
@@ -88,8 +99,9 @@ used the 2×2 basis and so do we (documented limitation).
 ## 5. Implementation plan (phased, each lands runnable)
 
 - **P1 — off-axis 2Q** (smallest diff, validates the path builder):
-  staircase spatial paths + orbit averaging + dashboard keys. Gate: off-axis
-  V(R) points lie on the Cornell fit through on-axis points within 2σ.
+  symmetrized L/cuboid spatial paths (§3.1) over the §8 class list + orbit
+  averaging + dashboard keys. Gate: off-axis V(R) points lie on the Cornell
+  fit through on-axis points within 2σ.
 - **P2 — square 4Q**: pairing connectors, 2×2 matrix, GEVP, binding output.
   Gate: at large pair separation the ground state → 2·V(d) within errors;
   W_AB → 0 as separation grows.
@@ -111,19 +123,64 @@ the reuse-pool/census-v3 or process-split lands).
 
 ## 7. Decisions (Petrus, 2026-07-07, thinkoff-development)
 
-1. **Off-axis classes: use the exact PGM set.** P1 starts by extracting the
-   off-axis separation class list from the PGM paper tables and encoding it as
-   the canonical `OFF_AXIS_CLASSES` constant (with a doc pointer to the source
-   table); the (n,n,0)/(n,n,n)/(2n,n,0) list in §2 is a placeholder until that
-   extraction and is replaced, not merged with it.
+1. **Off-axis classes: use the exact PGM set.** DONE 2026-07-08 — class list
+   extracted verbatim from the PGM/UKQCD paper tables (full provenance in
+   `docs/pgm_offaxis_extraction.md`) and encoded as the canonical list in §8;
+   the (n,n,0)/(n,n,n)/(2n,n,0) placeholder is replaced. The extraction also
+   corrected §3.1: PGM used symmetrized L-shaped / cuboid-edge paths, not a
+   lexicographic staircase.
 2. **Square pairings: keep PGM's 2×2 basis.** No third (diagonal) pairing; the
    omission stays a documented limitation as in §3.2.
 3. **Scope: all of it.** On-axis 2Q (existing) + off-axis 2Q + square + tetra
    are all in scope — the P1→P4 order in §5 is a landing sequence, not a
    selection.
 4. **GPU-resident throughout** ("implement all the listed measurements using
-   gpu fully"): every new measurement inner loop — staircase/connector path
+   gpu fully"): every new measurement inner loop — symmetrized/connector path
    products, 4Q contour traces, multilevel sub-averages — runs on the GPU
    (Metal), same as the existing plaquette/Wilson-loop kernels. CPU is
    orchestration, GEVP (closed-form 2×2), fits, and I/O only. The 8⁴ parity
    gates in §5 compare GPU results against the slow CPU reference.
+
+## 8. Canonical off-axis class list (exact PGM set, extracted 2026-07-08)
+
+One representative per cubic class, lattice units; sources verbatim from the
+papers (full extraction with quotes and caveats:
+`docs/pgm_offaxis_extraction.md`). Orientation averaging (§3.1) generates the
+full orbits.
+
+```
+OFF_AXIS_CLASSES = [
+  # -- planar L-shaped grid: Green-Michael-Paton-Sainio hep-lat/9301006
+  #    Table 1 (beta=2.4, 16^3x32, MC-measured; y = 1..3, x <= 6)
+  (1,1,0), (2,1,0), (2,2,0), (3,1,0), (3,2,0), (3,3,0),
+  (4,1,0), (4,2,0), (4,3,0), (5,1,0), (5,2,0), (5,3,0),
+  (6,1,0), (6,2,0), (6,3,0),
+  # -- diagonal series (d,d,0): 9508002 Tables 4-5 for d=4,5;
+  #    9804004 flux paper measured sqrt(2)*R diagonals R=2,4,6,8
+  (4,4,0), (5,5,0), (6,6,0), (8,8,0),
+  (7,7,0),                     # OURS (not in a PGM table): completes the
+                               # square-d=7 / tetra-range anchor
+  # -- near-diagonal: 9508002 Tables 4-5
+  (5,4,0), (6,5,0),
+  # -- 3D vectors: Green-Michael-Sainio hep-lat/9404004 Tables 5-6
+  (1,1,1), (1,2,1), (1,3,1), (1,4,1), (2,1,2), (2,3,2),
+]
+```
+
+Notes anchored in the extraction:
+
+- The diagonals (d,d,0) carry |R| = d√2 — exactly the tetra edge lengths
+  (§1 goal 1), so tetra binding at edge R uses a directly measured pair
+  potential, PGM-style (9804004 measured the diagonals precisely because
+  interpolating on-axis data violates rotational invariance at these β).
+- PGM's tetra coordinates ((0,0,0),(r,0,d),(0,d,d),(r,d,0) with r=d,
+  hep-lat/9412029) are the SAME four sites as our §2 tetra row — consistency
+  confirmed, no change needed.
+- PGM measured more geometry families (rectangles, tilted rectangles,
+  linear, quadrilateral, non-planar; 3×3 bases for the last three) — out of
+  scope here per §7.3, listed in the extraction doc as future extensions.
+- Caveat from the sources: hep-lat/9404004 says its Table 5 is only a subset
+  of all 2Q potentials produced, and hep-lat/9608147 refers to a 29-vector
+  two-body list that is not printed in any of the papers. If the original
+  run lists still exist offline, they supersede this reconstruction —
+  flagged to Petrus.
