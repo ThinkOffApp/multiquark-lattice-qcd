@@ -11,10 +11,16 @@ papers; it is new territory, on the T_d wedge verified 2026-07-07.
 
 Map where the chromo-field rearranges when 4Q binding turns on:
 
-    Δf(r) = f_4Q^(0)(r) − [ f_2Q^pair1(r) + f_2Q^pair2(r) ]
+    Δf(x) = f_4Q^(0)(x) − [ f_2Q^pair1(x) + f_2Q^pair2(x) ]
 
-with all three terms measured on the SAME configurations so the vacuum and
-much of the statistical noise cancel site-by-site. Ground state AND first
+indexed by ABSOLUTE lattice position x — NOT each geometry's own
+center-relative offset. A 2Q pair midpoint is displaced from the 4Q center
+(e.g. a square side's midpoint sits d/2 off the square center), so equal
+center-relative r would subtract fields at different physical points. Each
+geometry's reduced wedge is unfolded to the common absolute frame and each
+2Q pair field placed at its own pair center (§4) before subtraction. With
+that alignment all three terms are on the SAME configurations so the vacuum
+and much of the statistical noise cancel site-by-site. Ground state AND first
 excited state (the flip-flop between pairings is visible in f^(1) − f^(0)
 — both come free from the same raw data, §3). 9804004 measured exactly the
 required reference set: on-axis 2Q, diagonal 2Q at √2·R, and the square —
@@ -54,10 +60,14 @@ For state n with eigenvector ṽⁿ:
                  / [ Σ_ij ṽⁿ_i ṽⁿ_j W̄_ij(T_flux) ]  −  ⟨□_P⟩
 
 Contract with ṽ⁰ → ground-state flux; ṽ¹ → excited state. Keeping the full
-F_ij matrix (3 independent elements: AA, BB, AB) makes the (T₀, T) choice a
-postprocessing stability check, not a burned-in measurement decision.
-Consistency check for free: T_d (square: D₄h) symmetry ⇒ F_AA = F_BB within
-errors after frame mapping.
+F_ij matrix (3 independent elements: AA, BB, AB) makes the projecting
+eigenvector's (T₀, T) choice a postprocessing stability check, not a
+burned-in decision. Note F is stored only at T_flux, so this freedom lives
+in the potential-side GEVP eigenvector; the flux sink time itself is fixed
+(a genuine flux T-contamination check needs F at a second T — §10 Q3).
+Consistency check for free: D₄h (square) symmetry ⇒ F_AA = F_BB within
+errors after frame mapping (the 90° rotation that exchanges the two
+pairings).
 
 ### 2.3 Plane classes and E/B decomposition
 
@@ -68,19 +78,28 @@ forms the Euclidean combinations: action density s ∝ Σ_P f_P, energy
 density ε ∝ Σ_E f − Σ_B f (Michael sum-rule conventions). Because
 measurement iterates over 4 time directions and geometry orientations, each
 measured (tdir, lattice plane) pair is mapped back to the canonical frame
-by the same signed permutation that generated the orientation — the frame
-map is pure bookkeeping and gets its own round-trip unit test (§7).
+by the same signed permutation that generated the orientation, APPLIED AT
+MEASUREMENT so §6 records land already in the canonical frame. This is a
+sign-permutation relabel + average only (no ratio, no subtraction), so it
+preserves the raw-triplet discipline; it gets its own round-trip unit test
+(§7).
 
 ## 3. Probe region: boxes, wedges, weights
 
 - Probe box: bounding box of the quark positions expanded by margin m
-  (default m = 3) in every direction, in center-relative DOUBLED integer
-  coordinates (doubling removes the half-integer center for odd d — the
-  trick already validated for the viewer wedges).
+  (default m = 3) in every direction, rectangular, in plain center-relative
+  integer coordinates. Flux sizes are even d (§4) ⇒ the geometry center is a
+  lattice site, so there is no half-integer center to handle. (The viewer
+  uses an integer floor-center for odd d and is NOT doubled; the earlier
+  "doubled coordinates" convention was both unfounded — it is not what the
+  viewer does — and moot for even d, and has been dropped.)
 - Reduce the box by the geometry's full stabilizer group; each kept site
   carries weight |G| / |stab(site)|. This is the 56%-overcount trap: flat
-  ×|G| weighting is forbidden; the reduction helper returns (site, weight)
-  pairs only.
+  ×|G| weighting is forbidden. As a direct consequence, the number of
+  representative sites EXCEEDS box-volume / |G| — sites on symmetry walls
+  have |stab| > 1 and smaller orbits, so they contribute more than their
+  1/|G| share of representatives (this is why the §8 counts are well above
+  volume/|G|). The reduction helper returns (site, weight) pairs only.
 - **Generic stabilizer engine** (new, replaces per-geometry hand-coded
   conditions): enumerate the 48 signed permutations, keep those mapping the
   quark position set to itself (for 2Q in SU(2), quark ≡ antiquark —
@@ -88,25 +107,35 @@ map is pure bookkeeping and gets its own round-trip unit test (§7).
   directly. Expected group orders, asserted as unit tests:
     on-axis 2Q: 16 · diagonal 2Q (d,d,0): 8 · square: 16 (D₄h) ·
     tetra: 24 (T_d).
-  The engine must reproduce the hand-verified viewer wedges for square and
-  tetra EXACTLY (site-set equality test), and Σ weights == full box volume
-  for every geometry, d, and parity.
+  The engine reduces the RECTANGULAR probe box, a different domain from the
+  hand-verified viewer wedges (different margins and cutoff shapes — the
+  square viewer uses fixed hMax=5 in the perpendicular, the tetra viewer a
+  spherical cutoff ~1.1·D). So correctness is checked by predicate/orbit
+  equivalence on a shared domain, NOT site-set equality with the viewer;
+  see §7 gate 1.
 
 ## 4. Source set (all on the same configs)
 
 | Source | Positions | Sizes (flux) | Reduction |
 |---|---|---|---|
 | 2Q on-axis | 0 → (d,0,0) | d = 2,4,6,8 | 1/16 |
-| 2Q diagonal | 0 → (d,d,0), symmetrized-L connector (P1) | d = 2,4,6 (R=√2d ≈ 2.8–8.5) | 1/8 |
+| 2Q diagonal | 0 → (d,d,0), symmetrized-L connector (P1) | d = 2,4,6,8 (R=√2d ≈ 2.8–11.3) | 1/8 |
 | square 4Q | side d, pairings A,B | d = 2,4,6,8 | 1/16 |
 | tetra 4Q | (0,0,0),(d,d,0),(d,0,d),(0,d,d) | d = 2,4 (edge √2d) | 1/24 |
 
 Flux sizes are the PGM 9804004 set (even d), NOT the full potential scan —
 potentials at every d, flux at the even subset. Tetra capped at d = 4
 initially (box grows as (2d+2m+1)³; d=6 pending cost data from d=4).
-The 2Q rows use the same box+wedge machinery so Δf(r) in §1 is formed
-site-by-site in postprocessing; pair assignment: square pairs = on-axis
-sides (length d), tetra pairs = diagonals (length √2·d).
+Both 2Q pairings of each 4Q geometry need a same-config reference. Square:
+pairing A = on-axis sides (length d → on-axis 2Q at d), pairing B = (13)(24)
+diagonals (length √2·d → diagonal 2Q at d). Tetrahedron: regular, both
+pairings are edges (√2·d → diagonal 2Q at d), one reference covers both.
+Diagonal 2Q therefore runs to d=8 so the d=8 square's B-pairing — and the
+flip-flop f^(1)−f^(0) — has its reference. Δf is formed in ABSOLUTE lattice
+coordinates (§1): each geometry's reduced wedge is unfolded to the common
+frame and each 2Q pair field is placed at ITS pair center
+(4Q_center + pair_offset), not at matched center-relative r. A §7 gate
+checks the 2Q-pair and 4Q site sets coincide after re-centering.
 
 ## 5. Implementation structure
 
@@ -131,7 +160,7 @@ sides (length d), tetra pairs = diagonals (length √2·d).
 "flux4q": {
   "Gsq_d4": {
     "T": 4, "probe_t": 2, "margin": 3,
-    "sites":  [[2rx, 2ry, 2rz, weight], ...],      # doubled center-relative
+    "sites":  [[rx, ry, rz, weight], ...],         # plain center-relative (even-d integer center)
     "planes": ["E1","E2","E3","B1","B2","B3"],     # canonical frame
     "wp": {"AA": [[site][plane]], "BB": ..., "AB": ...},   # ⟨Tr W · □⟩ raw
     "w":  {"AA": re, "BB": re, "AB": re},                  # ⟨Tr W⟩
@@ -141,14 +170,38 @@ sides (length d), tetra pairs = diagonals (length √2·d).
   "G2qdiag_d4": { ... }
 }
 ```
-Arrays, not per-site JSON keys (a d=4 square is ~50 wedge sites × 6 planes
-× 3 matrix elements ≈ 900 floats/record — fine as arrays, hostile as keys).
+Arrays, not per-site JSON keys (a d=4 square is 84 wedge sites × 6 planes
+× 3 matrix elements ≈ 1.5k floats/record — fine as arrays, hostile as keys).
 
 ## 7. Validation gates (in order, each blocks the next)
 
-1. **Stabilizer engine unit tests**: group orders (§3), viewer-wedge
-   equality for square/tetra, Σweights == box volume (both parities),
-   frame-map round-trip.
+1. **Stabilizer engine unit tests.** (The earlier "reproduce the viewer
+   wedges by site-set equality" demand was impossible — the viewer and the
+   probe box are different domains — and is replaced by:)
+   - (a) **group orders** 16 / 8 / 16 / 24 for on-axis 2Q / diagonal 2Q /
+     square / tetra.
+   - (b) **selector equivalence** on ONE common G-invariant domain (a union
+     of full orbits): the engine's fundamental-domain membership selects the
+     same representatives as the viewer predicates `sqSymLevel` / `tetSymLevel`
+     (square/tetra) and `q2SymLevel` (on-axis 2Q). Diagonal 2Q has NO viewer
+     predicate → check it against a from-scratch brute-force orbit
+     enumeration instead.
+   - (c) **orbit-cover partition** — this, not a Σweights checksum, is what
+     tests the WEIGHTS: expand every kept (site, weight = |G|/|stab|) by its
+     orbit under G and assert each box site is covered EXACTLY once. A
+     Σweights == box-volume checksum passes under compensating |stab| errors;
+     a partition test does not.
+   - (d) the common test domain MUST contain wall sites of every stabilizer
+     class (dx=0, dx=dy, h=0, and the four tetra walls) so |stab| > 1 weights
+     are actually exercised. Flux is even-d (center on a lattice site, axis
+     walls populated); the engine's odd-d path (potentials, out of scope
+     here) has no valid viewer reference — the viewer is floor-centered and
+     wrong for odd d — so it must be gated against an independent brute-force
+     orbit reference, not the viewer.
+   - (e) **frame-map round-trip** (§2.3).
+   - (f) **re-centering coincidence** (§1/§4): after unfolding to the common
+     absolute frame, the 2Q-pair site set and the 4Q site set coincide, so
+     Δf is a true site-by-site subtraction.
 2. **8⁴ parity**: F_ij,P per site vs an allocation-naive reference
    implementation; random-gauge-transform invariance (< 1e-11), same
    harness style as tools/test_offaxis_parity.py.
@@ -163,12 +216,20 @@ Arrays, not per-site JSON keys (a d=4 square is ~50 wedge sites × 6 planes
 
 ## 8. Cost estimate (24⁴, per config, after device-mem fix)
 
-Wedge sites per source at m=3: square d=4 ≈ 53, d=8 ≈ 137; tetra d=4 ≈ 55;
-2Q rows ≈ 30–90. Full §4 set ≈ 700 wedge sites × 6 planes × (≤3 matrix
-elements) ≈ 8k shift+multiply+sum passes per tdir — comparable to one
-on-axis loop scan; the W_ij source fields dominate and are shared with the
-potential measurement. Flux stays a per-run opt-in flag (--flux4q 1) with
-per-source-class selection, mirroring --offaxis.
+Representative wedge sites per source at m=3 — EXACT orbit counts (brute-force
+enumeration), NOT box-volume/|G|, which undercounts by ~55–65% because wall
+sites have |stab|>1 (see §3):
+- square d=2/4/6/8 = 60 / 84 / 112 / 144
+- tetra  d=2/4     = 55 / 91
+- on-axis 2Q d=2/4/6/8 = 50 / 60 / 70 / 80
+- diagonal 2Q d=2/4/6/8 = 100 / 144 / 196 / 256
+
+Full §4 set ≈ 1500 representative sites × 6 planes × (3 matrix elements for
+4Q, 1 for 2Q) ≈ 15.5k shift+multiply+sum passes per tdir. The W_ij source
+fields dominate and are SHARED with the potential measurement, so flux rides
+on top of P2/P3 rather than adding a separate scan. Flux stays a per-run
+opt-in flag (--flux4q 1) with per-source-class selection, mirroring
+--offaxis.
 
 ## 9. Phasing
 
