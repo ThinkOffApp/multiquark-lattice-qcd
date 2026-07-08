@@ -114,7 +114,10 @@ discipline as PR #24's bit-identical check.
 
 ## 6. Cost estimate (24⁴, per config)
 
-Off-axis 2Q ≈ 1.5× current 2Q loop cost (more orientations, same T set).
+Off-axis 2Q, measured on 8⁴ (PR #31): full 28-class list ≈ 2.7× current 2Q
+loop cost (124 symmetrized passes vs 108 rectangles per tdir); the
+production diagonal subset (§7.5) is 24 passes ≈ 0.5×. (The original 1.5×
+guess for the full list was wrong.)
 4Q square/tetra: 3 matrix elements × 7 (5) sizes × 6 T × 4 tdirs ≈ 2–3× the
 2Q loop budget at equal multilevel settings — well inside the current
 per-measurement envelope; flux phases dominate cost and get the 16×/24×
@@ -134,6 +137,15 @@ the reuse-pool/census-v3 or process-split lands).
 3. **Scope: all of it.** On-axis 2Q (existing) + off-axis 2Q + square + tetra
    are all in scope — the P1→P4 order in §5 is a landing sequence, not a
    selection.
+   **Refined 2026-07-08** ("We only measure diagonal off axis for
+   subtraction from 4q potentials"): PRODUCTION off-axis = the diagonal
+   classes (n,n,0), n = 1…8, only. These are exactly the R = d√2 pair
+   potentials entering B(d) = E₄Q − 2·V(R_pair): every tetra vertex pair is
+   a (d,d,0)-type separation, and the square's 2×2 pairings are on-axis
+   sides already measured. Implemented as `--offaxis-classes diag` (the
+   default; `su2_offaxis.DIAGONAL_CLASSES`). The full §8 list remains
+   available via `--offaxis-classes all` for rotational-invariance studies
+   — it is machinery, not production scope.
 4. **GPU-resident throughout** ("implement all the listed measurements using
    gpu fully"): every new measurement inner loop — symmetrized/connector path
    products, 4Q contour traces, multilevel sub-averages — runs on the GPU
