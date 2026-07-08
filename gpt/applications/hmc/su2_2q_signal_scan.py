@@ -855,11 +855,17 @@ def mean_measurement_items(items):
         "flux_profile_r_perp": [],
     }
 
-    keys = list(items[0]["loops"].keys())
+    # Union of loop keys across ALL items, averaging each key over the items
+    # that carry it. items[0]-only keys break bins that straddle a resume
+    # boundary where --offaxis was turned on: an old first record silently
+    # dropped the later Rv samples, and a new first record KeyError'd on the
+    # old ones (codex review, PR #31).
+    keys = sorted({k for x in items for k in x["loops"].keys()})
     for k in keys:
+        vals = [x["loops"][k] for x in items if k in x["loops"]]
         out["loops"][k] = {
-            "re": mean([x["loops"][k]["re"] for x in items]),
-            "im": mean([x["loops"][k]["im"] for x in items]),
+            "re": mean([v["re"] for v in vals]),
+            "im": mean([v["im"] for v in vals]),
         }
 
     m = len(items[0]["flux_profile_r_perp"])
