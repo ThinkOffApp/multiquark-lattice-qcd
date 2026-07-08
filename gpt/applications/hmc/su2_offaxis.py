@@ -46,6 +46,14 @@ OFF_AXIS_CLASSES = [
     (1, 1, 1), (1, 2, 1), (1, 3, 1), (1, 4, 1), (2, 1, 2), (2, 3, 2),
 ]
 
+# PRODUCTION subset (Petrus, 2026-07-08, thinkoff-development): only the
+# diagonals are measured in production — they are the R = d*sqrt(2) pair
+# potentials subtracted from the 4Q energies (every tetra vertex pair is a
+# (d,d,0)-type separation; square pairings are on-axis sides, already
+# measured). The full OFF_AXIS_CLASSES list stays available via
+# --offaxis-classes all for rotational-invariance studies.
+DIAGONAL_CLASSES = [(n, n, 0) for n in range(1, 9)]
+
 
 def class_key(cls_vec):
     a, b, c = sorted((abs(x) for x in cls_vec), reverse=True)

@@ -1116,17 +1116,23 @@ def main():
     multihit_temporal_sweeps = max(0, g.default.get_int("--multihit-temporal-sweeps", 1))
 
     # Off-axis 2Q (docs/4q_measurement_spec.md P1). Off by default: enable
-    # per-run with --offaxis 1. --offaxis-classes takes "all" (the canonical
-    # spec §8 list) or a comma list like "2_1_0,1_1_1" (components sorted
-    # descending). Orientation mode: axis-perm (default; positive-octant
-    # permutations, unbiased mean) or full (adds reflections mod R -> -R).
+    # per-run with --offaxis 1. --offaxis-classes takes "diag" (the
+    # PRODUCTION default per Petrus 2026-07-08: diagonals (n,n,0) n=1..8
+    # only — the R = d*sqrt(2) pair potentials subtracted from the square-
+    # diagonal and tetra 4Q energies), "all" (the full canonical spec §8
+    # list, for rotational-invariance studies), or a comma list like
+    # "2_1_0,1_1_1" (components sorted descending). Orientation mode:
+    # axis-perm (default; positive-octant permutations, unbiased mean) or
+    # full (adds reflections mod R -> -R).
     offaxis_enabled = g.default.get_int("--offaxis", 0) != 0
     offaxis_orient_mode = g.default.get("--offaxis-orient-mode", "axis-perm")
-    offaxis_classes_arg = g.default.get("--offaxis-classes", "all")
+    offaxis_classes_arg = g.default.get("--offaxis-classes", "diag")
     offaxis_classes = []
     if offaxis_enabled:
         if offaxis_classes_arg.strip().lower() == "all":
             offaxis_classes = list(su2_offaxis.OFF_AXIS_CLASSES)
+        elif offaxis_classes_arg.strip().lower() == "diag":
+            offaxis_classes = list(su2_offaxis.DIAGONAL_CLASSES)
         else:
             for tok in offaxis_classes_arg.split(","):
                 tok = tok.strip()
