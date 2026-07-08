@@ -22,6 +22,8 @@ from pathlib import Path
 
 import gpt as g
 
+import su2_offaxis
+
 RUN_COMPUTE_META = {}
 
 
@@ -816,7 +818,9 @@ def measure_flux_profile_for_tdir(
         )
 
 
-def single_measurement_step_count(time_dirs, orientations, nd, Rs, Ts, flux_r_perp_max, polyakov_dirs_count=0):
+def single_measurement_step_count(
+    time_dirs, orientations, nd, Rs, Ts, flux_r_perp_max, polyakov_dirs_count=0, offaxis_orients_per_tdir=0
+):
     """Estimated fine-grained steps for one single_measurement() call."""
     if not time_dirs:
         return 1
@@ -827,6 +831,7 @@ def single_measurement_step_count(time_dirs, orientations, nd, Rs, Ts, flux_r_pe
 
     loop_steps = 0
     flux_steps = 0
+    offaxis_steps = 0
     flux_shift_count_per_orientation = 1 + 2 * max(0, nd - 2) * max(0, flux_r_perp_max)
     for tdir in time_dirs:
         n_or = orientations_by_tdir.get(tdir, 0)
@@ -834,8 +839,10 @@ def single_measurement_step_count(time_dirs, orientations, nd, Rs, Ts, flux_r_pe
             continue
         loop_steps += n_or * len(Rs) * len(Ts)
         flux_steps += n_or * flux_shift_count_per_orientation
+        # off-axis progress ticks once per (class, orientation), all T at once
+        offaxis_steps += max(0, int(offaxis_orients_per_tdir))
     poly_steps = max(0, int(polyakov_dirs_count))
-    return max(1, loop_steps + flux_steps + poly_steps)
+    return max(1, loop_steps + flux_steps + offaxis_steps + poly_steps)
 
 
 def mean_measurement_items(items):
@@ -894,16 +901,37 @@ def mean_measurement_items(items):
         out["profiling"] = {
             "loop_time": mean([max(0.0, x.get("profiling", {}).get("loop_time", 0.0)) for x in items]),
             "flux_time": mean([max(0.0, x.get("profiling", {}).get("flux_time", 0.0)) for x in items]),
+            "offaxis_time": mean([max(0.0, x.get("profiling", {}).get("offaxis_time", 0.0)) for x in items]),
         }
 
     return out
 
 
+def loop_key_prefixes(measurements, Rs):
+    """Loop-key prefixes to postprocess: on-axis R{r} for the configured Rs
+    plus any off-axis Rv... prefixes discovered in the measurement records
+    themselves (self-discovering, so resumed runs and old JSONs work without
+    parameter threading)."""
+    prefixes = [f"R{r}" for r in Rs]
+    seen = set(prefixes)
+    for m in measurements:
+        loops = m.get("loops") if isinstance(m, dict) else None
+        if not isinstance(loops, dict):
+            continue
+        for k in loops:
+            if k.startswith("Rv") and "_T" in k:
+                p = k.rsplit("_T", 1)[0]
+                if p not in seen:
+                    seen.add(p)
+                    prefixes.append(p)
+    return prefixes
+
+
 def estimate_veff_from_means(measurements, Rs, Ts):
     mean_loops = {}
-    for r in Rs:
+    for prefix in loop_key_prefixes(measurements, Rs):
         for t in Ts:
-            key = f"R{r}_T{t}"
+            key = f"{prefix}_T{t}"
             vals_re = []
             vals_im = []
             for m in measurements:
@@ -927,18 +955,18 @@ def estimate_veff_from_means(measurements, Rs, Ts):
             }
 
     veff = {}
-    for r in Rs:
+    for prefix in loop_key_prefixes(measurements, Rs):
         for t in Ts:
             if (t + 1) not in Ts:
                 continue
-            k0 = f"R{r}_T{t}"
-            k1 = f"R{r}_T{t+1}"
+            k0 = f"{prefix}_T{t}"
+            k1 = f"{prefix}_T{t+1}"
             if k0 not in mean_loops or k1 not in mean_loops:
                 continue
             a = mean_loops[k0]["re"]
             b = mean_loops[k1]["re"]
             if a > 0.0 and b > 0.0:
-                veff[f"R{r}_T{t}to{t+1}"] = -math.log(b / a)
+                veff[f"{prefix}_T{t}to{t+1}"] = -math.log(b / a)
     return mean_loops, veff
 
 
@@ -967,12 +995,12 @@ def estimate_veff_with_errors(measurements, Rs, Ts, bin_size):
     if nbin < 2:
         return mean_loops, veff, veff_err, veff_nbins, nbin
 
-    for r in Rs:
+    for prefix in loop_key_prefixes(measurements, Rs):
         for t in Ts:
             if (t + 1) not in Ts:
                 continue
-            k0 = f"R{r}_T{t}"
-            k1 = f"R{r}_T{t+1}"
+            k0 = f"{prefix}_T{t}"
+            k1 = f"{prefix}_T{t+1}"
             pairs = []
             for m in binned:
                 loops = m.get("loops") if isinstance(m, dict) else None
@@ -1011,7 +1039,7 @@ def estimate_veff_with_errors(measurements, Rs, Ts, bin_size):
             vjk = mean(jk_vals)
             var = sum((x - vjk) * (x - vjk) for x in jk_vals)
             sem = math.sqrt((npair - 1.0) / npair * var)
-            key = f"R{r}_T{t}to{t+1}"
+            key = f"{prefix}_T{t}to{t+1}"
             veff_err[key] = sem
             veff_nbins[key] = npair
 
@@ -1086,6 +1114,32 @@ def main():
     multilevel_sweeps = max(0, g.default.get_int("--multilevel-sweeps", 4))
     multihit_samples = max(1, g.default.get_int("--multihit-samples", 2))
     multihit_temporal_sweeps = max(0, g.default.get_int("--multihit-temporal-sweeps", 1))
+
+    # Off-axis 2Q (docs/4q_measurement_spec.md P1). Off by default: enable
+    # per-run with --offaxis 1. --offaxis-classes takes "all" (the canonical
+    # spec §8 list) or a comma list like "2_1_0,1_1_1" (components sorted
+    # descending). Orientation mode: axis-perm (default; positive-octant
+    # permutations, unbiased mean) or full (adds reflections mod R -> -R).
+    offaxis_enabled = g.default.get_int("--offaxis", 0) != 0
+    offaxis_orient_mode = g.default.get("--offaxis-orient-mode", "axis-perm")
+    offaxis_classes_arg = g.default.get("--offaxis-classes", "all")
+    offaxis_classes = []
+    if offaxis_enabled:
+        if offaxis_classes_arg.strip().lower() == "all":
+            offaxis_classes = list(su2_offaxis.OFF_AXIS_CLASSES)
+        else:
+            for tok in offaxis_classes_arg.split(","):
+                tok = tok.strip()
+                if not tok:
+                    continue
+                parts = tuple(int(x) for x in tok.split("_"))
+                if len(parts) != 3 or any(x < 0 for x in parts):
+                    raise SystemExit(f"bad --offaxis-classes entry: {tok!r}")
+                offaxis_classes.append(parts)
+    offaxis_orients_per_tdir = sum(
+        len(su2_offaxis.offaxis_orientations(c, [0, 1, 2], mode=offaxis_orient_mode))
+        for c in offaxis_classes
+    )
 
     # Vacuum subtraction is applied ONCE, in postprocessing. The scanner
     # defaults to 'none' so the stored data is raw: the ensemble-ratio path
@@ -1282,6 +1336,9 @@ def main():
                 "multilevel_sweeps": multilevel_sweeps,
                 "multihit_samples": multihit_samples,
                 "multihit_temporal_sweeps": multihit_temporal_sweeps,
+                "offaxis": int(offaxis_enabled),
+                "offaxis_classes": offaxis_classes_arg if offaxis_enabled else "",
+                "offaxis_orient_mode": offaxis_orient_mode if offaxis_enabled else "",
                 "flux_vacuum_mode": flux_vacuum_mode,
                 "flux_vacuum_tail": flux_vacuum_tail,
                 "compute_backend": runtime_backend.get("backend"),
@@ -1354,6 +1411,12 @@ def main():
                     "multilevel_sweeps": multilevel_sweeps,
                     "multihit_samples": multihit_samples,
                     "multihit_temporal_sweeps": multihit_temporal_sweeps,
+                    "offaxis": int(offaxis_enabled),
+                    "offaxis_classes": offaxis_classes_arg if offaxis_enabled else "",
+                    "offaxis_orient_mode": offaxis_orient_mode if offaxis_enabled else "",
+                "offaxis": int(offaxis_enabled),
+                "offaxis_classes": offaxis_classes_arg if offaxis_enabled else "",
+                "offaxis_orient_mode": offaxis_orient_mode if offaxis_enabled else "",
                     "flux_vacuum_mode": flux_vacuum_mode,
                     "flux_vacuum_tail": flux_vacuum_tail,
                 },
@@ -1381,11 +1444,12 @@ def main():
                     },
                 )
 
-        loops_acc = {}  # Key: "R{r}_T{t}", Value: list of (re, im) tuples
+        loops_acc = {}  # Key: "R{r}_T{t}" / "Rv{a}_{b}_{c}_T{t}", Value: list of (re, im)
         flux_profiles_acc = []  # List of [val_at_r0, val_at_r1, ...]
 
         loop_time_total = 0.0
         flux_time_total = 0.0
+        offaxis_time_total = 0.0
 
         # Probe plaquette is measured on the unsmeared field (see
         # measure_flux_profile_for_tdir). Build it once and reuse across tdirs.
@@ -1405,6 +1469,19 @@ def main():
                     U_use, tdir, Rs, Ts, orientations_for_tdir, sampler, loops_acc, progress_cb=progress_cb
                 )
                 loop_time_total += time.time() - t0_loop
+
+                if offaxis_classes:
+                    t0_off = time.time()
+                    su2_offaxis.measure_offaxis_loops_for_tdir(
+                        U_use,
+                        tdir,
+                        offaxis_classes,
+                        Ts,
+                        loops_acc,
+                        progress_cb=progress_cb,
+                        orient_mode=offaxis_orient_mode,
+                    )
+                    offaxis_time_total += time.time() - t0_off
 
                 if not skip_flux:
                     t0_flux = time.time()
@@ -1491,6 +1568,7 @@ def main():
             "profiling": {
                 "loop_time": loop_time_total,
                 "flux_time": flux_time_total,
+                "offaxis_time": offaxis_time_total,
             },
         }
 
@@ -1582,6 +1660,9 @@ def main():
                 "multilevel_sweeps": multilevel_sweeps,
                 "multihit_samples": multihit_samples,
                 "multihit_temporal_sweeps": multihit_temporal_sweeps,
+                "offaxis": int(offaxis_enabled),
+                "offaxis_classes": offaxis_classes_arg if offaxis_enabled else "",
+                "offaxis_orient_mode": offaxis_orient_mode if offaxis_enabled else "",
                 "flux_vacuum_mode": flux_vacuum_mode,
                 "flux_vacuum_tail": flux_vacuum_tail,
             }
@@ -1814,6 +1895,7 @@ def main():
             Ts,
             flux_r_perp_max,
             polyakov_dirs_count=len(all_mu_dirs),
+            offaxis_orients_per_tdir=offaxis_orients_per_tdir,
         )
         meas_stage_steps = single_meas_steps * multilevel_blocks * multihit_samples
         meas_extra_sweeps = max(0, multilevel_blocks - 1) * multilevel_sweeps
@@ -2132,6 +2214,9 @@ def main():
             "multilevel_sweeps": multilevel_sweeps,
             "multihit_samples": multihit_samples,
             "multihit_temporal_sweeps": multihit_temporal_sweeps,
+            "offaxis": int(offaxis_enabled),
+            "offaxis_classes": offaxis_classes_arg if offaxis_enabled else "",
+            "offaxis_orient_mode": offaxis_orient_mode if offaxis_enabled else "",
             "flux_vacuum_mode": flux_vacuum_mode,
             "flux_vacuum_tail": flux_vacuum_tail,
             "polyakov_dirs": all_mu_dirs,
