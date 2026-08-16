@@ -1,6 +1,6 @@
 # Petrus Pennanen - Lattice QCD Flux-Tube Program
 
-This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, live observability through a streaming dashboard, and native Apple Metal GPU acceleration for high-performance physics computation on M-series chips.
+This repository contains the active Grid+GPT workflow used for high-statistics lattice QCD measurements of static-source potentials and chromofield flux profiles. The current production pipeline is focused on reliable long-run operation, statistically controlled error estimates, live observability through a streaming dashboard, and native Apple Metal GPU acceleration for high-performance physics computation on M-series chips. The live run is watched from CodeWatch on the phone, same board as the *Watch family.
 
 ## Contents
 
