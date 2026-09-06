@@ -2370,7 +2370,12 @@
             if (cached) {
               return threadStatusRow(slot, cached, false);
             }
-            if (isSibling) {
+            // Dormancy only on a confirmed 404 with no worker in telemetry
+            // (codexmb review on #51): a blip, a 5xx or a malformed body must
+            // not hide a live sibling; those keep the old row and retry.
+            const is404 = /^404\b/.test(String(_ && _.message || ""));
+            const workerSeen = Boolean(threadTelemetryBySeed?.[slot.seed]?.found);
+            if (isSibling && is404 && !workerSeen) {
               dormantSlotUntil[slot.seed] = Date.now() + DORMANT_RETRY_MS;
               setThreadCardHidden(slot.label, true);
               return "";
