@@ -57,6 +57,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(self.root), **kwargs)
 
     def end_headers(self):
+        # Hardening headers applied to every response. Kept conservative so the
+        # vanilla-JS dashboard (no inline eval, no remote scripts) is unaffected
+        # but the server exposes less surface if it ever leaves 127.0.0.1.
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         if self.cors_origin:
             self.send_header("Access-Control-Allow-Origin", self.cors_origin)
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
@@ -68,8 +74,59 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.end_headers()
 
+    def list_directory(self, path):
+        # Block the default Python directory listing. Browsing the repo root
+        # over HTTP would expose .git/, .venv/, build/, etc. Anything that
+        # legitimately needs file access goes through the JSON / SSE
+        # endpoints (which are gated by protect_results auth where relevant).
+        self.send_error(404, "Directory listing disabled")
+        return None
+
+    def send_head(self):
+        # send_head is shared between do_GET and do_HEAD in
+        # SimpleHTTPRequestHandler. Apply the denylist here so HEAD probes
+        # for .git/, build/, etc. are also rejected.
+        parsed = urlparse(self.path)
+        if self._path_is_denied(parsed.path):
+            self.send_error(404, "Not found")
+            return None
+        return super().send_head()
+
+    # Path components matching any of these are refused outright. This blocks
+    # serving developer / VCS artefacts that happen to live under --root
+    # (e.g. .git/, .venv/, build/) and that the dashboard never legitimately
+    # requests. Keep the list narrow; data lives under results/ and the page
+    # itself under tools/.
+    _denylist_components = ("..",)
+    _denylist_prefixes = (".git/", ".venv/", "build/", "__pycache__/")
+
+    def _path_is_denied(self, path):
+        if path.startswith("/"):
+            path = path[1:]
+        if not path:
+            return False
+        if any(part in self._denylist_components for part in path.split("/")):
+            return True
+        if any(part.startswith(".") for part in path.split("/")):
+            return True
+        for prefix in self._denylist_prefixes:
+            if path == prefix.rstrip("/") or path.startswith(prefix):
+                return True
+        return False
+
     def do_GET(self):
         parsed = urlparse(self.path)
+        # Treat root as an alias for the dashboard so the user can paste a
+        # bare host:port URL and land on the right page instead of getting
+        # a 404 from the disabled directory listing.
+        if parsed.path in {"", "/"}:
+            self.send_response(302)
+            self.send_header("Location", "/dashboard")
+            self.end_headers()
+            return
+        if self._path_is_denied(parsed.path):
+            self.send_error(404, "Not found")
+            return
         if parsed.path in {"/dashboard", "/d"}:
             qs = parse_qs(parsed.query)
             seed = (qs.get("seed", [self.dashboard_alias_seed])[0] or "").strip()
@@ -1195,6 +1252,17 @@ def main():
     root = Path(args.root).resolve()
     if not root.exists():
         raise SystemExit(f"Root does not exist: {root}")
+    if not root.is_dir():
+        raise SystemExit(f"Root is not a directory: {root}")
+    # Catch the dangling-symlink case (e.g. results/ -> external drive that is
+    # not currently mounted): exists() / is_dir() can both pass on the symlink
+    # itself while the contents are unreachable. Try a real directory read so
+    # the operator sees the failure at startup rather than as silent empty
+    # data later.
+    try:
+        next(iter(os.scandir(root)), None)
+    except OSError as exc:
+        raise SystemExit(f"Root is not readable: {root}: {exc}")
 
     DashboardHandler.root = root
     DashboardHandler.poll_interval = max(0.05, args.poll_ms / 1000.0)
