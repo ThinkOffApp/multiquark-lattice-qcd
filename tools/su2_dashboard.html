@@ -1475,6 +1475,22 @@
       { suffix: "-c", label: "C" },
       { suffix: "-d", label: "D" },
     ];
+    // Sibling seeds that do not exist (their progress file 404s and no worker
+    // is known) go dormant: retried once a minute instead of every tick, and
+    // their thread card and status row are hidden. Before this, a single-seed
+    // run produced three 404s per second and phantom Pause/Restart controls
+    // for threads B, C and D (issue #47).
+    const DORMANT_RETRY_MS = 60000;
+    const dormantSlotUntil = {};
+    function slotIsDormant(seed) {
+      const until = dormantSlotUntil[seed];
+      return Number.isFinite(until) && Date.now() < until;
+    }
+    function setThreadCardHidden(label, hidden) {
+      const anchor = document.getElementById(`cursorBackend${label}`);
+      const card = anchor ? anchor.closest(".cursor-thread-card") : null;
+      if (card) card.hidden = Boolean(hidden);
+    }
     const polyakovColorByMu = {
       mu0: "#52adff",
       mu1: "#2fd08a",
@@ -2313,7 +2329,10 @@
       threadStatusNextAtMs = now + 1000;
       try {
         const rootSeed = resolveThreadBaseSeed();
-        note.textContent = `seed group: ${rootSeed}{,-b,-c,-d}`;
+        const dormantCount = threadSlots.filter((slot) => slot.suffix !== "" && slotIsDormant(`${rootSeed}${slot.suffix}`)).length;
+        note.textContent = dormantCount === threadSlots.length - 1
+          ? `seed ${rootSeed} (single worker; no sibling seeds running)`
+          : `seed group: ${rootSeed}{,-b,-c,-d}`;
         const seeds = threadSlots.map((slot) => ({ ...slot, seed: `${rootSeed}${slot.suffix}` }));
         const telemetryPromise = refreshThreadTelemetry(rootSeed, force);
         const streamFresh = usingStream && (Date.now() - lastStreamAt) <= streamStaleMs;
@@ -2330,9 +2349,16 @@
         }
         const loadedBySeed = {};
         const rows = await Promise.all(seeds.map(async (slot) => {
+          const isSibling = slot.suffix !== "";
+          if (isSibling && slotIsDormant(slot.seed) && !threadProgressBySeed[slot.seed]) {
+            setThreadCardHidden(slot.label, true);
+            return "";
+          }
           const path = `/results/su2_signal_scan/progress_${slot.seed}.json`;
           try {
             const fetched = await fetchJson(path);
+            delete dormantSlotUntil[slot.seed];
+            setThreadCardHidden(slot.label, false);
             const accepted = shouldAcceptThreadProgress(slot.seed, fetched);
             const cached = threadProgressBySeed[slot.seed] || null;
             const p = accepted ? fetched : (cached || fetched);
@@ -2343,6 +2369,11 @@
             const cached = threadProgressBySeed[slot.seed] || null;
             if (cached) {
               return threadStatusRow(slot, cached, false);
+            }
+            if (isSibling) {
+              dormantSlotUntil[slot.seed] = Date.now() + DORMANT_RETRY_MS;
+              setThreadCardHidden(slot.label, true);
+              return "";
             }
             return threadStatusUnavailableRow(slot);
           }
