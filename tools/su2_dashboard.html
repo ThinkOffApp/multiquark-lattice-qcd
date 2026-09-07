@@ -1052,8 +1052,8 @@
             title="Amber marks the active spatial direction (sdir) used with the current time direction for loop/flux operators."><span
               class="cursor-legend-swatch s"></span>Amber: space dir (s)</span>
           <span class="cursor-legend-item"
-            title="Green markers are the remaining lattice axes (mu) not currently chosen as time or space direction."><span
-              class="cursor-legend-swatch other"></span>Green: other mu</span>
+            title="The remaining lattice axes (mu). They carry no marker: the GPU heat bath updates every direction in one kernel, so the driver reports no per-direction position for them (only T along tdir and R along sdir)."><span
+              class="cursor-legend-swatch other"></span>Green: other mu (no position reported)</span>
           <span class="cursor-legend-item"
             title="Magenta track is per-thread overall config progress from meas_cfg_substep_progress (0-100% of current config), independent of which mu row is active."><span
               class="cursor-legend-swatch cfg"></span>Magenta track: cfg progress</span>
@@ -2897,29 +2897,18 @@
     }
 
     function muProgressVector(coords, dims, cfgProgress, muCount = 4) {
-      if (Number.isFinite(cfgProgress)) {
-        // Keep per-mu cursors tightly coupled to true cfg progress.
-        // This avoids large visual jumps when raw lattice shift telemetry changes axes.
-        const base = clamp01(cfgProgress);
-        const center = (muCount - 1) / 2;
-        const spread = 0.06;
-        const vals = Array.from({ length: muCount }, (_, mu) => {
-          const offset = center > 0 ? ((mu - center) / center) : 0;
-          return clamp01(base + spread * offset);
-        });
-        return rebalanceMuMean(vals, base);
-      }
-
-      const raw = Array.from({ length: muCount }, (_, mu) => {
+      // Only positions the driver actually reports (#58): for a loop cursor
+      // that is T along tdir and R along sdir; the other rows have no
+      // position because the GPU heat bath updates every direction in one
+      // kernel. Rows without data return NaN and draw no marker. Nothing is
+      // synthesised from the cfg-progress scalar any more.
+      return Array.from({ length: muCount }, (_, mu) => {
         const c = toFiniteNumber(coords?.[mu], NaN);
         const l = toFiniteNumber(dims?.[mu], NaN);
         if (!Number.isFinite(c)) return NaN;
         const denom = Number.isFinite(l) && l > 1 ? (l - 1) : 1;
         return clamp01(c / denom);
       });
-      const fallback = meanFinite(raw);
-      const base = Number.isFinite(fallback) ? fallback : 0;
-      return raw.map((v) => (Number.isFinite(v) ? v : base));
     }
 
     function rebalanceMuMean(values, targetMean) {
@@ -2947,10 +2936,10 @@
     }
 
     function stabilizeThreadMuProgress(key, targetMu, cfgIdx, cfgProgress, tsMs, inProduction, hasFreshData = true) {
-      const cleanedTarget = (targetMu || []).map((v) => clamp01(toFiniteNumber(v, 0)));
+      // NaN = no reported position for that row; keep it NaN (#58).
+      const cleanedTarget = (targetMu || []).map((v) => { const x = toFiniteNumber(v, NaN); return Number.isFinite(x) ? clamp01(x) : NaN; });
       const prev = cursorMuStateByThread[key];
-      const targetMean = Number.isFinite(cfgProgress) ? clamp01(cfgProgress) : meanFinite(cleanedTarget);
-      const snapped = Number.isFinite(targetMean) ? rebalanceMuMean(cleanedTarget, targetMean) : cleanedTarget;
+      const snapped = cleanedTarget; // never rebalanced onto the cfg-progress scalar
       // Hold last rendered point between telemetry samples; move only on fresh data.
       const out = (hasFreshData || !prev || !inProduction)
         ? snapped
