@@ -1053,7 +1053,7 @@
               class="cursor-legend-swatch s"></span>Amber: space dir (s)</span>
           <span class="cursor-legend-item"
             title="The remaining lattice axes (mu). They carry no marker: the GPU heat bath updates every direction in one kernel, so the driver reports no per-direction position for them (only T along tdir and R along sdir)."><span
-              class="cursor-legend-swatch other"></span>Green: other mu (no position reported)</span>
+              class="cursor-legend-swatch other"></span>Rows show the current loop's T and R as text; markers were removed (the cursor is a scan, not a position)</span>
           <span class="cursor-legend-item"
             title="Magenta track is per-thread overall config progress from meas_cfg_substep_progress (0-100% of current config), independent of which mu row is active."><span
               class="cursor-legend-swatch cfg"></span>Magenta track: cfg progress</span>
@@ -3584,7 +3584,18 @@
           const baseLabel = Number.isFinite(l) ? `mu${mu} (L=${l})` : `mu${mu}`;
           ctx.fillText(role ? `${baseLabel} [${role}]` : baseLabel, 8, y + 4);
 
-          const frac = muProgress[mu];
+          // #58: the driver's cursor is a scan over loop geometries (R, T hop
+          // with every operator), not a position that travels along an axis;
+          // drawn as a marker it jumps wildly. Show the values as text and
+          // leave the magenta cfg track as the only moving element.
+          const frac = NaN;
+          if (isT && Number.isFinite(tVal)) {
+            ctx.fillStyle = "#52adff";
+            ctx.fillText(`T=${Math.round(tVal)}`, padL + 4, y + 4);
+          } else if (isS && Number.isFinite(rVal)) {
+            ctx.fillStyle = "#f2c14b";
+            ctx.fillText(Number.isFinite(rPerp) ? `R=${Math.round(rVal)} r⊥=${Math.round(rPerp)}` : `R=${Math.round(rVal)}`, padL + 4, y + 4);
+          }
           if (Number.isFinite(frac)) {
             const x = padL + frac * iw;
             const markerColor = isT
