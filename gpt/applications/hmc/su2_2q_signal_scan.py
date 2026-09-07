@@ -17,6 +17,7 @@ import os
 import signal
 import sys
 import time
+from su2_eta import estimate_eta_sec  # per-process ETA (#48)
 from datetime import timezone, datetime
 from pathlib import Path
 
@@ -347,6 +348,8 @@ def make_progress_payload(
     sweeps_done,
     total_sweeps,
     elapsed_sec,
+    meas_done_at_start=0,
+    sweeps_done_at_start=0,
     therm_sweep_substep_done=None,
     therm_sweep_substep_total=None,
     meas_cfg_index=None,
@@ -366,9 +369,13 @@ def make_progress_payload(
     last_flux0=None,
     done=False,
 ):
-    eta_sec = None
-    if sweeps_done > 0 and sweeps_done < total_sweeps:
-        eta_sec = elapsed_sec * (total_sweeps - sweeps_done) / sweeps_done
+    # #48: rate from work completed in THIS process only (elapsed_sec restarts
+    # with every worker process, meas_done/sweeps_done carry over on resume).
+    eta_sec, eta_source = estimate_eta_sec(
+        phase=phase, nmeas=nmeas, meas_done=meas_done, meas_done_at_start=meas_done_at_start,
+        total_sweeps=total_sweeps, sweeps_done=sweeps_done, sweeps_done_at_start=sweeps_done_at_start,
+        elapsed_sec=elapsed_sec,
+    )
     sub_done = None
     sub_total = None
     sub_progress = None
@@ -422,6 +429,8 @@ def make_progress_payload(
         "progress": 0.0 if total_sweeps == 0 else sweeps_done / total_sweeps,
         "elapsed_sec": elapsed_sec,
         "eta_sec": eta_sec,
+        "eta_source": eta_source,
+        "meas_done_at_start": meas_done_at_start,
         "last_plaquette": last_plaquette,
         "last_loop_re": last_loop_re,
         "last_flux0": last_flux0,
@@ -1304,6 +1313,7 @@ def main():
     run_start = time.time()
     total_sweeps = ntherm + nmeas * nskip
     sweeps_done = 0
+    sweeps_done_at_start = 0  # #48: per-process ETA baseline
     last_plaquette = None
     last_loop_re = None
     last_flux0 = None
@@ -1696,6 +1706,7 @@ def main():
             therm_start = int(ckpt.get("therm_done", 0))
             meas_start = int(ckpt.get("meas_done", 0))
             sweeps_done = int(ckpt.get("sweeps_done", therm_start + meas_start * nskip))
+            sweeps_done_at_start = sweeps_done  # #48: nothing done in this process yet
             measurements = list(ckpt.get("measurements", []))
             if len(measurements) < meas_start:
                 meas_start = len(measurements)
@@ -1782,6 +1793,8 @@ def main():
             therm_done=therm_start,
             meas_done=meas_start,
             sweeps_done=sweeps_done,
+            meas_done_at_start=meas_start,
+            sweeps_done_at_start=sweeps_done_at_start,
             total_sweeps=total_sweeps,
             elapsed_sec=0.0,
             last_plaquette=last_plaquette,
@@ -1818,6 +1831,8 @@ def main():
                     therm_done=i,
                     meas_done=meas_start,
                     sweeps_done=sweeps_done,
+                    meas_done_at_start=meas_start,
+                    sweeps_done_at_start=sweeps_done_at_start,
                     total_sweeps=total_sweeps,
                     elapsed_sec=time.time() - run_start,
                     therm_sweep_substep_done=substate["done"],
@@ -1849,6 +1864,8 @@ def main():
                     therm_done=i + 1,
                     meas_done=meas_start,
                     sweeps_done=sweeps_done,
+                    meas_done_at_start=meas_start,
+                    sweeps_done_at_start=sweeps_done_at_start,
                     total_sweeps=total_sweeps,
                     elapsed_sec=time.time() - run_start,
                     last_plaquette=last_plaquette,
@@ -1877,6 +1894,8 @@ def main():
                 therm_done=therm_done,
                 meas_done=meas_start,
                 sweeps_done=sweeps_done,
+                meas_done_at_start=meas_start,
+                sweeps_done_at_start=sweeps_done_at_start,
                 total_sweeps=total_sweeps,
                 elapsed_sec=time.time() - run_start,
                 meas_cfg_index=meas_start + 1,
@@ -1938,6 +1957,8 @@ def main():
                     therm_done=ntherm,
                     meas_done=i,
                     sweeps_done=sweeps_done,
+                    meas_done_at_start=meas_start,
+                    sweeps_done_at_start=sweeps_done_at_start,
                     total_sweeps=total_sweeps,
                     elapsed_sec=now - run_start,
                     meas_cfg_index=i + 1,
@@ -2072,6 +2093,8 @@ def main():
                 therm_done=ntherm,
                 meas_done=i + 1,
                 sweeps_done=sweeps_done,
+                meas_done_at_start=meas_start,
+                sweeps_done_at_start=sweeps_done_at_start,
                 total_sweeps=total_sweeps,
                 elapsed_sec=time.time() - run_start,
                 meas_cfg_index=i + 1,
@@ -2118,6 +2141,8 @@ def main():
                 therm_done=therm_done,
                 meas_done=meas_done,
                 sweeps_done=sweeps_done,
+                meas_done_at_start=meas_start,
+                sweeps_done_at_start=sweeps_done_at_start,
                 total_sweeps=total_sweeps,
                 elapsed_sec=time.time() - run_start,
                 last_plaquette=last_plaquette,
@@ -2146,6 +2171,8 @@ def main():
                 therm_done=ntherm,
                 meas_done=meas_done,
                 sweeps_done=sweeps_done,
+                meas_done_at_start=meas_start,
+                sweeps_done_at_start=sweeps_done_at_start,
                 total_sweeps=total_sweeps,
                 elapsed_sec=time.time() - run_start,
                 last_plaquette=last_plaquette,
@@ -2269,6 +2296,8 @@ def main():
             therm_done=ntherm,
             meas_done=nmeas,
             sweeps_done=sweeps_done,
+            meas_done_at_start=meas_start,
+            sweeps_done_at_start=sweeps_done_at_start,
             total_sweeps=total_sweeps,
             elapsed_sec=time.time() - run_start,
             last_plaquette=last_plaquette,
