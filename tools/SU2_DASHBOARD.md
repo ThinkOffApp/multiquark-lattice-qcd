@@ -49,6 +49,16 @@ The run picker fills the path inputs for you. To set them manually, point at any
 - `results/su2_signal_scan_v2/progress_petrus-su2-signal-v2.json`
 - `results/su2_signal_scan_v2/live_petrus-su2-signal-v2.json`
 
+## Admin chat
+
+The chat panel calls OpenAI through the dashboard server. It works only when the
+server process has `OPENAI_API_KEY` in its environment; the page asks
+`GET /chat/status` on load and shows "chat: no API key configured on server"
+otherwise (the status never includes the key). The model id is configuration:
+`--chat-model` or `SU2_DASHBOARD_CHAT_MODEL`, default `gpt-4o-mini`
+(`DEFAULT_CHAT_MODEL` in `su2_dashboard_server.py`). Server-side chat errors are
+shown as System lines in the panel.
+
 ## Run command example
 
 The example below reproduces the genuine-SU(2) production run (`petrus-su2-signal-v2`,

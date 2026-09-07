@@ -17,11 +17,16 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
+# Model used by the admin chat panel. Override with --chat-model or
+# SU2_DASHBOARD_CHAT_MODEL; the id is configuration, not a code decision (#50).
+DEFAULT_CHAT_MODEL = "gpt-4o-mini"
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     root = Path(".").resolve()
     poll_interval = 0.5
     heartbeat_interval = 10.0
-    chat_model = "gpt-4o-mini"
+    chat_model = DEFAULT_CHAT_MODEL
     allowed_tailscale_login = ""
     auth_token = ""
     # Peers whose Tailscale identity headers are believed (#37). Only a
@@ -168,6 +173,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return
             self.handle_events(parsed)
             return
+        if parsed.path == "/chat/status":
+            # Readiness only: whether a key is configured and which model id
+            # will be used. Never the key itself (#50).
+            self.send_json(200, self.chat_status())
+            return
         if parsed.path == "/api/runs":
             if self.protect_results and not self.is_authorized(parsed=parsed):
                 self.send_unauthorized()
@@ -209,6 +219,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.end_headers()
         self.wfile.write(b'{"error":"not found"}')
+
+    def send_json(self, status: int, obj) -> None:
+        body = json.dumps(obj, separators=(",", ":")).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    @classmethod
+    def chat_status(cls) -> dict:
+        """What the admin chat can do right now, for the page's status line."""
+        model = str(cls.chat_model or "").strip() or DEFAULT_CHAT_MODEL
+        if not os.environ.get("OPENAI_API_KEY"):
+            return {
+                "available": False,
+                "model": model,
+                "reason": "OPENAI_API_KEY is not set in the dashboard server's environment; chat is unavailable.",
+            }
+        return {"available": True, "model": model, "reason": ""}
 
     def handle_list_runs(self):
         """Enumerate progress_*.json under results/ so the dashboard can offer
@@ -1188,16 +1219,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         api_key = os.environ.get("OPENAI_API_KEY")
         if not api_key:
-            self.send_response(503)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(
-                json.dumps(
-                    {
-                        "error": "OPENAI_API_KEY is not set for dashboard server; chat endpoint unavailable."
-                    }
-                ).encode("utf-8")
-            )
+            status = self.chat_status()
+            self.send_json(503, {"error": status["reason"], "available": False, "model": status["model"]})
             return
 
         system = {
@@ -1277,7 +1300,11 @@ def main():
         default=float(os.environ.get("SU2_DASHBOARD_HEARTBEAT_SEC", "10")),
         help="Emit SSE snapshots periodically even if files are unchanged.",
     )
-    p.add_argument("--chat-model", default=os.environ.get("SU2_DASHBOARD_CHAT_MODEL", "gpt-4o-mini"))
+    p.add_argument(
+        "--chat-model",
+        default=os.environ.get("SU2_DASHBOARD_CHAT_MODEL", DEFAULT_CHAT_MODEL),
+        help=f"OpenAI model id for the admin chat (env SU2_DASHBOARD_CHAT_MODEL; default {DEFAULT_CHAT_MODEL}).",
+    )
     p.add_argument(
         "--allowed-tailscale-login",
         default=os.environ.get("SU2_DASHBOARD_ALLOWED_TS_LOGIN", os.environ.get("SU2_DASHBOARD_ALLOWED_USER", "")),
@@ -1335,7 +1362,11 @@ def main():
     server = ThreadingHTTPServer((args.host, args.port), DashboardHandler)
     print(f"Serving {root} at http://{args.host}:{args.port}")
     print("SSE endpoint: /events")
-    print(f"Chat endpoint: /chat (model={DashboardHandler.chat_model})")
+    chat = DashboardHandler.chat_status()
+    if chat["available"]:
+        print(f"Chat endpoint: /chat (model={chat['model']})")
+    else:
+        print(f"Chat endpoint: /chat UNAVAILABLE (model={chat['model']}): {chat['reason']}")
     if DashboardHandler.allowed_tailscale_login or DashboardHandler.auth_token:
         print("Auth enabled:")
         if DashboardHandler.allowed_tailscale_login:
