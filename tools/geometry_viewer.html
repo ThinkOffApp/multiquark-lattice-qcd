@@ -582,13 +582,17 @@
             // vertex (1,1,-1) = toward Q2(d,d,0); edge midpoint (1,0,0) =
             // Q2-Q3 edge; face center (1,1,1) = Q2Q3Q4 face.
             if (symStepVal >= 3) {
-                const arrowLen = D / 2;
-                // Vertex direction: (1,1,-1)
-                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] + arrowLen, tetCenter[2] - arrowLen], 0xff4444, 2));
-                // Edge midpoint: (1,0,0)
-                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1], tetCenter[2]], 0x44ff44, 2));
-                // Face center: (1,1,1)
-                scene.add(makeLine(tetCenter, [tetCenter[0] + arrowLen, tetCenter[1] + arrowLen, tetCenter[2] + arrowLen], 0x4444ff, 2));
+                // Each probe arrow ends ON the feature it names (petrus, Sep 7 2026:
+                // the blue one overshot to the cube corner (D,D,D), three times past
+                // the face centre, while red and green ended on their features).
+                const half = D / 2;
+                // Vertex direction (1,1,-1): tip = Q2(d,d,0)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + half, tetCenter[1] + half, tetCenter[2] - half], 0xff4444, 2));
+                // Edge midpoint direction (1,0,0): tip = midpoint of Q2-Q3 = (d, d/2, d/2)
+                scene.add(makeLine(tetCenter, [tetCenter[0] + half, tetCenter[1], tetCenter[2]], 0x44ff44, 2));
+                // Face centre direction (1,1,1): tip = centroid of Q2Q3Q4 = (2d/3, 2d/3, 2d/3)
+                const faceStep = D / 6;
+                scene.add(makeLine(tetCenter, [tetCenter[0] + faceStep, tetCenter[1] + faceStep, tetCenter[2] + faceStep], 0x4444ff, 2));
             }
 
             return { scene, count: keptCount, outsideKept, total: totalCount, target: new THREE.Vector3(D / 2, D / 2, D / 2), stepLabel: stepLabels[symStepVal] };
