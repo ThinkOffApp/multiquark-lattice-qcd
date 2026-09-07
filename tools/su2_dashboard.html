@@ -1053,7 +1053,7 @@
               class="cursor-legend-swatch s"></span>Amber: space dir (s)</span>
           <span class="cursor-legend-item"
             title="The remaining lattice axes (mu). They carry no marker: the GPU heat bath updates every direction in one kernel, so the driver reports no per-direction position for them (only T along tdir and R along sdir)."><span
-              class="cursor-legend-swatch other"></span>Rows show the current loop's T and R as text; markers were removed (the cursor is a scan, not a position)</span>
+              class="cursor-legend-swatch other"></span>Text line: current loop R, T, transverse extent r⊥ (per-mu rows removed: the cursor is a scan, not a position)</span>
           <span class="cursor-legend-item"
             title="Magenta track is per-thread overall config progress from meas_cfg_substep_progress (0-100% of current config), independent of which mu row is active."><span
               class="cursor-legend-swatch cfg"></span>Magenta track: cfg progress</span>
@@ -3565,54 +3565,22 @@
         ctx.font = "13px sans-serif";
         ctx.fillText("Idle (not in production phase)", 18, 28);
       } else {
-        for (let mu = 0; mu < rows; mu += 1) {
-          const y = padT + rowH * (mu + 0.5);
-          const isT = Number.isFinite(tdir) && Math.round(tdir) === mu;
-          const isS = Number.isFinite(sdir) && Math.round(sdir) === mu;
-          const role = isT && isS ? "t/s" : (isT ? "t" : (isS ? "s" : ""));
-
-          ctx.strokeStyle = "#33405a";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.moveTo(padL, y);
-          ctx.lineTo(w - padR, y);
-          ctx.stroke();
-
-          const l = dims[mu];
-          ctx.fillStyle = "#9fb0cc";
-          ctx.font = "11px sans-serif";
-          const baseLabel = Number.isFinite(l) ? `mu${mu} (L=${l})` : `mu${mu}`;
-          ctx.fillText(role ? `${baseLabel} [${role}]` : baseLabel, 8, y + 4);
-
-          // #58: the driver's cursor is a scan over loop geometries (R, T hop
-          // with every operator), not a position that travels along an axis;
-          // drawn as a marker it jumps wildly. Show the values as text and
-          // leave the magenta cfg track as the only moving element.
-          const frac = NaN;
-          if (isT && Number.isFinite(tVal)) {
-            ctx.fillStyle = "#52adff";
-            ctx.fillText(`T=${Math.round(tVal)}`, padL + 4, y + 4);
-          } else if (isS && Number.isFinite(rVal)) {
-            ctx.fillStyle = "#f2c14b";
-            ctx.fillText(Number.isFinite(rPerp) ? `R=${Math.round(rVal)} r⊥=${Math.round(rPerp)}` : `R=${Math.round(rVal)}`, padL + 4, y + 4);
-          }
-          if (Number.isFinite(frac)) {
-            const x = padL + frac * iw;
-            const markerColor = isT
-              ? "#52adff"
-              : (isS ? "#f2c14b" : "#2fd08a");
-            ctx.strokeStyle = markerColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(x, y - 8);
-            ctx.lineTo(x, y + 8);
-            ctx.stroke();
-            ctx.fillStyle = markerColor;
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-        }
+        // #58 (petrus): no per-mu rows, they either lied or jumped. One line of
+        // text with the current loop geometry, and the cfg track below it.
+        const rPerpMax = toFiniteNumber(meta?.flux_r_perp_max, NaN);
+        const rPerpTxt = Number.isFinite(rPerp)
+          ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMax) ? `/${Math.round(rPerpMax)}` : ""}`
+          : (Number.isFinite(rPerpMax) ? `r⊥ max=${Math.round(rPerpMax)}` : "");
+        const geomTxt = [
+          Number.isFinite(rVal) ? `R=${Math.round(rVal)}` : "",
+          Number.isFinite(tVal) ? `T=${Math.round(tVal)}` : "",
+          rPerpTxt,
+          Number.isFinite(tdir) ? `tdir=${Math.round(tdir)}` : "",
+          Number.isFinite(sdir) ? `sdir=${Math.round(sdir)}` : "",
+        ].filter(Boolean).join("   ");
+        ctx.fillStyle = "#dfe7f5";
+        ctx.font = "15px sans-serif";
+        ctx.fillText(`${kind || stageTxt}   ${geomTxt}`.trim(), padL, padT + 22);
       }
 
       const trackY = h - 10;
@@ -3654,16 +3622,26 @@
         if (pidTxt) details.push(pidTxt);
         if (isPaused) details.push("paused");
       }
-      if (Number.isFinite(cfgDisplayProgress)) details.push(`cfg=${(100 * cfgDisplayProgress).toFixed(1)}%`);
+      if (Number.isFinite(cfgDisplayProgress)) {
+        const rPerpMaxTxt = toFiniteNumber(meta?.flux_r_perp_max, NaN);
+        const geom = [
+          Number.isFinite(rVal) ? `R=${Math.round(rVal)}` : "",
+          Number.isFinite(tVal) ? `T=${Math.round(tVal)}` : "",
+          Number.isFinite(rPerp)
+            ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMaxTxt) ? `/${Math.round(rPerpMaxTxt)}` : ""}`
+            : (Number.isFinite(rPerpMaxTxt) ? `r⊥max=${Math.round(rPerpMaxTxt)}` : ""),
+        ].filter(Boolean).join(" ");
+        details.push(`cfg=${(100 * cfgDisplayProgress).toFixed(1)}%${geom ? ` ${geom}` : ""}`);
+      }
       details.push(`stage=${stageTxt}`);
       if (!inProduction) {
         details.push("idle");
       } else if (!kind) {
         details.push("cursor unavailable");
       } else if (kind === "loop") {
-        details.push(`loop tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"} R=${Number.isFinite(rVal) ? Math.round(rVal) : "-"} T=${Number.isFinite(tVal) ? Math.round(tVal) : "-"}`);
+        details.push(`loop tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"}`);
       } else if (kind === "flux") {
-        details.push(`flux tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"} R=${Number.isFinite(rVal) ? Math.round(rVal) : "-"} T=${Number.isFinite(tVal) ? Math.round(tVal) : "-"} r_perp=${Number.isFinite(rPerp) ? Math.round(rPerp) : "-"}`);
+        details.push(`flux tdir=${Number.isFinite(tdir) ? Math.round(tdir) : "-"} sdir=${Number.isFinite(sdir) ? Math.round(sdir) : "-"}`);
       } else if (kind === "polyakov") {
         details.push(`polyakov mu=${Number.isFinite(tdir) ? Math.round(tdir) : "-"}`);
       } else if (kind === "skip") {
