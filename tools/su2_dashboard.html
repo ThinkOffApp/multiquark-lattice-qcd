@@ -959,7 +959,7 @@
     <div class="card">
       <div class="row">
         <div class="metric-title">Admin Chat</div>
-        <div class="hint" id="chatStatus">chat: ready</div>
+        <div class="hint" id="chatStatus">chat: checking server...</div>
       </div>
       <div id="chatLog" class="chat-log"></div>
       <div class="chat-input-row">
@@ -1586,6 +1586,27 @@
         setChatStatus("chat: unavailable");
       } finally {
         chatBusy = false;
+      }
+    }
+
+    // Ask the server whether chat can work before claiming it is ready (#50).
+    async function probeChatStatus() {
+      try {
+        const url = new URL(withApiBase("/chat/status"), window.location.origin);
+        url.searchParams.set("_t", String(Date.now()));
+        const r = await fetch(url.toString(), { cache: "no-store" });
+        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        const st = await r.json();
+        if (st && st.available) {
+          setChatStatus(`chat: ready (${st.model || "model unknown"})`);
+          addChat("system", `Admin chat ready (${st.model || "model unknown"}).`);
+        } else {
+          setChatStatus("chat: no API key configured on server");
+          addChat("system", (st && st.reason) || "Admin chat unavailable: the server has no API key configured.");
+        }
+      } catch (e) {
+        setChatStatus("chat: status unknown (server has no /chat/status)");
+        addChat("system", "Admin chat status unknown: this server does not report readiness. Sending will tell.");
       }
     }
 
@@ -7351,7 +7372,7 @@
 
     applyUrlDefaults();
     applyThreadVizMode();
-    addChat("system", "Admin chat ready.");
+    probeChatStatus();
     refresh();
     startStream();
     setInterval(() => {
