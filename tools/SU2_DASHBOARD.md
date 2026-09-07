@@ -49,6 +49,14 @@ The run picker fills the path inputs for you. To set them manually, point at any
 - `results/su2_signal_scan_v2/progress_petrus-su2-signal-v2.json`
 - `results/su2_signal_scan_v2/live_petrus-su2-signal-v2.json`
 
+## Next Jobs To Run
+
+Each suggestion carries a memory estimate: the largest worker RSS the page has
+seen this session, scaled by the lattice-volume ratio, compared with the physical
+memory the server reports for its host (`host` in `/thread_telemetry` and the
+SSE stream). Suggestions above it are marked "needs a larger host". Until a
+worker's RSS has been observed the panel says so instead of guessing.
+
 ## Admin chat
 
 The chat panel calls OpenAI through the dashboard server. It works only when the

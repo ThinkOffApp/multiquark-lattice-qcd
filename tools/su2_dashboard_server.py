@@ -7,6 +7,7 @@ import os
 import re
 import shlex
 import signal
+import socket
 import subprocess
 import threading
 import time
@@ -627,11 +628,38 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         payload = {
             "base_seed": root,
             "threads": threads,
+            "host": DashboardHandler.host_info(),
             "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
         }
         with DashboardHandler.telemetry_cache_lock:
             DashboardHandler.telemetry_cache[cache_key] = {"ts": now, "payload": payload}
         return dict(payload)
+
+    _host_info_cache = None
+
+    @staticmethod
+    def host_info() -> dict:
+        """Physical memory and name of the machine the workers run on (#49):
+        the next-jobs panel needs it to say whether a suggested lattice fits."""
+        if DashboardHandler._host_info_cache is not None:
+            return dict(DashboardHandler._host_info_cache)
+        mem = None
+        try:
+            mem = int(os.sysconf("SC_PHYS_PAGES")) * int(os.sysconf("SC_PAGE_SIZE"))
+        except (ValueError, OSError, AttributeError):
+            mem = None
+        if not mem:
+            try:
+                out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=2)
+                mem = int(out.stdout.strip() or 0) or None
+            except Exception:
+                mem = None
+        try:
+            name = socket.gethostname()
+        except Exception:
+            name = ""
+        DashboardHandler._host_info_cache = {"mem_total_bytes": mem, "hostname": name}
+        return dict(DashboardHandler._host_info_cache)
 
     @staticmethod
     def invalidate_telemetry_cache(base_seed: str):
@@ -1000,6 +1028,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "progress": progress,
                         "live": live,
                         "thread_telemetry": telemetry_payload.get("threads", {}),
+                        "host": telemetry_payload.get("host") or DashboardHandler.host_info(),
                         "errors": {},
                     }
                     if sig == last_sig:

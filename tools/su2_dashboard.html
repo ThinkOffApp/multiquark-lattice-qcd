@@ -1453,6 +1453,9 @@
     const thermSweepStateBySeed = {};
     const threadProgressBySeed = {};
     const threadTelemetryBySeed = {};
+    // #49: what the next-jobs panel needs to be honest about memory.
+    let hostInfo = null;                 // {mem_total_bytes, hostname} from the server
+    const peakWorkerRssKbBySeed = {};    // highest worker RSS seen this session, per base seed
     // #48: the driver's eta_sec divided a per-process elapsed time into a
     // cumulative measurement count after a resume (14 min shown for a 34 h
     // remainder). Observe measurement completions here and use their cadence;
@@ -2239,6 +2242,11 @@
         const k = String(seed || "").trim();
         if (!k || !row || typeof row !== "object") continue;
         threadTelemetryBySeed[k] = row;
+        const rssKb = toFiniteNumber(row?.rss_kb, NaN);
+        if (Number.isFinite(rssKb) && rssKb > 0) {
+          const root = baseSeed(k) || k;
+          peakWorkerRssKbBySeed[root] = Math.max(peakWorkerRssKbBySeed[root] || 0, rssKb);
+        }
       }
     }
 
@@ -2322,6 +2330,7 @@
       threadTelemetryNextAtMs = now + 1000;
       try {
         const payload = await fetchJson(`/thread_telemetry?base_seed=${encodeURIComponent(root)}`);
+        if (payload && payload.host && typeof payload.host === "object") hostInfo = payload.host;
         if (payload?.threads && typeof payload.threads === "object") {
           applyThreadTelemetryMap(payload.threads);
         }
@@ -6516,10 +6525,45 @@
         .map(x => Math.round(x * 100) / 100)
         .filter(x => x > 0);
 
-      out.push(`1) Larger volume check: L=${fmtList(Lbump)}, beta=${beta.toFixed(2)}, ntherm=${nthermTxt}, nmeas=${nmeasTxt}`);
-      out.push(`2) Large-volume stretch: L=${fmtList(Ldouble)}, beta=${beta.toFixed(2)}, ntherm=${Number.isFinite(ntherm) ? Math.max(300, ntherm) : 300}, nmeas=${Number.isFinite(nmeas) ? Math.max(300, nmeas) : 300}`);
-      out.push(`3) Beta scan at current L=${fmtList(L)}: beta in {${betaVals.join(", ")}}`);
-      out.push(`4) Combined step: L=${fmtList(Lbump)} with beta=${(beta + 0.1).toFixed(2)} for finer spacing test`);
+      // Memory feasibility (#49): scale the largest worker RSS seen this
+      // session by the volume ratio and compare with the host's physical
+      // memory. No observation yet => say so, never invent a number.
+      const vol = (a) => a.reduce((x, y) => x * Number(y), 1);
+      const root = baseSeed(String(p.seed || "")) || String(p.seed || "");
+      const peakKb = toFiniteNumber(peakWorkerRssKbBySeed[root], NaN);
+      const hostBytes = toFiniteNumber(hostInfo?.mem_total_bytes, NaN);
+      const hostGb = Number.isFinite(hostBytes) ? hostBytes / 2 ** 30 : NaN;
+      const hostName = String(hostInfo?.hostname || "this host");
+      const inProduction = String(p.phase || "") === "production";
+      const gb = (b) => `${(b / 2 ** 30).toFixed(0)} GB`;
+      const memNote = (Lnew) => {
+        if (!Number.isFinite(peakKb) || peakKb <= 0) return { text: "memory: no worker observation yet", fits: null };
+        const est = peakKb * 1024 * vol(Lnew) / vol(L);
+        let text = `~${gb(est)} est.`;
+        if (!inProduction) text += " (scaled from a thermalization worker; measurement uses more)";
+        let fits = null;
+        if (Number.isFinite(hostBytes)) {
+          if (est > hostBytes) { fits = false; text += `, exceeds ${gb(hostBytes)} on ${hostName}: needs a larger host`; }
+          else if (est > 0.8 * hostBytes) { fits = true; text += `, tight on ${gb(hostBytes)}`; }
+          else { fits = true; text += `, fits in ${gb(hostBytes)}`; }
+        }
+        return { text, fits };
+      };
+      const line = (label, Lnew) => {
+        const m = memNote(Lnew);
+        const flag = m.fits === false ? "&#9888; " : "";
+        return `${flag}${label} <span class="hint">[${escapeHtml(m.text)}]</span>`;
+      };
+
+      out.push(line(`1) Larger volume check: L=${fmtList(Lbump)}, beta=${beta.toFixed(2)}, ntherm=${nthermTxt}, nmeas=${nmeasTxt}`, Lbump));
+      out.push(line(`2) Large-volume stretch: L=${fmtList(Ldouble)}, beta=${beta.toFixed(2)}, ntherm=${Number.isFinite(ntherm) ? Math.max(300, ntherm) : 300}, nmeas=${Number.isFinite(nmeas) ? Math.max(300, nmeas) : 300}`, Ldouble));
+      out.push(line(`3) Beta scan at current L=${fmtList(L)}: beta in {${betaVals.join(", ")}}`, L));
+      out.push(line(`4) Combined step: L=${fmtList(Lbump)} with beta=${(beta + 0.1).toFixed(2)} for finer spacing test`, Lbump));
+      if (Number.isFinite(peakKb) && peakKb > 0) {
+        out.push(`<span class="hint">Memory estimates scale the peak worker RSS seen here (${gb(peakKb * 1024)} at L=${fmtList(L)}) by lattice volume${Number.isFinite(hostGb) ? `; ${escapeHtml(hostName)} has ${hostGb.toFixed(0)} GB` : ""}.</span>`);
+      } else {
+        out.push(`<span class="hint">Memory estimates appear once a worker's RSS has been observed.</span>`);
+      }
       document.getElementById("nextJobsList").innerHTML = out.map(x => `<div>${x}</div>`).join("");
     }
 
@@ -7261,6 +7305,7 @@
               }
             }
           }
+          if (payload.host && typeof payload.host === "object") hostInfo = payload.host;
           if (payload.thread_telemetry && typeof payload.thread_telemetry === "object") {
             applyThreadTelemetryMap(payload.thread_telemetry);
           }
