@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -23,6 +24,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     chat_model = "gpt-4o-mini"
     allowed_tailscale_login = ""
     auth_token = ""
+    # Peers whose Tailscale identity headers are believed (#37). Only a
+    # `tailscale serve` proxy on this host, i.e. loopback, sets them honestly;
+    # anyone else on the network can type them. Extra proxies via --trusted-proxy.
+    trusted_proxies = ()
     cors_origin = ""
     protect_results = True
     json_cache = {}
@@ -158,7 +163,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.handle_thread_telemetry(parsed)
             return
         if parsed.path == "/events":
-            if not self.is_authorized(parsed=parsed):
+            if not self.is_authorized(parsed=parsed, allow_query_token=True):
                 self.send_unauthorized()
                 return
             self.handle_events(parsed)
@@ -239,7 +244,46 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    _TOKEN_IN_URL = re.compile(r"(token=)[^&\s]*")
+
+    def log_message(self, fmt, *args):
+        # Query-string tokens (the SSE stream has no header channel) must not
+        # end up in the access log (#37).
+        try:
+            args = tuple(self._TOKEN_IN_URL.sub(r"\1<redacted>", a) if isinstance(a, str) else a for a in args)
+        except Exception:
+            pass
+        super().log_message(fmt, *args)
+
+    def peer_is_trusted_proxy(self) -> bool:
+        """True when the TCP peer is loopback or an explicitly trusted proxy."""
+        try:
+            host = self.client_address[0]
+        except (AttributeError, IndexError, TypeError):
+            return False
+        try:
+            ip = ipaddress.ip_address(str(host).split("%", 1)[0])
+        except ValueError:
+            return False
+        if ip.is_loopback:
+            return True
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped and ip.ipv4_mapped.is_loopback:
+            return True
+        for entry in self.trusted_proxies or ():
+            try:
+                net = ipaddress.ip_network(str(entry).strip(), strict=False)
+            except ValueError:
+                continue
+            probe = ip.ipv4_mapped if (isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped and net.version == 4) else ip
+            if probe.version == net.version and probe in net:
+                return True
+        return False
+
     def get_tailscale_login(self) -> str:
+        # Identity headers are plain request headers; they prove nothing unless
+        # the peer is the proxy that sets them (#37).
+        if not self.peer_is_trusted_proxy():
+            return ""
         for key in (
             "Tailscale-User-Login",
             "X-Tailscale-User-Login",
@@ -251,14 +295,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return v.strip().lower()
         return ""
 
-    def get_token(self, parsed=None, payload=None) -> str:
+    def get_token(self, parsed=None, payload=None, allow_query=False) -> str:
         auth = (self.headers.get("Authorization") or "").strip()
         if auth.lower().startswith("bearer "):
             return auth[7:].strip()
         header_token = (self.headers.get("X-Auth-Token") or "").strip()
         if header_token:
             return header_token
-        if parsed:
+        # ?token= is accepted only where the browser cannot send a header
+        # (EventSource); everywhere else it would just leak into logs (#37).
+        if allow_query and parsed:
             qs_token = parse_qs(parsed.query).get("token", [""])[0].strip()
             if qs_token:
                 return qs_token
@@ -268,7 +314,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return body_token.strip()
         return ""
 
-    def is_authorized(self, parsed=None, payload=None) -> bool:
+    def is_authorized(self, parsed=None, payload=None, allow_query_token=False) -> bool:
         expected_login = (self.allowed_tailscale_login or "").strip().lower()
         expected_token = (self.auth_token or "").strip()
         if not expected_login and not expected_token:
@@ -280,7 +326,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 return True
 
         if expected_token:
-            token = self.get_token(parsed=parsed, payload=payload)
+            token = self.get_token(parsed=parsed, payload=payload, allow_query=allow_query_token)
             if token and hmac.compare_digest(token, expected_token):
                 return True
 
@@ -1240,7 +1286,14 @@ def main():
     p.add_argument(
         "--auth-token",
         default=os.environ.get("SU2_DASHBOARD_AUTH_TOKEN", ""),
-        help="Shared token fallback (Authorization: Bearer <token>, X-Auth-Token, or ?token=...).",
+        help="Shared token (Authorization: Bearer <token> or X-Auth-Token; ?token=... only on /events).",
+    )
+    p.add_argument(
+        "--trusted-proxy",
+        action="append",
+        default=[x.strip() for x in os.environ.get("SU2_DASHBOARD_TRUSTED_PROXIES", "").split(",") if x.strip()],
+        metavar="IP_OR_CIDR",
+        help="Peer allowed to assert Tailscale identity headers, in addition to loopback (repeatable).",
     )
     p.add_argument(
         "--cors-origin",
@@ -1275,6 +1328,7 @@ def main():
     DashboardHandler.chat_model = args.chat_model
     DashboardHandler.allowed_tailscale_login = args.allowed_tailscale_login
     DashboardHandler.auth_token = args.auth_token
+    DashboardHandler.trusted_proxies = tuple(args.trusted_proxy or ())
     DashboardHandler.cors_origin = args.cors_origin
     DashboardHandler.protect_results = not args.no_protect_results
 
@@ -1286,6 +1340,8 @@ def main():
         print("Auth enabled:")
         if DashboardHandler.allowed_tailscale_login:
             print(f"  - Tailscale login allowlist: {DashboardHandler.allowed_tailscale_login}")
+            proxies = ", ".join(("loopback",) + tuple(DashboardHandler.trusted_proxies))
+            print(f"  - Identity headers trusted only from: {proxies}")
         if DashboardHandler.auth_token:
             print("  - Shared auth token: enabled")
         print(f"  - Protect /results/*: {DashboardHandler.protect_results}")

@@ -78,3 +78,22 @@ python3 applications/hmc/su2_2q_signal_scan.py \
 `R=1` anchors the short-distance Coulomb part of the Cornell fit (it is
 dominated by lattice artifacts and self-energy, not the string tension);
 `R=5,7` fill the gaps the earlier run left as `n/a`.
+
+## Exposing the dashboard beyond this machine
+
+The control endpoints (`/thread_control`: pause, resume, kill, launch workers; `/chat`)
+are open to anyone who can reach the port unless auth is configured. The safe layouts:
+
+1. **Loopback only (default).** `--host 127.0.0.1`; reach it over an SSH tunnel.
+2. **Tailscale.** Keep the server on loopback and publish it with
+   `tailscale serve --bg 8001`; set `--allowed-tailscale-login you@example.com`.
+   The proxy connects from loopback and adds `Tailscale-User-Login`. The server
+   believes that header **only** from loopback (or from `--trusted-proxy IP_OR_CIDR`,
+   env `SU2_DASHBOARD_TRUSTED_PROXIES`); from any other peer it is ignored, because
+   anyone on the network can type it.
+3. **Shared token.** `--auth-token` / `SU2_DASHBOARD_AUTH_TOKEN`, sent as
+   `Authorization: Bearer` or `X-Auth-Token`. `?token=` is accepted only on `/events`
+   (the browser's EventSource cannot send headers) and is redacted from the access log.
+
+`--host 0.0.0.0` with neither an allowlist nor a token puts the kill and launch
+buttons on your LAN; the startup banner says so.
