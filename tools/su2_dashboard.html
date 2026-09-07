@@ -791,6 +791,9 @@
       background: rgba(117, 138, 170, 0.16);
       border-color: rgba(117, 138, 170, 0.42);
     }
+    .cursor-thread-cfg .cfgbar { display: inline-block; width: 110px; height: 6px; margin-left: 8px; vertical-align: middle; background: #33405a; border-radius: 3px; overflow: hidden; }
+    .cursor-thread-cfg .cfgbar i { display: block; height: 100%; background: #ff5da2; }
+    .cursor-thread-cfg .cfggeom { color: #dfe7f5; margin-left: 8px; }
   </style>
 </head>
 
@@ -3630,15 +3633,15 @@
         if (pidTxt) details.push(pidTxt);
         if (isPaused) details.push("paused");
       }
+      const rPerpMaxTxt = toFiniteNumber(meta?.flux_r_perp_max, NaN);
+      const geom = inProduction ? [
+        scanPosTxt("R", rVal, meta?.R),
+        scanPosTxt("T", tVal, meta?.T),
+        Number.isFinite(rPerp)
+          ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMaxTxt) ? `/${Math.round(rPerpMaxTxt)}` : ""}`
+          : (Number.isFinite(rPerpMaxTxt) ? `r⊥max=${Math.round(rPerpMaxTxt)}` : ""),
+      ].filter(Boolean).join(" ") : "";
       if (Number.isFinite(cfgDisplayProgress)) {
-        const rPerpMaxTxt = toFiniteNumber(meta?.flux_r_perp_max, NaN);
-        const geom = [
-          scanPosTxt("R", rVal, meta?.R),
-          scanPosTxt("T", tVal, meta?.T),
-          Number.isFinite(rPerp)
-            ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMaxTxt) ? `/${Math.round(rPerpMaxTxt)}` : ""}`
-            : (Number.isFinite(rPerpMaxTxt) ? `r⊥max=${Math.round(rPerpMaxTxt)}` : ""),
-        ].filter(Boolean).join(" ");
         details.push(`cfg=${(100 * cfgDisplayProgress).toFixed(1)}%${geom ? ` ${geom}` : ""}`);
       }
       details.push(`stage=${stageTxt}`);
@@ -3664,9 +3667,12 @@
       const cfgTotal = Number.isFinite(cfgTotalRaw) && cfgTotalRaw > 0 ? Math.round(cfgTotalRaw) : NaN;
       if (cfgEl) {
         if (Number.isFinite(cfgIdx)) {
-          cfgEl.textContent = Number.isFinite(cfgTotal)
-            ? `cfg ${cfgIdx}/${cfgTotal}`
-            : `cfg ${cfgIdx}`;
+          const head = Number.isFinite(cfgTotal) ? `cfg ${cfgIdx}/${cfgTotal}` : `cfg ${cfgIdx}`;
+          const pct = Number.isFinite(cfgDisplayProgress) ? clamp01(cfgDisplayProgress) : NaN;
+          // Progress lives on this line now (#58): percentage, inline bar, R/T scan position.
+          cfgEl.innerHTML = `${escapeHtml(head)}`
+            + (Number.isFinite(pct) ? ` · ${(100 * pct).toFixed(1)}%<span class="cfgbar"><i style="width:${(100 * pct).toFixed(1)}%"></i></span>` : "")
+            + (geom ? ` <span class="cfggeom">${escapeHtml(geom)}</span>` : "");
         } else {
           cfgEl.textContent = (p?.done || phase === "complete" || phase === "done")
             ? "cfg done"
