@@ -2896,6 +2896,14 @@
       return finite.reduce((a, b) => a + b, 0) / finite.length;
     }
 
+    // "R=8 (5/7)": where the current value sits in the run's scan list (meta.R / meta.T).
+    function scanPosTxt(label, val, list) {
+      if (!Number.isFinite(val)) return "";
+      const arr = Array.isArray(list) ? list.map(Number).filter(Number.isFinite) : [];
+      const idx = arr.indexOf(Math.round(val));
+      return idx >= 0 ? `${label}=${Math.round(val)} (${idx + 1}/${arr.length})` : `${label}=${Math.round(val)}`;
+    }
+
     function muProgressVector(coords, dims, cfgProgress, muCount = 4) {
       // Only positions the driver actually reports (#58): for a loop cursor
       // that is T along tdir and R along sdir; the other rows have no
@@ -3572,8 +3580,8 @@
           ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMax) ? `/${Math.round(rPerpMax)}` : ""}`
           : (Number.isFinite(rPerpMax) ? `r⊥ max=${Math.round(rPerpMax)}` : "");
         const geomTxt = [
-          Number.isFinite(rVal) ? `R=${Math.round(rVal)}` : "",
-          Number.isFinite(tVal) ? `T=${Math.round(tVal)}` : "",
+          scanPosTxt("R", rVal, meta?.R),
+          scanPosTxt("T", tVal, meta?.T),
           rPerpTxt,
           Number.isFinite(tdir) ? `tdir=${Math.round(tdir)}` : "",
           Number.isFinite(sdir) ? `sdir=${Math.round(sdir)}` : "",
@@ -3625,8 +3633,8 @@
       if (Number.isFinite(cfgDisplayProgress)) {
         const rPerpMaxTxt = toFiniteNumber(meta?.flux_r_perp_max, NaN);
         const geom = [
-          Number.isFinite(rVal) ? `R=${Math.round(rVal)}` : "",
-          Number.isFinite(tVal) ? `T=${Math.round(tVal)}` : "",
+          scanPosTxt("R", rVal, meta?.R),
+          scanPosTxt("T", tVal, meta?.T),
           Number.isFinite(rPerp)
             ? `r⊥=${Math.round(rPerp)}${Number.isFinite(rPerpMaxTxt) ? `/${Math.round(rPerpMaxTxt)}` : ""}`
             : (Number.isFinite(rPerpMaxTxt) ? `r⊥max=${Math.round(rPerpMaxTxt)}` : ""),
