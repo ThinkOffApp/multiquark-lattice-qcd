@@ -1453,6 +1453,39 @@
     const thermSweepStateBySeed = {};
     const threadProgressBySeed = {};
     const threadTelemetryBySeed = {};
+    // #48: the driver's eta_sec divided a per-process elapsed time into a
+    // cumulative measurement count after a resume (14 min shown for a 34 h
+    // remainder). Observe measurement completions here and use their cadence;
+    // a driver that reports eta_source has the fix and is trusted as is.
+    const measCadence = { seed: "", lastMeasDone: NaN, lastAtMs: NaN, deltasMs: [] };
+    function cadenceEtaSec(p, driverEtaSec) {
+      const seed = String(p?.seed || "");
+      const measDone = toFiniteNumber(p?.meas_done, NaN);
+      const nmeas = toFiniteNumber(p?.nmeas, NaN);
+      if (seed && seed !== measCadence.seed) {
+        measCadence.seed = seed; measCadence.lastMeasDone = NaN; measCadence.lastAtMs = NaN; measCadence.deltasMs = [];
+      }
+      const now = Date.now();
+      if (Number.isFinite(measDone)) {
+        if (Number.isFinite(measCadence.lastMeasDone) && measDone > measCadence.lastMeasDone && Number.isFinite(measCadence.lastAtMs)) {
+          const per = (now - measCadence.lastAtMs) / (measDone - measCadence.lastMeasDone);
+          measCadence.deltasMs.push(per);
+          if (measCadence.deltasMs.length > 8) measCadence.deltasMs.shift();
+        }
+        if (measDone !== measCadence.lastMeasDone) { measCadence.lastMeasDone = measDone; measCadence.lastAtMs = now; }
+      }
+      if (p?.eta_source) return driverEtaSec; // fixed driver: per-process rate already
+      if (measCadence.deltasMs.length > 0 && Number.isFinite(nmeas) && Number.isFinite(measDone) && measDone < nmeas) {
+        const sorted = [...measCadence.deltasMs].sort((a, b) => a - b);
+        const median = sorted[Math.floor(sorted.length / 2)];
+        return (median / 1000) * (nmeas - measDone);
+      }
+      return NaN; // old driver, nothing observed yet: say so instead of a wrong number
+    }
+    function fmtEta(p, etaSec) {
+      if (p?.done) return "done";
+      return Number.isFinite(etaSec) ? fmtSec(etaSec) : "measuring…";
+    }
     const threadCfgSpeedStateBySeed = {};
     const threadCfgSpeedHistoryBySeed = {};
     const measurementCacheBySeed = {};
@@ -6616,7 +6649,8 @@
           }
         }
         document.getElementById("elapsedVal").textContent = fmtSec(elapsedSec);
-        document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(etaSec);
+        etaSec = cadenceEtaSec(p, etaSec);
+        document.getElementById("etaVal").textContent = fmtEta(p, etaSec);
       } else {
         const therm = estimateThermState(p, liveElapsedFromProgress());
         const thermOverallPct =
@@ -6674,7 +6708,7 @@
           : (p.nmeas > 0 ? 100 * p.meas_done / p.nmeas : 0);
         setPct("measFill", measFillPct);
         document.getElementById("elapsedVal").textContent = fmtSec(liveElapsedFromProgress());
-        document.getElementById("etaVal").textContent = p.done ? "done" : fmtSec(p.eta_sec);
+        document.getElementById("etaVal").textContent = fmtEta(p, cadenceEtaSec(p, toFiniteNumber(p.eta_sec, NaN)));
       }
 
       const plaq = toFiniteNumber(p.last_plaquette, NaN);
