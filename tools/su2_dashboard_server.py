@@ -418,7 +418,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         root = DashboardHandler.base_seed(base_seed)
         if not root:
             return []
-        return [f"{root}-e", f"{root}-f", f"{root}-g", f"{root}-h"]
+        # Must match `threadSlots` in tools/su2_dashboard.html (root, -b, -c,
+        # -d). Until Sep 2026 this returned -e..-h, so telemetry never lined up
+        # with the page: thread A showed "cpu -" / "mem -" and sibling rows
+        # could never be recognised (issue #52). The root seed is included so
+        # thread A itself is covered.
+        return [root, f"{root}-b", f"{root}-c", f"{root}-d"]
 
     @staticmethod
     def parse_ps_number(value, default=None):
