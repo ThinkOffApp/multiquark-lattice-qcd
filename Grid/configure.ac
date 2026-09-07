@@ -324,6 +324,9 @@ case ${ac_ACCELERATOR} in
     *)
       AC_MSG_ERROR(["Acceleration not suppoorted ${ac_ACCELERATOR}"]);;
 esac
+# Metal shader library only where it can be built (Apple toolchain); Linux hosts
+# have no xcrun and must not depend on it (M5/VTA-439 port, Sep 2026).
+AM_CONDITIONAL(BUILD_METAL, [ test "${ac_ACCELERATOR}X" == "metalX" ])
 
 ############### UNIFIED MEMORY
 AC_ARG_ENABLE([unified],
