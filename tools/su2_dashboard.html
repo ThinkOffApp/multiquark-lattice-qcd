@@ -228,7 +228,8 @@
 
     .cursor-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      /* auto-fit: a lone visible card (single worker) spans the full width (#58) */
+      grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
       gap: 8px;
     }
 
@@ -791,6 +792,8 @@
       background: rgba(117, 138, 170, 0.16);
       border-color: rgba(117, 138, 170, 0.42);
     }
+    /* #58 (petrus): the cfg line carries the progress now; the canvas was a black box with one text line in it */
+    .cursor-pane-cursor canvas.cursor-canvas-thread { display: none; }
     .cursor-thread-cfg .cfgbar { display: inline-block; width: 110px; height: 6px; margin-left: 8px; vertical-align: middle; background: #33405a; border-radius: 3px; overflow: hidden; }
     .cursor-thread-cfg .cfgbar i { display: block; height: 100%; background: #ff5da2; }
     .cursor-thread-cfg .cfggeom { color: #dfe7f5; margin-left: 8px; }
