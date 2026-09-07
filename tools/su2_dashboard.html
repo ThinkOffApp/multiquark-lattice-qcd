@@ -1457,22 +1457,29 @@
     // cumulative measurement count after a resume (14 min shown for a 34 h
     // remainder). Observe measurement completions here and use their cadence;
     // a driver that reports eta_source has the fix and is trusted as is.
-    const measCadence = { seed: "", lastMeasDone: NaN, lastAtMs: NaN, deltasMs: [] };
+    // anchored: the last sample was itself an observed completion. The first
+    // sample is whatever count the page loaded at, mid-measurement, so a delta
+    // from it undercounts (seed 9101: 8.2 min against a true 12.0 min cycle).
+    const measCadence = { seed: "", lastMeasDone: NaN, lastAtMs: NaN, anchored: false, deltasMs: [] };
     function cadenceEtaSec(p, driverEtaSec) {
       const seed = String(p?.seed || "");
       const measDone = toFiniteNumber(p?.meas_done, NaN);
       const nmeas = toFiniteNumber(p?.nmeas, NaN);
       if (seed && seed !== measCadence.seed) {
-        measCadence.seed = seed; measCadence.lastMeasDone = NaN; measCadence.lastAtMs = NaN; measCadence.deltasMs = [];
+        measCadence.seed = seed; measCadence.lastMeasDone = NaN; measCadence.lastAtMs = NaN; measCadence.anchored = false; measCadence.deltasMs = [];
       }
       const now = Date.now();
       if (Number.isFinite(measDone)) {
-        if (Number.isFinite(measCadence.lastMeasDone) && measDone > measCadence.lastMeasDone && Number.isFinite(measCadence.lastAtMs)) {
+        const advanced = Number.isFinite(measCadence.lastMeasDone) && measDone > measCadence.lastMeasDone && Number.isFinite(measCadence.lastAtMs);
+        if (advanced && measCadence.anchored) {
           const per = (now - measCadence.lastAtMs) / (measDone - measCadence.lastMeasDone);
           measCadence.deltasMs.push(per);
           if (measCadence.deltasMs.length > 8) measCadence.deltasMs.shift();
         }
-        if (measDone !== measCadence.lastMeasDone) { measCadence.lastMeasDone = measDone; measCadence.lastAtMs = now; }
+        if (measDone !== measCadence.lastMeasDone) {
+          measCadence.anchored = advanced; // a completion we watched happen, not the load-time count
+          measCadence.lastMeasDone = measDone; measCadence.lastAtMs = now;
+        }
       }
       if (p?.eta_source) return driverEtaSec; // fixed driver: per-process rate already
       if (measCadence.deltasMs.length > 0 && Number.isFinite(nmeas) && Number.isFinite(measDone) && measDone < nmeas) {
