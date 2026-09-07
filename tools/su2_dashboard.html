@@ -4305,8 +4305,11 @@
           });
           chosen = stable[0];
         } else if (windows.length > 0) {
-          // If no suffix looks stable yet, use all available adjacent pairs
-          // to avoid cherry-picking while statistics are still limited.
+          // No suffix looks stable yet: report the all-pair average so the point stays
+          // visible, but flag it `unstable` so the Cornell fit leaves it out. Averaging
+          // T=1,2 in carries excited states and biases V(R) high (seed 9101 at N=124:
+          // R=4 and R=8 sat on this fallback with chi2/dof 116 and 200 and pushed the
+          // Cornell fit to chi2/dof 50).
           chosen = windows[0];
         }
 
@@ -4344,6 +4347,7 @@
             chi2dof: chosen.fit.dof > 0 ? (chosen.fit.chi2 / chosen.fit.dof) : NaN,
             avgZ: subset.reduce((a, p) => a + (Number.isFinite(p.z) ? p.z : 0), 0) / Math.max(1, subset.length),
             method: "t_plateau_fit",
+            unstable: stable.length === 0,
             t0: tMin,
             t1: tMax,
             plateauRef:
@@ -4913,6 +4917,20 @@
       ];
     }
 
+    // Which V(R) points enter the Cornell fit. Two exclusions, both shown (grey) rather than hidden:
+    //  - R < CORNELL_MIN_R: the continuum -e/R term does not describe R=1 on the lattice, and its
+    //    tiny error (6e-5 at N=124) otherwise pins e and drives chi2/dof to ~50;
+    //  - plateau not found (all-pair fallback): the all-T average carries T=1,2 excited states.
+    const CORNELL_MIN_R = 2;
+    function cornellExclusionReason(R, info) {
+      if (Number(R) < CORNELL_MIN_R) return `R<${CORNELL_MIN_R}: lattice Coulomb, not -e/R`;
+      if (info && info.unstable) return "no Veff plateau yet (all-pair fallback includes T=1,2)";
+      return null;
+    }
+    function cornellFitMask(Rs, pairByR) {
+      return Rs.map((R, i) => cornellExclusionReason(R, Array.isArray(pairByR) ? pairByR[i] : null) === null);
+    }
+
     function fitCornellPotential(pot) {
       if (!pot || !Array.isArray(pot.Rs) || !Array.isArray(pot.means) || !Array.isArray(pot.sems)) return null;
       const pts = [];
@@ -4921,6 +4939,7 @@
         const y = Number(pot.means[i]);
         const semRaw = Number(pot.sems[i]);
         if (!(Number.isFinite(R) && Number.isFinite(y) && R > 0)) continue;
+        if (Array.isArray(pot.fitMask) && pot.fitMask[i] === false) continue;
         const sem = Number.isFinite(semRaw) && semRaw > 0 ? semRaw : 1.0;
         const w = 1.0 / Math.max(1e-12, sem * sem);
         pts.push({ R, y, w });
@@ -4987,6 +5006,7 @@
         dof,
         chi2dof: dof > 0 ? (chi2 / dof) : NaN,
         n: pts.length,
+        usedRs: pts.map((p) => p.R),
         fitFn: (R) => V0 + sigma * R - e / R,
         fitErrFn,
       };
@@ -5000,6 +5020,7 @@
         const y = Number(pot.means[i]);
         const semRaw = Number(pot.sems[i]);
         if (!(Number.isFinite(R) && Number.isFinite(y) && R > 0)) continue;
+        if (Array.isArray(pot.fitMask) && pot.fitMask[i] === false) continue;
         const sem = Number.isFinite(semRaw) && semRaw > 0 ? semRaw : 1.0;
         const w = 1.0 / Math.max(1e-12, sem * sem);
         const yAdj = y + eFixed / R;
@@ -5567,6 +5588,7 @@
               semInflation: semAdj.inflation,
               semInflationNotes: semAdj.notes,
               plateauRef: tFit.plateauRef,
+              unstable: !!tFit.unstable,
             });
             validCount += 1;
             totalN += tFit.n;
@@ -5631,6 +5653,7 @@
         }
 
         if (validCount === 0) return null;
+        const fitMask = cornellFitMask(Rs, pairByR);
         return {
           t0: NaN,
           t1: NaN,
@@ -5644,6 +5667,8 @@
           pairByR,
           nTFit,
           nPairFallback,
+          fitMask,
+          fitExcluded: fitMask.map((ok, i) => (ok ? null : cornellExclusionReason(Rs[i], pairByR[i]))),
           selection: "per_r_t_log_fit",
         };
       }
@@ -6022,6 +6047,24 @@
         label: `R=${x.R}`,
       }));
 
+      // Points outside the Cornell fit (R<2, or no plateau yet) are drawn grey with the
+      // provisional points, so the chart shows what the fit actually used.
+      const fitRs = [];
+      const fitMeans = [];
+      const fitSems = [];
+      const excludedRs = [];
+      for (let i = 0; i < pot.Rs.length; i += 1) {
+        const inFit = !Array.isArray(pot.fitMask) || pot.fitMask[i] !== false;
+        if (inFit) {
+          fitRs.push(pot.Rs[i]);
+          fitMeans.push(pot.means[i]);
+          fitSems.push(pot.sems[i]);
+        } else if (Number.isFinite(Number(pot.means[i])) && Number.isFinite(Number(pot.sems[i]))) {
+          excludedRs.push(pot.Rs[i]);
+          extraPts.push({ x: pot.Rs[i], y: pot.means[i], e: pot.sems[i], label: `R=${pot.Rs[i]} (not in fit)` });
+        }
+      }
+
       const fit = fitCornellPotential(pot);
       const drawOpts = { extraPts };
       if (fit) {
@@ -6032,7 +6075,8 @@
           drawOpts.fitErrFn = fit.fitErrFn;
         }
       }
-      const vDraw = drawXYError("vCanvas", pot.Rs, pot.means, pot.sems, "#f38ba8", drawOpts);
+      const vDraw = drawXYError("vCanvas", fitRs, fitMeans, fitSems, "#f38ba8", drawOpts);
+      const excludedText = excludedRs.length > 0 ? `, not in Cornell fit: R=${excludedRs.join(",")}` : "";
       const modeText = pot.mode === "legacy_filter"
         ? "legacy filtered per-sample log ratio"
         : (pot.selection === "per_r_t_log_fit"
@@ -6042,9 +6086,9 @@
             : "all-sample ratio with jackknife"));
       if (pot.selection === "per_r_t_log_fit") {
         document.getElementById("vLabel").textContent =
-          `V(R) from per-R T-fits, N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}, T-fit R=${pot.nTFit || 0}, pair-fallback R=${pot.nPairFallback || 0}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
+          `V(R) from per-R T-fits, N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}, T-fit R=${pot.nTFit || 0}, pair-fallback R=${pot.nPairFallback || 0}${excludedText}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
         document.getElementById("vAxes").textContent =
-          `x: R (lattice units), y: V(R) from per-R T-fits (plateau in Veff, ln|W| slope fallback)${extraPts.length > 0 ? ` | provisional gray points=${extraPts.length} (not used in fit)` : ""}`;
+          `x: R (lattice units), y: V(R) from per-R T-fits (plateau in Veff, ln|W| slope fallback)${extraPts.length > 0 ? ` | gray points=${extraPts.length} (shown, not used in the Cornell fit)` : ""}`;
       } else if (pot.selection === "per_r_plateau_adjacent") {
         document.getElementById("vLabel").textContent =
           `V(R) from per-R adjacent-T plateaus, N=${pot.ncfg}, mode=${modeText}, valid R=${pot.validCount}/${pot.Rs.length}${pot.fallbackReason ? ` (${pot.fallbackReason})` : ""}`;
@@ -6086,8 +6130,10 @@
         } else if (pairInfo && Number.isFinite(Number(pairInfo.t0)) && Number.isFinite(Number(pairInfo.t1))) {
           pairText = ` | pair T${pairInfo.t0}->T${pairInfo.t1}${pairInfo.plateauRef ? ` (${pairInfo.plateauRef})` : ""}`;
         }
+        const exclReason = Array.isArray(pot.fitExcluded) ? pot.fitExcluded[i] : null;
+        const exclText = exclReason ? ` | NOT in Cornell fit: ${exclReason}` : "";
         if (Number.isFinite(m) && Number.isFinite(e) && n > 0) {
-          vrRows.push(`R=${R}: V=${m.toFixed(6)} ± ${e.toFixed(6)} (n=${n}${pairText})`);
+          vrRows.push(`R=${R}: V=${m.toFixed(6)} ± ${e.toFixed(6)} (n=${n}${pairText})${exclText}`);
         } else {
           const reason = pairInfo?.plateauRef ? ` (${pairInfo.plateauRef})` : "";
           vrRows.push(`R=${R}: n/a${reason}`);
