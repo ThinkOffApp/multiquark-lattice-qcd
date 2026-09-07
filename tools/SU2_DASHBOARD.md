@@ -93,9 +93,12 @@ python3 applications/hmc/su2_2q_signal_scan.py \
   --out /path/to/multiquark-lattice-qcd/results/su2_signal_scan_v2
 ```
 
-`R=1` anchors the short-distance Coulomb part of the Cornell fit (it is
-dominated by lattice artifacts and self-energy, not the string tension);
-`R=5,7` fill the gaps the earlier run left as `n/a`.
+`R=1` is measured and shown but stays out of the Cornell fit: at one lattice
+spacing it is dominated by lattice artifacts and self-energy, and its tiny
+error would otherwise pin the continuum `-e/R` term (the dashboard fits
+`R >= 2`). Points whose `Veff(R,T)` plateau has not settled yet (the page
+labels them "all-pair fallback") are likewise drawn grey and left out until
+more statistics arrive; `R=5,7` fill the gaps the earlier run left as `n/a`.
 
 ## Exposing the dashboard beyond this machine
 

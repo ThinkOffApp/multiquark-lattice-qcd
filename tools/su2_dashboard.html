@@ -5724,6 +5724,9 @@
           plateauRef: "global pair",
         });
       }
+      // Legacy mode has no plateau stability flag, so only the R cutoff applies here;
+      // without a mask the Cornell fitters would keep R=1 (Codex review on PR #63).
+      const legacyFitMask = cornellFitMask(Rs, pairByR);
       return {
         t0: best.t0,
         t1: best.t1,
@@ -5735,6 +5738,8 @@
         validCount: best.validCount,
         totalN: best.totalN,
         pairByR,
+        fitMask: legacyFitMask,
+        fitExcluded: legacyFitMask.map((ok, i) => (ok ? null : cornellExclusionReason(Rs[i], pairByR[i]))),
         selection: "global_adjacent_pair",
       };
     }
