@@ -22,6 +22,7 @@ if BUILD_HDF5
 endif
 
 
+if BUILD_METAL
 all: version-cache Version.h WilsonKernels.metallib
 
 # Reproducible Metal compilation:
@@ -37,6 +38,10 @@ WilsonKernels.metallib: $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.meta
 	@echo "Compiling Metal shaders..."
 	xcrun -sdk macosx metal $(METAL_FLAGS) -c $(top_srcdir)/Grid/qcd/action/fermion/WilsonKernels.metal -o WilsonKernels.air
 	xcrun -sdk macosx metallib WilsonKernels.air -o default.metallib
+else
+all: version-cache Version.h
+endif
+
 
 version-cache:
 	@if [ `git status --porcelain | grep -v '??' | wc -l` -gt 0 ]; then\
