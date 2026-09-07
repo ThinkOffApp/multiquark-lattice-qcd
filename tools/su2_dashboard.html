@@ -7016,7 +7016,7 @@
       const url = new URL(withApiBase(path), window.location.origin);
       url.searchParams.set("_t", String(Date.now()));
       const token = (document.getElementById("authToken").value || "").trim();
-      if (token) url.searchParams.set("token", token);
+      // Sent as X-Auth-Token by the fetch callers, never in the URL (#37).
       if (isCombineEnabled()) url.searchParams.set("combine", "1");
       return { url: url.toString(), token };
     }
