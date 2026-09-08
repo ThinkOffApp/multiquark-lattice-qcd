@@ -4305,12 +4305,12 @@
           });
           chosen = stable[0];
         } else if (windows.length > 0) {
-          // No suffix looks stable yet: report the all-pair average so the point stays
-          // visible, but flag it `unstable` so the Cornell fit leaves it out. Averaging
-          // T=1,2 in carries excited states and biases V(R) high (seed 9101 at N=124:
-          // R=4 and R=8 sat on this fallback with chi2/dof 116 and 200 and pushed the
-          // Cornell fit to chi2/dof 50).
-          chosen = windows[0];
+          // No suffix passes the plateau test yet: report the LATEST-T window (the same
+          // suffix the settled R values use), never the all-pair average, because T=1,2
+          // carry excited states and bias V(R) high (seed 9101 at N=124: R=4 and R=8 sat
+          // on the all-pair average with chi2/dof 116 and 200 and pushed the Cornell fit
+          // to chi2/dof 50). The point stays visible, flagged `unstable`, out of the fit.
+          chosen = windows[windows.length - 1];
         }
 
         if (chosen) {
@@ -4332,7 +4332,7 @@
           }
           const tMin = Number(subset[0]?.t0);
           const tMax = Number(subset[subset.length - 1]?.t1);
-          const methodTag = stable.length > 0 ? "late-T stable suffix" : "all-pair fallback";
+          const methodTag = stable.length > 0 ? "late-T stable suffix" : "latest-T window, no plateau yet";
           return {
             mean: chosen.fit.A0,
             sem: chosen.sem,
@@ -4924,7 +4924,7 @@
     const CORNELL_MIN_R = 2;
     function cornellExclusionReason(R, info) {
       if (Number(R) < CORNELL_MIN_R) return `R<${CORNELL_MIN_R}: lattice Coulomb, not -e/R`;
-      if (info && info.unstable) return "no Veff plateau yet (all-pair fallback includes T=1,2)";
+      if (info && info.unstable) return "no Veff plateau yet (latest-T window, chi2/dof above 2.5)";
       return null;
     }
     function cornellFitMask(Rs, pairByR) {
@@ -5096,13 +5096,21 @@
     function computeForcePoints(pot) {
       const out = [];
       if (!pot || !Array.isArray(pot.Rs) || !Array.isArray(pot.means)) return out;
-      for (let i = 0; i + 1 < pot.Rs.length; i += 1) {
+      // Same point set as the Cornell fit: finite differences through an excluded point
+      // (R=1, or no plateau yet) would put the bias straight into F(R) and r0/r1.
+      const idx = [];
+      for (let i = 0; i < pot.Rs.length; i += 1) {
+        if (!Array.isArray(pot.fitMask) || pot.fitMask[i] !== false) idx.push(i);
+      }
+      for (let k = 0; k + 1 < idx.length; k += 1) {
+        const i = idx[k];
+        const j = idx[k + 1];
         const r0 = Number(pot.Rs[i]);
-        const r1 = Number(pot.Rs[i + 1]);
+        const r1 = Number(pot.Rs[j]);
         const v0 = Number(pot.means[i]);
-        const v1 = Number(pot.means[i + 1]);
+        const v1 = Number(pot.means[j]);
         const e0 = Number(pot.sems?.[i]);
-        const e1 = Number(pot.sems?.[i + 1]);
+        const e1 = Number(pot.sems?.[j]);
         const dR = r1 - r0;
         if (!(Number.isFinite(r0) && Number.isFinite(r1) && Number.isFinite(v0) && Number.isFinite(v1) && dR > 0)) continue;
         const R = 0.5 * (r0 + r1);
