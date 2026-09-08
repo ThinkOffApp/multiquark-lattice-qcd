@@ -5148,17 +5148,24 @@
         const d0 = p0.g - target;
         const d1 = p1.g - target;
         if (d0 === 0 || d1 === 0 || d0 * d1 < 0) {
-          const slope = (p1.g - p0.g) / (p1.r - p0.r);
+          // g = r^2 F is sigma*r^2 + e for a Cornell force, i.e. linear in r^2, not in r.
+          // Interpolating in r over a coarse bracket (R_mid 2.5 -> 5.5 at N=142) put r0 at
+          // 4.04 against 4.38 from the fitted curve, with an error bar blind to that bias.
+          const x0 = p0.r * p0.r;
+          const x1 = p1.r * p1.r;
+          const slope = (p1.g - p0.g) / (x1 - x0);
           if (!(Math.abs(slope) > 1e-12)) continue;
-          const r = p0.r + (target - p0.g) / slope;
-          const t = Math.max(0, Math.min(1, (r - p0.r) / Math.max(1e-12, p1.r - p0.r)));
+          const x = x0 + (target - p0.g) / slope;
+          if (!(x > 0)) continue;
+          const r = Math.sqrt(x);
+          const t = Math.max(0, Math.min(1, (x - x0) / Math.max(1e-12, x1 - x0)));
           const eg = Number.isFinite(p0.eg) && Number.isFinite(p1.eg)
             ? (1 - t) * p0.eg + t * p1.eg
             : NaN;
-          const err = Number.isFinite(eg) ? Math.abs(eg / slope) : NaN;
+          const err = Number.isFinite(eg) ? Math.abs(eg / slope) / (2 * r) : NaN;
           const quality = Math.abs(target - 0.5 * (p0.g + p1.g));
           if (!best || quality < best.quality) {
-            best = { value: r, err, quality, bracket: [p0.r, p1.r], points: pts.length };
+            best = { value: r, err, quality, bracket: [p0.r, p1.r], points: pts.length, coarse: (p1.r - p0.r) > 2 };
           }
         }
       }
@@ -6244,10 +6251,14 @@
       const r0Fit = sommerFromFit(1.65);
       const r1Fit = sommerFromFit(1.0);
 
-      const r0Fm = (hasAFm && r0Force && Number.isFinite(r0Force.value)) ? r0Force.value * aFm : NaN;
-      const r0FmErr = (hasAFm && r0Force && Number.isFinite(r0Force.err)) ? Math.abs(r0Force.err * aFm) : NaN;
-      const r1Fm = (hasAFm && r1Force && Number.isFinite(r1Force.value)) ? r1Force.value * aFm : NaN;
-      const r1FmErr = (hasAFm && r1Force && Number.isFinite(r1Force.err)) ? Math.abs(r1Force.err * aFm) : NaN;
+      // The quoted r0/r1 come from the fitted Cornell curve (analytic force sigma + e/R^2);
+      // the finite-difference values stay as a cross-check, they sit on a coarse R grid.
+      const r0Main = r0Fit || r0Force;
+      const r1Main = r1Fit || r1Force;
+      const r0Fm = (hasAFm && r0Main && Number.isFinite(r0Main.value)) ? r0Main.value * aFm : NaN;
+      const r0FmErr = (hasAFm && r0Main && Number.isFinite(r0Main.err)) ? Math.abs(r0Main.err * aFm) : NaN;
+      const r1Fm = (hasAFm && r1Main && Number.isFinite(r1Main.value)) ? r1Main.value * aFm : NaN;
+      const r1FmErr = (hasAFm && r1Main && Number.isFinite(r1Main.err)) ? Math.abs(r1Main.err * aFm) : NaN;
       const r0AgreementRaw = hasAFm ? classifyAgreementWithReference(r0Fm, r0FmErr, 0.50) : { level: "na", text: "n/a" };
       const r1AgreementRaw = hasAFm ? classifyAgreementWithReference(r1Fm, r1FmErr, 0.31) : { level: "na", text: "n/a" };
 
@@ -6336,17 +6347,17 @@
         },
         {
           param: "r₀/a",
-          lattice: r0Force ? fmtPM(r0Force.value, r0Force.err, 4) : "-",
+          lattice: r0Main ? fmtPM(r0Main.value, r0Main.err, 4) : "-",
           physical: hasAFm && Number.isFinite(r0Fm) ? `${fmtPM(r0Fm, r0FmErr, 4)} fm` : "set a(fm)",
-          reference: `r0^2 * F(r0) = 1.65, F=dV/dR${r0Fit ? ` | Cornell ${fmtPM(r0Fit.value, r0Fit.err, 4)}` : ""}`,
+          reference: `r0^2 * F(r0) = 1.65 on the Cornell curve${r0Force ? ` | finite-difference cross-check ${fmtPM(r0Force.value, r0Force.err, 4)}${r0Force.coarse ? " (coarse grid)" : ""}` : ""}`,
           agreementLevel: r0Agreement.level,
           agreementText: r0Agreement.text,
         },
         {
           param: "r₁/a",
-          lattice: r1Force ? fmtPM(r1Force.value, r1Force.err, 4) : "-",
+          lattice: r1Main ? fmtPM(r1Main.value, r1Main.err, 4) : "-",
           physical: hasAFm && Number.isFinite(r1Fm) ? `${fmtPM(r1Fm, r1FmErr, 4)} fm` : "set a(fm)",
-          reference: `r1^2 * F(r1) = 1.00, F=dV/dR${r1Fit ? ` | Cornell ${fmtPM(r1Fit.value, r1Fit.err, 4)}` : ""}`,
+          reference: `r1^2 * F(r1) = 1.00 on the Cornell curve${r1Force ? ` | finite-difference cross-check ${fmtPM(r1Force.value, r1Force.err, 4)}${r1Force.coarse ? " (coarse grid)" : ""}` : ""}`,
           agreementLevel: r1Agreement.level,
           agreementText: r1Agreement.text,
         },
@@ -6454,7 +6465,7 @@
       if (hasAFm && Number.isFinite(r0Fm) && Number.isFinite(r0FmErr)) {
         potentialCompareRows.push({
           domain: "Potential",
-          observable: "r0 from r0^2*F(r0)=1.65",
+          observable: "r0 from r0^2*F(r0)=1.65 (Cornell curve)",
           measured: `${fmtPM(r0Fm, r0FmErr, 4)} fm`,
           target: `${fmtPM(r0RefFm, r0RefFmErr, 4)} fm`,
           refs: ["sommer_1994", "necco_sommer_2002"],
@@ -6465,7 +6476,7 @@
       if (hasAFm && Number.isFinite(r1Fm) && Number.isFinite(r1FmErr)) {
         potentialCompareRows.push({
           domain: "Potential",
-          observable: "r1 from r1^2*F(r1)=1.00",
+          observable: "r1 from r1^2*F(r1)=1.00 (Cornell curve)",
           measured: `${fmtPM(r1Fm, r1FmErr, 4)} fm`,
           target: `${fmtPM(r1RefFm, r1RefFmErr, 4)} fm`,
           refs: ["bazavov_2010"],
