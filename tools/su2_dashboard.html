@@ -4793,14 +4793,18 @@
       }
     }
 
-    function classifyAgreementWithReference(value, err, reference) {
+    function classifyAgreementWithReference(value, err, reference, referenceErr = 0) {
       const v = Number(value);
       const e = Number(err);
       const r = Number(reference);
+      const re = Number.isFinite(Number(referenceErr)) ? Math.abs(Number(referenceErr)) : 0;
       if (!(Number.isFinite(v) && Number.isFinite(e) && e > 0 && Number.isFinite(r))) {
         return { level: "na", text: "n/a" };
       }
-      const consistentWithReference = Math.abs(v - r) <= (2.0 * e);
+      // Agreement is judged against the combined uncertainty; a reference quoted as
+      // 0.500 +- 0.020 fm cannot "disagree" with 0.521 +- 0.003 fm (that is 1 sigma).
+      const combined = Math.sqrt(e * e + re * re);
+      const consistentWithReference = Math.abs(v - r) <= (2.0 * combined);
       if (!consistentWithReference) {
         return { level: "red", text: "disagree" };
       }
@@ -6221,7 +6225,7 @@
         : NaN;
       const aSqrtSigmaRef = hasAFm ? (0.440 / aInvGeV) : NaN;
       const aSqrtSigmaAgreementRaw = hasAFm
-        ? classifyAgreementWithReference(aSqrtSigma, errASqrtSigma, aSqrtSigmaRef)
+        ? classifyAgreementWithReference(aSqrtSigma, errASqrtSigma, aSqrtSigmaRef, aSqrtSigmaRef * (0.020 / 0.440))
         : { level: "na", text: "n/a" };
 
       const forcePts = computeForcePoints(pot);
@@ -6259,8 +6263,8 @@
       const r0FmErr = (hasAFm && r0Main && Number.isFinite(r0Main.err)) ? Math.abs(r0Main.err * aFm) : NaN;
       const r1Fm = (hasAFm && r1Main && Number.isFinite(r1Main.value)) ? r1Main.value * aFm : NaN;
       const r1FmErr = (hasAFm && r1Main && Number.isFinite(r1Main.err)) ? Math.abs(r1Main.err * aFm) : NaN;
-      const r0AgreementRaw = hasAFm ? classifyAgreementWithReference(r0Fm, r0FmErr, 0.50) : { level: "na", text: "n/a" };
-      const r1AgreementRaw = hasAFm ? classifyAgreementWithReference(r1Fm, r1FmErr, 0.31) : { level: "na", text: "n/a" };
+      const r0AgreementRaw = hasAFm ? classifyAgreementWithReference(r0Fm, r0FmErr, r0RefFm, r0RefFmErr) : { level: "na", text: "n/a" };
+      const r1AgreementRaw = hasAFm ? classifyAgreementWithReference(r1Fm, r1FmErr, r1RefFm, r1RefFmErr) : { level: "na", text: "n/a" };
 
       const sigmaAgreement = softenAgreementForUnstablePotential(sigmaAgreementRaw, potentialStability);
       const sqrtSigmaAgreement = softenAgreementForUnstablePotential(sqrtSigmaAgreementRaw, potentialStability);
