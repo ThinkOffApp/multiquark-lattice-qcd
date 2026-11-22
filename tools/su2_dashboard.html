@@ -7421,10 +7421,69 @@
         sendChat();
       }
     });
+    let runPickerRequestId = 0;
+    async function loadRunPicker() {
+      const requestId = ++runPickerRequestId;
+      const sel = document.getElementById("runPicker");
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "manual paths below";
+      sel.replaceChildren(placeholder);
+
+        try {
+          const token = (document.getElementById("authToken").value || "").trim();
+          const resp = await fetch(withApiBase("/api/runs"), {
+            headers: token ? { "X-Auth-Token": token } : {},
+          });
+          if (requestId !== runPickerRequestId) return;
+          if (!resp.ok) {
+            placeholder.textContent = resp.status === 401 ? "token needed" : "runs unavailable — manual paths below";
+            return;
+          }
+          const data = await resp.json();
+          if (requestId !== runPickerRequestId) return;
+          const current = document.getElementById("progressPath").value.trim();
+          for (const r of data.runs || []) {
+            const o = document.createElement("option");
+            o.value = JSON.stringify({ p: r.progress, l: r.live });
+            o.textContent = r.label;
+            if (r.progress === current) o.selected = true;
+            sel.appendChild(o);
+          }
+          // No run named in the URL and the default progress path missing on
+          // this server -> auto-select the newest run instead of a blank page.
+          const urlParams = new URLSearchParams(window.location.search);
+          if (!urlParams.get("seed") && !urlParams.get("progress")) {
+            let defaultOk = false;
+            try {
+              const head = await fetch(normalizePath(current), { method: "HEAD" });
+              defaultOk = head.ok;
+            } catch (e) { defaultOk = false; }
+            const runs = (data.runs || [])
+              .filter((r) => r && r.progress)
+              .sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0));
+            if (requestId !== runPickerRequestId) return;
+            if (!defaultOk && runs.length > 0) {
+              const newest = runs[0];
+              document.getElementById("progressPath").value = newest.progress;
+              if (newest.live) document.getElementById("livePath").value = newest.live;
+              for (const o of sel.options) {
+                try { o.selected = JSON.parse(o.value || "{}").p === newest.progress; } catch (e) { /* keep */ }
+              }
+              document.getElementById("reloadBtn").click();
+            }
+          }
+        } catch (e) {
+          if (requestId === runPickerRequestId) placeholder.textContent = "runs unavailable — manual paths below";
+        }
+    }
+
     document.getElementById("authToken").addEventListener("change", () => {
+      loadRunPicker();
       if (!paused) startStream();
     });
     document.getElementById("apiBase").addEventListener("change", () => {
+      loadRunPicker();
       if (!paused) {
         refresh();
         startStream();
@@ -7547,46 +7606,7 @@
           document.getElementById("reloadBtn").click();
         } catch (e) { /* ignore malformed option */ }
       });
-      (async () => {
-        try {
-          const token = (document.getElementById("authToken").value || "").trim();
-          const resp = await fetch(withApiBase("/api/runs"), {
-            headers: token ? { "X-Auth-Token": token } : {},
-          });
-          if (!resp.ok) return;
-          const data = await resp.json();
-          const current = document.getElementById("progressPath").value.trim();
-          for (const r of data.runs || []) {
-            const o = document.createElement("option");
-            o.value = JSON.stringify({ p: r.progress, l: r.live });
-            o.textContent = r.label;
-            if (r.progress === current) o.selected = true;
-            sel.appendChild(o);
-          }
-          // No run named in the URL and the default progress path missing on
-          // this server -> auto-select the newest run instead of a blank page.
-          const urlParams = new URLSearchParams(window.location.search);
-          if (!urlParams.get("seed") && !urlParams.get("progress")) {
-            let defaultOk = false;
-            try {
-              const head = await fetch(normalizePath(current), { method: "HEAD" });
-              defaultOk = head.ok;
-            } catch (e) { defaultOk = false; }
-            const runs = (data.runs || [])
-              .filter((r) => r && r.progress)
-              .sort((a, b) => Number(b.mtime || 0) - Number(a.mtime || 0));
-            if (!defaultOk && runs.length > 0) {
-              const newest = runs[0];
-              document.getElementById("progressPath").value = newest.progress;
-              if (newest.live) document.getElementById("livePath").value = newest.live;
-              for (const o of sel.options) {
-                try { o.selected = JSON.parse(o.value || "{}").p === newest.progress; } catch (e) { /* keep */ }
-              }
-              document.getElementById("reloadBtn").click();
-            }
-          }
-        } catch (e) { /* picker is optional; manual paths still work */ }
-      })();
+      loadRunPicker();
     })();
   </script>
 </body>
