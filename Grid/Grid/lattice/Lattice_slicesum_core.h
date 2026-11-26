@@ -4,6 +4,13 @@
 
 #include <cub/cub.cuh>
 #define gpucub cub
+// CCCL 3 (CUDA 13) removed cub::Sum; the reduction functor is cuda::std::plus<> (2026-09-16, DGX Spark build)
+#if defined(CCCL_MAJOR_VERSION) && (CCCL_MAJOR_VERSION >= 3)
+#include <cuda/std/functional>
+#define gpucubSum ::cuda::std::plus<>
+#else
+#define gpucubSum ::cub::Sum
+#endif
 #define gpuError_t cudaError_t
 #define gpuSuccess cudaSuccess
 
@@ -11,6 +18,7 @@
 
 #include <hipcub/hipcub.hpp>
 #define gpucub hipcub
+#define gpucubSum ::hipcub::Sum
 #define gpuError_t hipError_t
 #define gpuSuccess hipSuccess
 
@@ -58,7 +66,7 @@ inline void sliceSumReduction_cub_small(const vobj *Data,
   acceleratorCopyToDeviceAsynch(&offsets[0],d_offsets,sizeof(int)*(rd+1),computeStream);
   
   
-  gpuError_t gpuErr = gpucub::DeviceSegmentedReduce::Reduce(temp_storage_array, temp_storage_bytes, rb_p,d_out, rd, d_offsets, d_offsets+1, ::gpucub::Sum(), zero_init, computeStream);
+  gpuError_t gpuErr = gpucub::DeviceSegmentedReduce::Reduce(temp_storage_array, temp_storage_bytes, rb_p,d_out, rd, d_offsets, d_offsets+1, gpucubSum(), zero_init, computeStream);
   if (gpuErr!=gpuSuccess) {
     std::cout << GridLogError << "Lattice_slicesum_gpu.h: Encountered error during gpucub::DeviceSegmentedReduce::Reduce (setup)! Error: " << gpuErr <<std::endl;
     exit(EXIT_FAILURE);
@@ -82,7 +90,7 @@ inline void sliceSumReduction_cub_small(const vobj *Data,
   });
   
   //issue segmented reductions in computeStream
-  gpuErr = gpucub::DeviceSegmentedReduce::Reduce(temp_storage_array, temp_storage_bytes, rb_p, d_out, rd, d_offsets, d_offsets+1,::gpucub::Sum(), zero_init, computeStream);
+  gpuErr = gpucub::DeviceSegmentedReduce::Reduce(temp_storage_array, temp_storage_bytes, rb_p, d_out, rd, d_offsets, d_offsets+1,gpucubSum(), zero_init, computeStream);
   if (gpuErr!=gpuSuccess) {
     std::cout << GridLogError << "Lattice_slicesum_gpu.h: Encountered error during gpucub::DeviceSegmentedReduce::Reduce! Error: " << gpuErr <<std::endl;
     exit(EXIT_FAILURE);
